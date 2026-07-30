@@ -1667,6 +1667,51 @@ Area Calculator · Land Formula · মুসলিম উত্তরাধি�
 
 ---
 
+## ৭খ. পাবলিশ — GitHub Pages (৩০ জুলাই ২০২৬)
+
+git দুই ভাগে ভাগ করা, কারণ `main` এ এমন জিনিস আছে যা **পাবলিক করা যাবে না**।
+
+| ব্রাঞ্চ | ফোল্ডার | কী | push |
+|---|---|---|---|
+| `main` | `e:\AI Project\Land_info` | সব (৮০ MB) — `research/` ও `compat/` সহ | ❌ **কখনো নয়** |
+| `pages` | `e:\AI Project\Land_info-pages` (worktree) | শুধু সাইট (৩১ MB, ১,০৩৩ ফাইল) | ✅ পাবলিক |
+
+পাবলিক রিপো **`ronedata/land-info`** → <https://ronedata.github.io/land-info/>
+
+**`main` কেন পাবলিক নয়:** `research/bdlandpro/raw-spec3.json` এ লগইন অবস্থায় স্ক্র্যাপ
+করা পেজ টেক্সট আছে — নাম, ইমেইল, **ফোন নম্বর**। সাথে প্রতিযোগীর ৩৭টি পেইড স্ক্রিনশট।
+তাই `git config branch.main.pushRemote` এ ভুয়া মান বসানো — `main` এ push ব্যর্থ হবে।
+**এই সেটিং সরাবে না।**
+
+**`pages` এ যা আছে:** `index.html` · `css/` · `js/` ·
+`data/mouza-map/{tree.json, files/}` · `.nojekyll` · `README.md` · `LICENSE` (MIT)
+
+**যা ইচ্ছাকৃতভাবে বাদ:** `compat/` (৪৫ MB — **সাইট ব্যবহারই করে না**, ওটা
+`ronedata/map` রিপোর জন্য) · `research/` · `tests/` · `PROGRESS.md` · `*.py`
+
+**সাইট আপডেট করার নিয়ম:**
+```bash
+# ১. main এ কাজ ও কমিট (সবসময় এখানেই)
+# ২. পরিবর্তিত ফাইল pages worktree এ কপি
+cp index.html "e:/AI Project/Land_info-pages/"      # যা বদলেছে
+# ৩. pages এ কমিট ও push
+cd "e:/AI Project/Land_info-pages" && git add -A && git commit && git push
+```
+
+**Pages এর জন্য যা মনে রাখতে হবে:**
+- `.nojekyll` **অপরিহার্য** — নইলে Jekyll ১,০১২টা JSON শার্ড প্রসেস করতে চায়
+- সব পাথ **relative** রাখতে হবে (`MouzaMap.BASE = 'data/mouza-map/'`),
+  নইলে `/land-info/` সাবপাথে ভাঙবে
+- Linux সার্ভার **case-sensitive** — ফাইলনামের বড়/ছোট হাতের অক্ষর হুবহু মিলতে হবে
+- Apps Script প্রক্সি URL `js/mouza-map.js` এ পাবলিক হয়ে যায় (সাইট হোস্ট করলে
+  যেকোনো ভিজিটরই পায়) — যে কেউ ডেকে কোটা খরচ করতে পারবে
+
+**যাচাই করা (হেডলেস ক্রোমে, সাবপাথে):** `AppController.init()` সফল ·
+১৮ টুল কার্ড · ৩৩ উত্তরাধিকারীর সারি · ২ modal · `tree.json` HTTP ২০০ (৮ বিভাগ) ·
+**কোনো console ত্রুটি নেই**
+
+---
+
 ## ৮. নতুন চ্যাটের জন্য দ্রুত নির্দেশনা
 
 ```
