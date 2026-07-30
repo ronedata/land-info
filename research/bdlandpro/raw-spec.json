@@ -1,0 +1,1089 @@
+{
+ "area-calculator": {
+  "base": {
+   "title": "ক্ষেত্রফল/অজানাবাহু - BDLandPro.comBDLandPro.com",
+   "heads": [
+    "জমির আকৃতি নির্বাচন করুন"
+   ],
+   "fields": [],
+   "buttons": [
+    "অ্যাকাউন্ট",
+    "EN",
+    "Install App",
+    "টেলিগ্রাম প্রাইভেট",
+    "Dark Mode",
+    "Language EN"
+   ],
+   "notes": [
+    "(KMZ file for Google Earth)",
+    "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+    "(এক ক্লিকে সকল মালিকের হিসাব)",
+    "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+    "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+   ],
+   "tables": [],
+   "canvas": [],
+   "fileInputs": [],
+   "usesMap": false
+  },
+  "shots": [
+   "area-00-shapes.png"
+  ],
+  "shapes": []
+ },
+ "quadmaster": {
+  "steps": [
+   {
+    "step": 1,
+    "clicked": "১. বাহু পরিমাপ",
+    "shot": "quad-1.png",
+    "heads": [
+     "QuadMaster",
+     "চার বাহুর পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/text",
+      "id": "valN",
+      "name": "",
+      "label": "উত্তর বাহু (N)",
+      "ph": "০.০",
+      "val": "১০০",
+      "unit": "১০০'"
+     },
+     {
+      "kind": "input/text",
+      "id": "valS",
+      "name": "",
+      "label": "দক্ষিণ বাহু (S)",
+      "ph": "০.০",
+      "val": "১০০",
+      "unit": "১০০'"
+     },
+     {
+      "kind": "input/text",
+      "id": "valE",
+      "name": "",
+      "label": "পূর্ব বাহু (E)",
+      "ph": "০.০",
+      "val": "৮০",
+      "unit": "৮০'"
+     },
+     {
+      "kind": "input/text",
+      "id": "valW",
+      "name": "",
+      "label": "পশ্চিম বাহু (W)",
+      "ph": "০.০",
+      "val": "৮০",
+      "unit": "৮০'"
+     }
+    ],
+    "notes": [],
+    "buttons": [
+     "১. বাহু পরিমাপ",
+     "২. কর্ণ/কোণ",
+     "৩. ক্ষেত্রফল",
+     "৪. বন্টন ও রাস্তা",
+     "৫. রিপোর্ট",
+     "X-কর্ণ",
+     "Y-কর্ণ",
+     "কোণ",
+     "নাম/ক্ষেত্রফল",
+     "সেটিংস",
+     "ফিট",
+     "পরবর্তী ধাপ"
+    ],
+    "tables": [],
+    "canvas": [
+     "812x440"
+    ]
+   },
+   {
+    "step": 2,
+    "clicked": "২. কর্ণ/কোণ",
+    "shot": "quad-2.png",
+    "heads": [
+     "QuadMaster",
+     "কর্ণ বা কোণ নির্ধারণ"
+    ],
+    "fields": [
+     {
+      "kind": "input/text",
+      "id": "diagInputVal",
+      "name": "",
+      "label": "",
+      "ph": "কর্ণের মাপ দিন",
+      "val": "",
+      "unit": ""
+     }
+    ],
+    "notes": [],
+    "buttons": [
+     "১. বাহু পরিমাপ",
+     "২. কর্ণ/কোণ",
+     "৩. ক্ষেত্রফল",
+     "৪. বন্টন ও রাস্তা",
+     "৫. রিপোর্ট",
+     "X-কর্ণ",
+     "Y-কর্ণ",
+     "কোণ",
+     "নাম/ক্ষেত্রফল",
+     "সেটিংস",
+     "ফিট",
+     "কর্ণ পদ্ধতি",
+     "কোণ পদ্ধতি",
+     "X কর্ণ (AC)",
+     "Y কর্ণ (BD)",
+     "কর্ণ মাপা সম্ভব নয়? (টাই-লাইন)",
+     "পরবর্তী — ক্ষেত্রফল"
+    ],
+    "tables": [],
+    "canvas": [
+     "812x440"
+    ]
+   },
+   {
+    "step": 3,
+    "clicked": "৩. ক্ষেত্রফল",
+    "shot": "quad-3.png",
+    "heads": [
+     "QuadMaster",
+     "ক্ষেত্রফল ও ফলাফল"
+    ],
+    "fields": [],
+    "notes": [],
+    "buttons": [
+     "১. বাহু পরিমাপ",
+     "২. কর্ণ/কোণ",
+     "৩. ক্ষেত্রফল",
+     "৪. বন্টন ও রাস্তা",
+     "৫. রিপোর্ট",
+     "X-কর্ণ",
+     "Y-কর্ণ",
+     "কোণ",
+     "নাম/ক্ষেত্রফল",
+     "সেটিংস",
+     "ফিট",
+     "বন্টন করুন",
+     "রিপোর্ট"
+    ],
+    "tables": [],
+    "canvas": [
+     "812x440"
+    ]
+   },
+   {
+    "step": 4,
+    "clicked": "৪. বন্টন ও রাস্তা",
+    "shot": "quad-4.png",
+    "heads": [
+     "QuadMaster",
+     "বন্টন প্যানেল",
+     "অংশীদারদের পরিমাণ",
+     "বিভাজনের বিস্তারিত বিবরণী"
+    ],
+    "fields": [
+     {
+      "kind": "select/select-one",
+      "id": "simpleDivDirection",
+      "name": "",
+      "label": "কোন দিক থেকে বন্টন শুরু করবেন?",
+      "ph": "",
+      "val": "N",
+      "unit": "",
+      "opts": [
+       "উত্তর দিক থেকে (উপর থেকে নিচে)",
+       "দক্ষিণ দিক থেকে (নিচ থেকে উপরে)",
+       "পূর্ব দিক থেকে (ডান থেকে বামে)",
+       "পশ্চিম দিক থেকে (বাম থেকে ডানে)"
+      ]
+     },
+     {
+      "kind": "input/number",
+      "id": "simpleDivPartsCount",
+      "name": "",
+      "label": "কত ভাগ করতে চান?",
+      "ph": "",
+      "val": "2",
+      "unit": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "name": "",
+      "label": "",
+      "ph": "",
+      "val": "প্লট ১",
+      "unit": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "name": "",
+      "label": "",
+      "ph": "",
+      "val": "৫০.০০",
+      "unit": "%"
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "name": "",
+      "label": "",
+      "ph": "",
+      "val": "প্লট ২",
+      "unit": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "name": "",
+      "label": "",
+      "ph": "",
+      "val": "৫০.০০",
+      "unit": "%"
+     }
+    ],
+    "notes": [],
+    "buttons": [
+     "১. বাহু পরিমাপ",
+     "২. কর্ণ/কোণ",
+     "৩. ক্ষেত্রফল",
+     "৪. বন্টন ও রাস্তা",
+     "৫. রিপোর্ট",
+     "X-কর্ণ",
+     "Y-কর্ণ",
+     "কোণ",
+     "নাম/ক্ষেত্রফল",
+     "সেটিংস",
+     "ফিট",
+     "ভাগের ঘর তৈরি করুন"
+    ],
+    "tables": [
+     {
+      "head": [
+       "দিক/বাহু",
+       "পরিমাপ (ফুট)"
+      ],
+      "rows": [
+       [
+        "দিক/বাহু",
+        "পরিমাপ (ফুট)"
+       ],
+       [
+        "উত্তর (N)",
+        "১০০'"
+       ],
+       [
+        "পূর্ব (E)",
+        "৫০'"
+       ],
+       [
+        "দক্ষিণ (S)",
+        "১০০'"
+       ],
+       [
+        "পশ্চিম (W)",
+        "৫০'"
+       ],
+       [
+        "কর্ণ-১ (X)",
+        "১১১'১০\""
+       ]
+      ]
+     },
+     {
+      "head": [
+       "বিন্দু",
+       "কো-অর্ডিনেট (X, Y)"
+      ],
+      "rows": [
+       [
+        "বিন্দু",
+        "কো-অর্ডিনেট (X, Y)"
+       ],
+       [
+        "P১",
+        "0.00, 0.00"
+       ],
+       [
+        "P২",
+        "100.00, 0.00"
+       ],
+       [
+        "P৩",
+        "100.00, 50.00"
+       ],
+       [
+        "P৪",
+        "0.00, 50.00"
+       ]
+      ]
+     },
+     {
+      "head": [
+       "দিক/বাহু",
+       "পরিমাপ (ফুট)"
+      ],
+      "rows": [
+       [
+        "দিক/বাহু",
+        "পরিমাপ (ফুট)"
+       ],
+       [
+        "উত্তর (N)",
+        "১০০'"
+       ],
+       [
+        "পূর্ব (E)",
+        "৫০'"
+       ],
+       [
+        "দক্ষিণ (S)",
+        "১০০'"
+       ],
+       [
+        "পশ্চিম (W)",
+        "৫০'"
+       ],
+       [
+        "কর্ণ-১ (X)",
+        "১১১'১০\""
+       ]
+      ]
+     },
+     {
+      "head": [
+       "বিন্দু",
+       "কো-অর্ডিনেট (X, Y)"
+      ],
+      "rows": [
+       [
+        "বিন্দু",
+        "কো-অর্ডিনেট (X, Y)"
+       ],
+       [
+        "P১",
+        "0.00, 50.00"
+       ],
+       [
+        "P২",
+        "100.00, 50.00"
+       ],
+       [
+        "P৩",
+        "100.00, 100.00"
+       ],
+       [
+        "P৪",
+        "0.00, 100.00"
+       ]
+      ]
+     }
+    ],
+    "canvas": [
+     "812x440"
+    ]
+   },
+   {
+    "step": 5,
+    "clicked": "৫. রিপোর্ট",
+    "shot": "quad-5.png",
+    "heads": [
+     "QuadMaster",
+     "রিপোর্ট"
+    ],
+    "fields": [],
+    "notes": [],
+    "buttons": [
+     "১. বাহু পরিমাপ",
+     "২. কর্ণ/কোণ",
+     "৩. ক্ষেত্রফল",
+     "৪. বন্টন ও রাস্তা",
+     "৫. রিপোর্ট",
+     "X-কর্ণ",
+     "Y-কর্ণ",
+     "কোণ",
+     "নাম/ক্ষেত্রফল",
+     "সেটিংস",
+     "ফিট",
+     "মূল প্লট রিপোর্ট",
+     "ইনস্ট্যান্ট রিপোর্ট (PDF)"
+    ],
+    "tables": [],
+    "canvas": [
+     "812x440"
+    ]
+   }
+  ]
+ },
+ "land-subdivision": {
+  "modes": [
+   {
+    "mode": "চতুর্ভুজ",
+    "shot": "subdiv-quad.png",
+    "url": "https://bdlandpro.com/land-subdivision/",
+    "heads": [
+     "জমির ভাগ বন্টন"
+    ],
+    "fields": [],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ],
+    "buttons": [
+     "অ্যাকাউন্ট",
+     "EN",
+     "Install App",
+     "টেলিগ্রাম প্রাইভেট",
+     "Dark Mode",
+     "Language EN"
+    ],
+    "canvas": []
+   },
+   {
+    "mode": "ত্রিভুজ",
+    "shot": "subdiv-tri.png",
+    "url": "https://bdlandpro.com/land-subdivision/",
+    "heads": [
+     "জমির ভাগ বন্টন"
+    ],
+    "fields": [],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ],
+    "buttons": [
+     "অ্যাকাউন্ট",
+     "EN",
+     "Install App",
+     "টেলিগ্রাম প্রাইভেট",
+     "Dark Mode",
+     "Language EN"
+    ],
+    "canvas": []
+   }
+  ]
+ },
+ "land-measurement": {
+  "title": "জমি পরিমাপ (যেকোনো আকৃতি) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "জমির আকৃতি আঁকুন",
+   "প্রথমে জমি আঁকুন"
+  ],
+  "fields": [],
+  "buttons": [
+   "অ্যাকাউন্ট",
+   "EN",
+   "Install App",
+   "টেলিগ্রাম প্রাইভেট",
+   "Dark Mode",
+   "Language EN",
+   "পরিমাপ ধাপে যান"
+  ],
+  "notes": [
+   "(KMZ file for Google Earth)",
+   "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+   "(এক ক্লিকে সকল মালিকের হিসাব)",
+   "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+   "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)",
+   "ক্যানভাসে ক্লিক করে জমির কোণাগুলো বসান। আঁকা শেষ হলে 'পরিমাপ ধাপে যান' এ ক্লিক করুন।"
+  ],
+  "tables": [],
+  "canvas": [
+   "703x534"
+  ],
+  "fileInputs": [
+   "image/*"
+  ],
+  "usesMap": false,
+  "shots": [
+   "land-measurement.png"
+  ],
+  "url": "https://bdlandpro.com/land-measurement/"
+ },
+ "measure-basics": {
+  "title": "মৌজা ম্যাপে জমি পরিমাপ ও ভাগবন্টন (Basics Measure) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "ম্যাপ এলাকা নির্বাচন করুন",
+   "Basics Measure"
+  ],
+  "fields": [],
+  "buttons": [
+   "সম্পূর্ণ ছবি",
+   "বাতিল",
+   "পরবর্তী →",
+   "ম্যাপ নিন",
+   "আঁকুন",
+   "পয়েন্ট",
+   "প্যান",
+   "লাইন",
+   "বৃত্ত",
+   "টেক্সট",
+   "নির্বাচন",
+   "শেষ করুন"
+  ],
+  "notes": [
+   "নীল কোণগুলো ড্র্যাগ করে নির্বাচিত এলাকা সামঞ্জস্য করুন। কিনারার সাদা অংশ বাদ দিন।",
+   "ডানদিকের \"ম্যাপ নিন\" বাটনে চাপ দিয়ে মৌজা ম্যাপ বা ছবি আপলোড করুন",
+   "অথবা আর্কাইভ থেকে মৌজা ম্যাপ বেছে নিন:"
+  ],
+  "tables": [],
+  "canvas": [
+   "1440x1050",
+   "1440x1050"
+  ],
+  "fileInputs": [
+   "image/*,application/pdf,image/tiff,.tif,.tiff",
+   ".ktb,.zip"
+  ],
+  "usesMap": true,
+  "shots": [
+   "measure-basics.png"
+  ],
+  "url": "https://bdlandpro.com/measure-basics/"
+ },
+ "map-joint": {
+  "title": "ম্যাপ জয়েন্ট (সিট জয়েন করুন) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "ম্যাপ জয়েন্ট প্রো",
+   "প্রপার্টিজ",
+   "পজিশন ও সাইজ",
+   "ক্লিনআপ ও কালার"
+  ],
+  "fields": [
+   {
+    "kind": "input/radio",
+    "id": "",
+    "name": "tool_mode",
+    "label": "ম্যাপ",
+    "ph": "",
+    "val": "move_map",
+    "unit": ""
+   },
+   {
+    "kind": "input/radio",
+    "id": "",
+    "name": "tool_mode",
+    "label": "প্যান",
+    "ph": "",
+    "val": "pan_canvas",
+    "unit": ""
+   },
+   {
+    "kind": "input/radio",
+    "id": "",
+    "name": "tool_mode",
+    "label": "ইরেজ",
+    "ph": "",
+    "val": "erase_map",
+    "unit": ""
+   },
+   {
+    "kind": "input/radio",
+    "id": "",
+    "name": "tool_mode",
+    "label": "টেক্সট",
+    "ph": "",
+    "val": "add_text",
+    "unit": ""
+   },
+   {
+    "kind": "input/radio",
+    "id": "",
+    "name": "tool_mode",
+    "label": "সিলেক্ট",
+    "ph": "",
+    "val": "select_area",
+    "unit": ""
+   },
+   {
+    "kind": "input/range",
+    "id": "ctrl-opacity",
+    "name": "",
+    "label": "স্বচ্ছতা (Opacity)১০০%",
+    "ph": "",
+    "val": "100",
+    "unit": ""
+   },
+   {
+    "kind": "input/range",
+    "id": "ctrl-scale",
+    "name": "",
+    "label": "কতগুণ বড়/ছোট করবেন",
+    "ph": "",
+    "val": "1",
+    "unit": ""
+   },
+   {
+    "kind": "select/select-one",
+    "id": "mj-mult-factor",
+    "name": "",
+    "label": "কতগুণ বড়/ছোট করবেন",
+    "ph": "",
+    "val": "2",
+    "unit": "",
+    "opts": [
+     "২x",
+     "৩x",
+     "৪x",
+     "৫x",
+     "৬x"
+    ]
+   },
+   {
+    "kind": "input/checkbox",
+    "id": "ctrl-remove-bg",
+    "name": "",
+    "label": "সাদা ব্যাকগ্রাউন্ড মুছুন",
+    "ph": "",
+    "val": "on",
+    "unit": "সাদা ব্যাকগ্রাউন্ড ম"
+   },
+   {
+    "kind": "input/range",
+    "id": "ctrl-threshold",
+    "name": "",
+    "label": "সাদাকালো মাত্রা (Threshold) ১২৯",
+    "ph": "",
+    "val": "129",
+    "unit": ""
+   },
+   {
+    "kind": "input/color",
+    "id": "ctrl-color",
+    "name": "",
+    "label": "",
+    "ph": "",
+    "val": "#000000",
+    "unit": ""
+   }
+  ],
+  "buttons": [
+   "আনবাইন্ড",
+   "পয়েন্ট জয়েন্ট",
+   "- সুক্ষ্ম",
+   "+ সুক্ষ্ম",
+   "বড় করুন (×)",
+   "ছোট করুন (÷)",
+   "- ৯০°",
+   "+ ৯০°",
+   "−১০",
+   "− সুক্ষ্ম",
+   "+১০",
+   "নতুন সিট যুক্ত করুন",
+   "স্কেল বড়ো ছোট করুন",
+   "ফাইল দিন"
+  ],
+  "notes": [],
+  "tables": [],
+  "canvas": [
+   "300x150"
+  ],
+  "fileInputs": [
+   ".pdf, .png, .jpg, .jpeg, .jps, .tif, .tiff, image/png, image/jpeg, image/tiff",
+   ".mapjoint, .zip"
+  ],
+  "usesMap": false,
+  "shots": [
+   "map-joint.png"
+  ],
+  "url": "https://bdlandpro.com/map-joint/"
+ },
+ "mouza-map": {
+  "title": "সারাদেশের সকল মৌজা ম্যাপ - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "মৌজা ম্যাপ",
+   "সারাদেশ (সোর্স ১)",
+   "মৌজা ম্যাপ আর্কাইভ"
+  ],
+  "fields": [
+   {
+    "kind": "input/text",
+    "id": "search-input",
+    "name": "",
+    "label": "",
+    "ph": "ফাইল খুঁজুন...",
+    "val": "",
+    "unit": ""
+   }
+  ],
+  "buttons": [
+   "মৌজা ম্যাপ",
+   "প্রীয় ম্যাপ",
+   "সোর্স ১",
+   "সোর্স ২",
+   "সোর্স ৩",
+   "মৌজা ম্যাপ খুঁজে পাচ্ছেন না?",
+   "টেলিগ্রাম প্রাইভেট"
+  ],
+  "notes": [
+   "এখানে আপনি আপনার প্রয়োজনীয় সকল মৌজা ম্যাপ এবং ফাইলগুলো দেখতে ও ডাউনলোড করতে পারবেন।"
+  ],
+  "tables": [],
+  "canvas": [],
+  "fileInputs": [],
+  "usesMap": false,
+  "shots": [
+   "mouza-map.png"
+  ],
+  "url": "https://bdlandpro.com/mouza-map/?path=source1"
+ },
+ "mouza-map-on-google-map": {
+  "title": "গুগল ম্যাপে জমির দাগ নির্ধারণ (KMZ file for Google Earth) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "গুগল ম্যাপ ফাইল এক্সপোর্ট",
+   "মৌজা ম্যাপ সিলেক্ট করুন",
+   "মৌজা ম্যাপ আপলোড করুন"
+  ],
+  "fields": [],
+  "buttons": [],
+  "notes": [
+   "মৌজা ম্যাপকে Google Maps স্যাটেলাইট ভিউয়ের সাথে ক্যালিব্রেট করে KMZ ফাইল তৈরি করুন। কমপক্ষে দুটি নিয়ন্ত্রণ বিন্দু ব্যবহার করে ম্যাপটি সঠিক অবস্থানে বসানো হবে।",
+   "আর্কাইভ থেকে মৌজা ম্যাপ বেছে নিন",
+   "ছবি বা PDF ফাইল আপলোড করুন"
+  ],
+  "tables": [],
+  "canvas": [],
+  "fileInputs": [
+   "image/*,application/pdf"
+  ],
+  "usesMap": true,
+  "shots": [
+   "mouza-map-on-google-ma.png"
+  ],
+  "url": "https://bdlandpro.com/mouza-map-on-google-map/"
+ },
+ "pdf-to-jpg": {
+  "title": "Map Converter + Cleaner (ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "PDF/JPG Converter + Cleaner",
+   "পিডিএফ ফাইলটি এখানে আনুন বা ক্লিক করুন"
+  ],
+  "fields": [
+   {
+    "kind": "select/select-one",
+    "id": "in-type",
+    "name": "",
+    "label": "",
+    "ph": "",
+    "val": "pdf",
+    "unit": "TO",
+    "opts": [
+     "PDF",
+     "JPG/PNG"
+    ]
+   },
+   {
+    "kind": "select/select-one",
+    "id": "out-type",
+    "name": "",
+    "label": "TO",
+    "ph": "",
+    "val": "jpg",
+    "unit": "",
+    "opts": [
+     "JPG",
+     "PDF"
+    ]
+   },
+   {
+    "kind": "select/select-one",
+    "id": "dpi-select",
+    "name": "",
+    "label": "রেজোলিউশন (DPI)",
+    "ph": "",
+    "val": "300",
+    "unit": "",
+    "opts": [
+     "১৫০ DPI (সাধারণ)",
+     "৩০০ DPI (স্ট্যান্ডার্ড)",
+     "৪০০ DPI (সর্বোচ্চ কোয়ালিটি)"
+    ]
+   },
+   {
+    "kind": "input/checkbox",
+    "id": "cleaner-toggle",
+    "name": "toggle",
+    "label": "ম্যাপ পরিষ্কার করুন",
+    "ph": "",
+    "val": "on",
+    "unit": ""
+   }
+  ],
+  "buttons": [
+   "অ্যাকাউন্ট",
+   "EN",
+   "Install App",
+   "টেলিগ্রাম প্রাইভেট",
+   "Dark Mode",
+   "Language EN"
+  ],
+  "notes": [
+   "(KMZ file for Google Earth)",
+   "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+   "(এক ক্লিকে সকল মালিকের হিসাব)",
+   "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+   "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)",
+   "ম্যাপের ১০০% CAD স্কেল ও মেটাডেটা সুরক্ষিত"
+  ],
+  "tables": [],
+  "canvas": [
+   "300x150"
+  ],
+  "fileInputs": [
+   "application/pdf"
+  ],
+  "usesMap": false,
+  "shots": [
+   "pdf-to-jpg.png"
+  ],
+  "url": "https://bdlandpro.com/pdf-to-jpg/"
+ },
+ "comparative-pantograph": {
+  "title": "তুলনামূলক প্যান্টোগ্রাফ (ম্যাপ তুলনা) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "তুলনামূলক প্যান্টাগ্রাফ",
+   "ক্যানভাস ব্যাকগ্রাউন্ড",
+   "ম্যাপ কন্ট্রোল সাবেক ম্যাপ"
+  ],
+  "fields": [
+   {
+    "kind": "input/color",
+    "id": "",
+    "name": "",
+    "label": "",
+    "ph": "",
+    "val": "#000000",
+    "unit": ""
+   },
+   {
+    "kind": "input/range",
+    "id": "",
+    "name": "",
+    "label": "ব্যাকগ্রাউন্ড পরিষ্কার",
+    "ph": "",
+    "val": "100",
+    "unit": ""
+   },
+   {
+    "kind": "input/range",
+    "id": "ctrl-scale-1",
+    "name": "",
+    "label": "স্কেল",
+    "ph": "",
+    "val": "1",
+    "unit": ""
+   },
+   {
+    "kind": "select/select-one",
+    "id": "panto-mult-active",
+    "name": "",
+    "label": "",
+    "ph": "",
+    "val": "1.10",
+    "unit": "",
+    "opts": [
+     "1%",
+     "5%",
+     "10%",
+     "25%",
+     "50%",
+     "2×"
+    ]
+   },
+   {
+    "kind": "input/range",
+    "id": "ctrl-rotate-1",
+    "name": "",
+    "label": "রোটেট",
+    "ph": "",
+    "val": "0",
+    "unit": ""
+   },
+   {
+    "kind": "input/checkbox",
+    "id": "low-config-toggle",
+    "name": "",
+    "label": "",
+    "ph": "",
+    "val": "on",
+    "unit": ""
+   }
+  ],
+  "buttons": [
+   "ম্যাপ কন্ট্রোল",
+   "অ্যানোটেশন / লেয়ার",
+   "−",
+   "+",
+   "↓",
+   "↑",
+   "↺ 90°",
+   "−0.1°",
+   "+0.1°",
+   "↻ 90°",
+   "পয়েন্ট মেলান",
+   "ক্রপ",
+   "সিলেক্ট",
+   "ইরেজ",
+   "আনবাইন্ড"
+  ],
+  "notes": [],
+  "tables": [],
+  "canvas": [
+   "300x150",
+   "300x150"
+  ],
+  "fileInputs": [
+   ".zip",
+   ".pdf,image/*,.tif,.tiff,image/tiff",
+   ".pdf,image/*,.tif,.tiff,image/tiff"
+  ],
+  "usesMap": false,
+  "shots": [
+   "comparative-pantograph.png"
+  ],
+  "url": "https://bdlandpro.com/comparative-pantograph/"
+ },
+ "print-studio": {
+  "title": "প্রিন্ট স্টুডিও (প্রতিবেদন প্রিন্ট) - BDLandPro.comBDLandPro.com",
+  "heads": [
+   "PrintStudio v5",
+   "টুলস ও এসেটস",
+   "লাইব্রেরী",
+   "ম্যাপ লেয়ার",
+   "রিপোর্ট টাইটেল",
+   "তফসিল সমূহ",
+   "প্রোফাইল",
+   "এডিট ও স্টাইল",
+   "সকল লেয়ার",
+   "প্রজেক্ট সেটআপ"
+  ],
+  "fields": [
+   {
+    "kind": "input/text",
+    "id": "sd-search",
+    "name": "",
+    "label": "",
+    "ph": "🔍 খুঁজুন…",
+    "val": "",
+    "unit": ""
+   },
+   {
+    "kind": "select/select-one",
+    "id": "config-pageSize",
+    "name": "",
+    "label": "পেজ সাইজ",
+    "ph": "",
+    "val": "A4",
+    "unit": "",
+    "opts": [
+     "A4",
+     "Legal",
+     "A3",
+     "A1"
+    ]
+   },
+   {
+    "kind": "select/select-one",
+    "id": "config-orientation",
+    "name": "",
+    "label": "লেয়াউট",
+    "ph": "",
+    "val": "portrait",
+    "unit": "",
+    "opts": [
+     "Portrait",
+     "Landscape"
+    ]
+   },
+   {
+    "kind": "select/select-one",
+    "id": "config-profile",
+    "name": "",
+    "label": "প্যাড (প্রোফাইল)",
+    "ph": "",
+    "val": "",
+    "unit": "",
+    "opts": [
+     "-- ফাঁকা রাখুন --",
+     "মোঃ আব্দুর রহমান (নমুনা ডিজিটাল সার্ভে)"
+    ]
+   },
+   {
+    "kind": "select/select-one",
+    "id": "config-tapsil",
+    "name": "",
+    "label": "তফসিল",
+    "ph": "",
+    "val": "",
+    "unit": "",
+    "opts": [
+     "-- ফাঁকা রাখুন --",
+     "সাহাপুর ২ নং সিট"
+    ]
+   },
+   {
+    "kind": "select/select-one",
+    "id": "config-title",
+    "name": "",
+    "label": "রিপোর্টের টাইটেল",
+    "ph": "",
+    "val": "",
+    "unit": "",
+    "opts": [
+     "-- ফাঁকা রাখুন --",
+     "ডিজিটাল ডিমার্কেশন",
+     "তুলনামূলক নকশা",
+     "খাস জমি ও ব্যক্তি মালিকানাধীন জমি পৃথকীকরণ"
+    ]
+   }
+  ],
+  "buttons": [
+   "−",
+   "+",
+   "প্রিন্ট",
+   "ড্রয়িং",
+   "প্যাড",
+   "SA ম্যাপ",
+   "RS ম্যাপ",
+   "CS ম্যাপ",
+   "কাস্টম",
+   "মেইন ম্যাপ রিপ্লেস",
+   "টেক্সট",
+   "লাইন/বক্স",
+   "কম্পাস",
+   "সীমানা",
+   "সাক্ষীগণের সাক্ষর",
+   "ডিজিটাল ডিমার্কেশন",
+   "তুলনামূলক নকশা",
+   "খাস জমি ও ব্যক্তি মালিকানাধীন জমি পৃথকীকরণ",
+   "সাহাপুর ২ নং সিট",
+   "মোঃ আব্দুর রহমান",
+   "ইমেজ আপলোড",
+   "সেভ করা ফাইল লোড করুন",
+   "ক্যানভাস তৈরি করুন"
+  ],
+  "notes": [],
+  "tables": [],
+  "canvas": [],
+  "fileInputs": [
+   ".json",
+   "image/*",
+   "image/*",
+   "image/*"
+  ],
+  "usesMap": false,
+  "shots": [
+   "print-studio.png"
+  ],
+  "url": "https://bdlandpro.com/print-studio/"
+ }
+}

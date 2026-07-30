@@ -1,0 +1,1013 @@
+{
+ "area-calculator": {
+  "cardSelector": ".shape-card",
+  "shapes": [
+   {
+    "name": "আয়তক্ষেত্র",
+    "shot": "area-01-আয়তক্ষেত্র.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "আয়তক্ষেত্র পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-l",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-w",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "অনিয়মিত চতুর্ভুজ",
+    "shot": "area-02-অনিয়মিত_চতুর্ভুজ.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "অনিয়মিত চতুর্ভুজ পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-c",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-diag",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "সমকোণী ট্রাপিজিয়াম",
+    "shot": "area-03-সমকোণী_ট্রাপিজিয়াম.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "সমকোণী ট্রাপিজিয়াম পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-h",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-s",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "সাধারণ ত্রিভুজ",
+    "shot": "area-04-সাধারণ_ত্রিভুজ.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "সাধারণ ত্রিভুজ পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-c",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "সাধারণ ট্রাপিজিয়াম",
+    "shot": "area-05-সাধারণ_ট্রাপিজিয়াম.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "সাধারণ ট্রাপিজিয়াম পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-h",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "সমকোণী ত্রিভুজ",
+    "shot": "area-06-সমকোণী_ত্রিভুজ.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "সমকোণী ত্রিভুজ পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-h",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "বর্গক্ষেত্র",
+    "shot": "area-07-বর্গক্ষেত্র.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "বর্গক্ষেত্র পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "বাঁকা জমি (Segment)",
+    "shot": "area-08-বাঁকা_জমি_Segment_.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "বাঁকা জমি (Segment) পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-c",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-h",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "সম্পূর্ণ বৃত্ত",
+    "shot": "area-09-সম্পূর্ণ_বৃত্ত.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "সম্পূর্ণ বৃত্ত পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-r",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "অর্ধ-বৃত্তাকার জমি",
+    "shot": "area-10-অর্ধ_বৃত্তাকার_জমি.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "অর্ধ-বৃত্তাকার জমি পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-r",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "৫ বাহু বিশিষ্ট জমি",
+    "shot": "area-11-৫_বাহু_বিশিষ্ট_জমি.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "৫ বাহু বিশিষ্ট জমি পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-c",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-e",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d1",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d2",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "৬ বাহু বিশিষ্ট জমি",
+    "shot": "area-12-৬_বাহু_বিশিষ্ট_জমি.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "৬ বাহু বিশিষ্ট জমি পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-a",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-c",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-e",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-f",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d1",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d2",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d3",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "রম্বস",
+    "shot": "area-13-রম্বস.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "রম্বস পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d1",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-d2",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "সামান্তরিক",
+    "shot": "area-14-সামান্তরিক.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "সামান্তরিক পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-b",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-h",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   },
+   {
+    "name": "ডিম্বাকৃতি জমি (Ellipse)",
+    "shot": "area-15-ডিম্বাকৃতি_জমি_Ellipse_.png",
+    "heads": [
+     "জমির আকৃতি নির্বাচন করুন",
+     "ডিম্বাকৃতি জমি (Ellipse) পরিমাপ"
+    ],
+    "fields": [
+     {
+      "kind": "input/checkbox",
+      "id": "ac-calc-mode-toggle",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-l",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "ac-input-w",
+      "label": "",
+      "ph": "পরিমাপ দিন",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "হিসাব করুন"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ]
+   }
+  ]
+ },
+ "land-subdivision": {
+  "cards": [
+   {
+    "tag": "BUTTON",
+    "href": null,
+    "cls": "group flex flex-col items-center gap-3 glass-panel",
+    "onclick": "",
+    "txt": "জমির ভাগ বন্টন (চতুর্ভুজ) চতুর্ভুজাকার জমির বন্টন হিসাব সক্র"
+   },
+   {
+    "tag": "BUTTON",
+    "href": null,
+    "cls": "group flex flex-col items-center gap-3 glass-panel",
+    "onclick": "",
+    "txt": "জমির ভাগ বন্টন (ত্রিভুজ) ত্রিভুজাকার জমির বন্টন হিসাব সক্রিয"
+   }
+  ],
+  "modes": [
+   {
+    "clicked": "জমির ভাগ বন্টন (চতুর্ভুজ) চতুর্ভুজাকার জমির বন্টন হিসাব সক্রিয়",
+    "shot": "subdiv-1.png",
+    "url": "https://bdlandpro.com/land-subdivision/",
+    "heads": [
+     "জমির ভাগ বন্টন (চতুর্ভুজ)",
+     "প্রধান চতুর্ভুজের পরিমাপ",
+     "প্লট বন্টন সেটিংস",
+     "প্রধান জমির চিত্র",
+     "বন্টনকৃত প্লটের চিত্র",
+     "বন্টনের গাণিতিক প্রমাণ ও হিসাব"
+    ],
+    "fields": [
+     {
+      "kind": "input/text",
+      "id": "q-m_a",
+      "label": "বাহু a:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-m_b",
+      "label": "বাহু b:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-m_c",
+      "label": "বাহু c:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-m_d",
+      "label": "বাহু d:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-m_diag",
+      "label": "কর্ণ:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-s_area_1785396191222.7024",
+      "label": "পরিমাণ",
+      "ph": "শতক",
+      "val": ""
+     },
+     {
+      "kind": "select/select-one",
+      "id": "",
+      "label": "দিক",
+      "ph": "",
+      "val": "a",
+      "opts": [
+       "বাহু a",
+       "বাহু b",
+       "বাহু c",
+       "বাহু d"
+      ]
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "label": "অফসেট",
+      "ph": "দূরত্ব (ফুট)",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "label": "ভিত্তি বাহু:",
+      "ph": "নিজস্ব মাপ",
+      "val": ""
+     },
+     {
+      "kind": "input/radio",
+      "id": "",
+      "label": "কর্ণ ১",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/radio",
+      "id": "",
+      "label": "কর্ণ ২",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "q-s_adj1_1785396191222.7024",
+      "label": "বাহু d (L1):",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-s_adj2_1785396191222.7024",
+      "label": "বাহু b (L2):",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "q-s_newail_1785396191222.7024",
+      "label": "নতুন আইল:",
+      "ph": "ফুট",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "ফিরুন",
+     "কর্ণ a–c",
+     "কর্ণ b–d",
+     "প্লট যোগ",
+     "রিসেট",
+     "লক",
+     "এডিট মোড"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ],
+    "canvas": [
+     "808x320",
+     "808x380"
+    ]
+   },
+   {
+    "clicked": "জমির ভাগ বন্টন (ত্রিভুজ) ত্রিভুজাকার জমির বন্টন হিসাব সক্রিয়",
+    "shot": "subdiv-2.png",
+    "url": "https://bdlandpro.com/land-subdivision/",
+    "heads": [
+     "জমির ভাগ বন্টন (ত্রিভুজ)",
+     "প্রধান ত্রিভুজের পরিমাপ",
+     "প্লট বন্টন সেটিংস",
+     "প্রধান জমির চিত্র",
+     "বন্টনকৃত প্লটের চিত্র",
+     "বন্টনের গাণিতিক প্রমাণ ও হিসাব"
+    ],
+    "fields": [
+     {
+      "kind": "input/text",
+      "id": "m_a",
+      "label": "বাহু a:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "m_b",
+      "label": "বাহু b:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "m_c",
+      "label": "বাহু c:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/text",
+      "id": "",
+      "label": "পরিমাণ (শতক):",
+      "ph": "শতক",
+      "val": ""
+     },
+     {
+      "kind": "select/select-one",
+      "id": "",
+      "label": "কোন বাহুর দিক থেকে:",
+      "ph": "",
+      "val": "edge_a",
+      "opts": [
+       "বাহু a",
+       "বাহু b",
+       "বাহু c",
+       "কোনা A (বাহু c সংলগ্ন)",
+       "কোনা A (বাহু b সংলগ্ন)",
+       "কোনা B (বাহু a সংলগ্ন)",
+       "কোনা B (বাহু c সংলগ্ন)",
+       "কোনা C (বাহু b সংলগ্ন)",
+       "কোনা C (বাহু a সংলগ্ন)"
+      ]
+     },
+     {
+      "kind": "input/radio",
+      "id": "",
+      "label": "কর্ণ ১",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/radio",
+      "id": "",
+      "label": "কর্ণ ২",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/radio",
+      "id": "",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "s_adj1_1785396197846.4888",
+      "label": "বাহু c:",
+      "ph": "ফুট",
+      "val": ""
+     },
+     {
+      "kind": "input/radio",
+      "id": "",
+      "label": "",
+      "ph": "",
+      "val": "on"
+     },
+     {
+      "kind": "input/text",
+      "id": "s_adj2_1785396197846.4888",
+      "label": "বাহু b:",
+      "ph": "ফুট",
+      "val": ""
+     }
+    ],
+    "buttons": [
+     "ফিরুন",
+     "প্লট যোগ",
+     "রিসেট",
+     "লক"
+    ],
+    "notes": [
+     "(KMZ file for Google Earth)",
+     "(চতুর্ভুজ পরিমাপ ও ভাগবন্টন)",
+     "(এক ক্লিকে সকল মালিকের হিসাব)",
+     "(চতুর্ভুজ · ত্রিভুজ · বহুভুজ)",
+     "(ম্যাপ কনভার্ট ও ক্লিন ১ ক্লিকে)"
+    ],
+    "canvas": [
+     "300x150",
+     "300x150"
+    ]
+   }
+  ]
+ }
+}
