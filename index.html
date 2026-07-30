@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Land Info - ফ্রি ডিজিটাল ভূমি পরিমাপ, খতিয়ান, হিস্যা ও উত্তরাধিকার (মুসলিম) টুলস</title>
-  <meta name="description" content="BDLandPro এবং ইসলামিক শরিয়াহ ফরায়েজ আইন অনুযায়ী জমি, টাকা, স্বর্ণ ও রৌপ্যের উত্তরাধিকার বন্টন হিসাব করুন।">
+  <title>Land Info — ভূমি পরিমাপ, খতিয়ান, হিস্যা ও উত্তরাধিকার হিসাবের ফ্রি টুল</title>
+  <meta name="description" content="বাংলাদেশের জমি পরিমাপ, খতিয়ান ও হিস্যার হিসাব, মুসলিম ফরায়েজ ও হিন্দু দায়ভাগ উত্তরাধিকার বণ্টন, দলিল রেজিস্ট্রেশন খরচ ও মৌজা ম্যাপ — ১৬টি টুল, সম্পূর্ণ ফ্রি, লগইন ছাড়া।">
   <meta name="theme-color" content="#4f46e5">
 
   <!-- Favicon -->
@@ -103,7 +103,7 @@
 
       <div class="drawer-link" onclick="AppController.toggleDrawer(false); AppController.openToolModal('canvas-measure')">
         <i class="bi bi-rulers text-success"></i>
-        <span>ক্যানভাস জমি পরিমাপ (QuadMaster)</span>
+        <span>ক্যানভাস জমি পরিমাপ</span>
       </div>
 
       <div class="drawer-link" onclick="AppController.toggleDrawer(false); AppController.openToolModal('hissa-calc')">
@@ -200,14 +200,14 @@
   <main class="container">
     <div class="tools-grid" id="tools-grid">
 
-      <!-- Card 1: Inheritance (Muslim) - BDLandPro Style -->
-      <div class="tool-card" data-category="inheritance" data-title="উত্তরাধিকার মুসলিম ফারায়েজ inheritance-muslim bdlandpro" onclick="AppController.openToolModal('farayeiz')">
-        <span class="tool-badge badge-featured">BDLandPro Style</span>
+      <!-- কার্ড ১: উত্তরাধিকার (মুসলিম) — ফরায়েজ -->
+      <div class="tool-card" data-category="inheritance" data-title="উত্তরাধিকার মুসলিম ফারায়েজ ফরায়েজ ওয়ারিশ বন্টন" onclick="AppController.openToolModal('farayeiz')">
+        <span class="tool-badge badge-featured">ফরায়েজ</span>
         <div>
           <div class="tool-icon-wrapper" style="background:#d1fae5;color:#059669">
             <i class="bi bi-diagram-3-fill"></i>
           </div>
-          <h3 class="tool-title">উত্তরাধিকার (মুসলিম) - Inheritance Muslim</h3>
+          <h3 class="tool-title">উত্তরাধিকার (মুসলিম)</h3>
           <p class="tool-desc">ইসলামিক ফরায়েজ আইন অনুযায়ী জমি (শতংশ/একর), নগদ টাকা, স্বর্ণ ও রৌপ্যের নিখুঁত ওয়ারিশ বন্টন হিসাব করুন।</p>
         </div>
         <div class="tool-footer">
@@ -354,12 +354,12 @@
       </a>
 
       <!-- Card 3: Hissa Calculator -->
-      <div class="tool-card" data-category="khotian" data-title="হিস্যা ক্যালকুলেটর Hissa Calculator bdlandpro" onclick="AppController.openToolModal('hissa-calc')">
+      <div class="tool-card" data-category="khotian" data-title="হিস্যা ক্যালকুলেটর হিসা আনা গণ্ডা অংশ" onclick="AppController.openToolModal('hissa-calc')">
         <div>
           <div class="tool-icon-wrapper" style="background:#ccfbf1;color:#0d9488">
             <i class="bi bi-percent"></i>
           </div>
-          <h3 class="tool-title">হিস্যা ক্যালকুলেটর (Hissa Calculator)</h3>
+          <h3 class="tool-title">হিস্যা ক্যালকুলেটর</h3>
           <p class="tool-desc">মোট জমির যেকোনো আনা-গন্ডা, শতকরা (%), দশমিক বা ভগ্নাংশ হিস্যা অনুযায়ী তার নির্দিষ্ট পরিমাণ জমি বের করুন।</p>
         </div>
         <div class="tool-footer">
@@ -368,13 +368,13 @@
         </div>
       </div>
 
-      <!-- Card 4: QuadMaster Canvas Measure -->
-      <div class="tool-card" data-category="measure" data-title="মৌজা ম্যাপে জমি পরিমাপ ও ক্যানভাস QuadMaster" onclick="AppController.openToolModal('canvas-measure')">
+      <!-- কার্ড ৪: ক্যানভাস জমি পরিমাপ -->
+      <div class="tool-card" data-category="measure" data-title="মৌজা ম্যাপে জমি পরিমাপ ক্যানভাস বাহু কর্ণ ক্ষেত্রফল" onclick="AppController.openToolModal('canvas-measure')">
         <div>
           <div class="tool-icon-wrapper" style="background:#ede9fe;color:#7c3aed">
             <i class="bi bi-vector-square"></i>
           </div>
-          <h3 class="tool-title">ক্যানভাস জমি পরিমাপ (QuadMaster)</h3>
+          <h3 class="tool-title">ক্যানভাস জমি পরিমাপ</h3>
           <p class="tool-desc">৪ বাহু ও কর্ণের ইনপুট দিয়ে ক্যানভাসে চিত্র এঁকে সঠিক শতাংশ, কাঠা, বিঘা এবং বর্গফুট অটোমেটিক হিসাব করুন।</p>
         </div>
         <div class="tool-footer">
@@ -479,7 +479,7 @@
       <!-- Modal Body -->
       <div class="modal-body" id="modal-dynamic-body">
 
-        <!-- VIEW: Farayeiz (Muslim Inheritance - BDLandPro inheritance-muslim Style) -->
+        <!-- VIEW: ফরায়েজ — মুসলিম উত্তরাধিকার -->
         <div id="view-farayeiz" class="tool-view-content" style="display:none">
           
           <!-- Navigation Sub-Tabs -->
@@ -745,7 +745,7 @@
             </div>
           </div>
 
-          <!-- SUB-VIEW 3: BISTARITO (100% Complete BDLandPro Tables) -->
+          <!-- SUB-VIEW 3: বিস্তারিত — পূর্ণ সারণি -->
           <div id="subtab-view-bistarito" style="display:none;line-height:1.7">
             <h3 style="font-size:1.2rem;font-weight:700;color:var(--primary);margin-bottom:12px">উত্তরাধিকার বন্টনের বিস্তারিত নিয়মাবলী (যাবিল ফুরুজ ও আসাবা)</h3>
             <p style="margin-bottom:16px">পবিত্র কুরআন শরীফে ১২ জন নির্দিষ্ট অংশীদারের (যাবিল ফুরুজ) অংশ নির্ধারণ করে দেওয়া আছে। এদের মধ্যে ৪ জন পুরুষ এবং ৮ জন নারী। নিচে তাদের নির্ধারিত অংশের বিস্তারিত টেবিল দেওয়া হলো:</p>
@@ -1324,7 +1324,7 @@
 
         </div>
 
-        <!-- VIEW 1: QuadMaster & Canvas Measure -->
+        <!-- VIEW 1: ক্যানভাস জমি পরিমাপ -->
         <div id="view-canvas-measure" class="tool-view-content" style="display:none">
 
           <div class="fz-panel">

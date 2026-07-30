@@ -1,7 +1,6 @@
 /* ==========================================================================
-   LAND PRO - CALCULATOR & MATHEMATICAL ENGINES
-   Ana-Gonda, Khotian Analyzer, Farayeiz, Hissa Calculator, & Land Unit Converter
-   100% Full Implementation of BDLandPro (inheritance-muslim)
+   calculators.js — LandMath: বিশুদ্ধ গণিত ইঞ্জিন (DOM ছোঁয় না)
+   আনা-গণ্ডা · খতিয়ান · হিস্যা · একক রূপান্তর · দাগ পোরশন · তফসিল · অনুপাত
    ========================================================================== */
 
 // Number Converters

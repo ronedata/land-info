@@ -1,7 +1,6 @@
 /* ==========================================================================
-   LAND PRO - MAIN APPLICATION CONTROLLER
-   100% Complete BDLandPro (inheritance-muslim) Implementation
-   All 32 Heir Configs, Dynamic Pre/Post Deceased Heirs, Munasakha, Chart.js & Print Studio
+   app.js — AppController: সব UI লজিক ও মুসলিম ফরায়েজ ইঞ্জিন
+   ৩৩ ধরনের উত্তরাধিকারী · আগে/পরে মৃত ওয়ারিশ · মুনাছাখা · চার্ট · প্রিন্ট
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -246,7 +245,7 @@ const AppController = {
 
     switch (toolId) {
       case 'canvas-measure':
-        modalTitle.innerText = 'মৌজা ম্যাপ ও জমি পরিমাপ ক্যানভাস (QuadMaster)';
+        modalTitle.innerText = 'মৌজা ম্যাপ ও জমি পরিমাপ ক্যানভাস';
         modalIcon.className = 'bi bi-rulers text-primary';
         setTimeout(() => {
           if (!this.canvasEngine) {
@@ -877,7 +876,7 @@ const AppController = {
   },
 
   /* ------------------------------------------------------------------------
-     5. Core BDLandPro Inheritance Engine Calculation
+     ৫. মূল উত্তরাধিকার (ফরায়েজ) ইঞ্জিনের হিসাব
      ------------------------------------------------------------------------ */
   /**
    * একজন মৃত উত্তরাধিকারী (মৃত পুত্র/কন্যা/ভাই/বোন) আদৌ অংশ পাওয়ার যোগ্য কি না।
@@ -4166,7 +4165,7 @@ const AppController = {
 
   /* ------------------------------------------------------------------------
      খতিয়ান বিশ্লেষণ (পর্চার হিসাব)
-     কাঠামো bdlandpro.com/khotian-bisleshon/ এর আদলে।
+     কাঠামো প্রচলিত খতিয়ান বিশ্লেষণ রিপোর্টের আদলে।
      ------------------------------------------------------------------------ */
 
   porchaReady: false,
