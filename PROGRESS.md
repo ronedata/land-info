@@ -1674,7 +1674,7 @@ git দুই ভাগে ভাগ করা, কারণ `main` এ এম�
 | ব্রাঞ্চ | ফোল্ডার | কী | push |
 |---|---|---|---|
 | `main` | `e:\AI Project\Land_info` | সব (৮০ MB) — `research/` ও `compat/` সহ | ❌ **কখনো নয়** |
-| `pages` | `e:\AI Project\Land_info-pages` (worktree) | শুধু সাইট (৩১ MB, ১,০৩৩ ফাইল) | ✅ পাবলিক |
+| `v1` | `e:\AI Project\Land_info-pages` (worktree) | শুধু সাইট (৩১ MB, ১,০৩৩ ফাইল) | ✅ পাবলিক |
 
 পাবলিক রিপো **`ronedata/land-info`** → <https://ronedata.github.io/land-info/>
 
@@ -1683,7 +1683,7 @@ git দুই ভাগে ভাগ করা, কারণ `main` এ এম�
 তাই `git config branch.main.pushRemote` এ ভুয়া মান বসানো — `main` এ push ব্যর্থ হবে।
 **এই সেটিং সরাবে না।**
 
-**`pages` এ যা আছে:** `index.html` · `css/` · `js/` ·
+**`v1` এ যা আছে:** `index.html` · `css/` · `js/` ·
 `data/mouza-map/{tree.json, files/}` · `.nojekyll` · `README.md` · `LICENSE` (MIT)
 
 **যা ইচ্ছাকৃতভাবে বাদ:** `compat/` (৪৫ MB — **সাইট ব্যবহারই করে না**, ওটা
@@ -1696,6 +1696,14 @@ git দুই ভাগে ভাগ করা, কারণ `main` এ এম�
 cp index.html "e:/AI Project/Land_info-pages/"      # যা বদলেছে
 # ৩. pages এ কমিট ও push
 cd "e:/AI Project/Land_info-pages" && git add -A && git commit && git push
+```
+
+**পাবলিক রিপো তৈরি ও Pages চালু (একবারই):**
+```bash
+gh auth login                    # ইউজার নিজে করবেন — ব্রাউজার লগইন
+cd "e:/AI Project/Land_info-pages"
+gh repo create ronedata/land-info --public --source=. --remote=origin --push
+gh api -X POST repos/ronedata/land-info/pages -f 'source[branch]=v1' -f 'source[path]=/'
 ```
 
 **Pages এর জন্য যা মনে রাখতে হবে:**
