@@ -86,9 +86,9 @@
         <p style="font-size:0.82rem;color:var(--text-muted)">কোনো অ্যাকাউন্ট বা ফি ছাড়াই সকল সুবিধা ব্যবহার করুন।</p>
       </div>
 
-      <a href="https://ronedata.github.io/map/" target="_blank" class="drawer-link">
+      <a href="#" class="drawer-link" onclick="AppController.toggleDrawer(false); AppController.openToolModal('mouza-map')">
         <i class="bi bi-map-fill text-primary"></i>
-        <span>মৌজা ম্যাপ ডিরেক্টরি</span>
+        <span>সারাদেশের মৌজা ম্যাপ</span>
       </a>
 
       <div class="drawer-link" onclick="AppController.toggleDrawer(false); AppController.openToolModal('farayeiz')">
@@ -108,7 +108,7 @@
 
       <div class="drawer-link" onclick="AppController.toggleDrawer(false); AppController.openToolModal('hissa-calc')">
         <i class="bi bi-percent text-info"></i>
-        <span>হিস্যা ক্যালকুলেটর (Hissa Calculator)</span>
+        <span>হিস্যা ক্যালকুলেটর</span>
       </div>
 
       <div class="drawer-link" onclick="AppController.toggleDrawer(false); AppController.openToolModal('khotian-analyzer')">
@@ -337,23 +337,7 @@
         <div class="tool-footer"><span>দেখুন</span><i class="bi bi-arrow-right"></i></div>
       </div>
 
-      <!-- Card 2: Mouza Map Directory -->
-      <a href="https://ronedata.github.io/map/" target="_blank" class="tool-card" data-category="map" data-title="মৌজা ম্যাপ ডিরেক্টরি ও ডাউনলোড">
-        <span class="tool-badge badge-map">লাইভ ম্যাপ</span>
-        <div>
-          <div class="tool-icon-wrapper" style="background:#e0f2fe;color:#0284c7">
-            <i class="bi bi-map-fill"></i>
-          </div>
-          <h3 class="tool-title">সারাদেশের মৌজা ম্যাপ ডাউনলোড</h3>
-          <p class="tool-desc">বাংলাদেশ সার্ভে (CS, SA, RS, BS) বিভাগের যেকোনো মৌজা ম্যাপ সহজে খুঁজুন ও সরাসরি এইচডি কোয়ালিটিতে ডাউনলোড করুন।</p>
-        </div>
-        <div class="tool-footer">
-          <span>ম্যাপ ব্রাউজ করুন</span>
-          <i class="bi bi-box-arrow-up-right"></i>
-        </div>
-      </a>
-
-      <!-- Card 3: Hissa Calculator -->
+      <!-- কার্ড ৩: হিস্যা ক্যালকুলেটর -->
       <div class="tool-card" data-category="khotian" data-title="হিস্যা ক্যালকুলেটর হিসা আনা গণ্ডা অংশ" onclick="AppController.openToolModal('hissa-calc')">
         <div>
           <div class="tool-icon-wrapper" style="background:#ccfbf1;color:#0d9488">
@@ -2786,7 +2770,7 @@
   <footer class="app-footer">
     <div class="container">
       <div class="footer-links">
-        <a href="https://ronedata.github.io/map/" target="_blank">মৌজা ম্যাপ ডিরেক্টরি</a>
+        <a href="#" onclick="AppController.openToolModal('mouza-map')">সারাদেশের মৌজা ম্যাপ</a>
         <a href="#" onclick="AppController.openToolModal('farayeiz')">উত্তরাধিকার (মুসলিম)</a>
         <a href="#" onclick="AppController.openToolModal('hissa-calc')">হিস্যা ক্যালকুলেটর</a>
         <a href="#" onclick="AppController.openToolModal('canvas-measure')">জমি পরিমাপ</a>
