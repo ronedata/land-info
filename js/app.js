@@ -361,9 +361,1411 @@ const AppController = {
         modalIcon.className = 'bi bi-map text-primary';
         this.initMouzaMap();
         break;
+
+      case 'kmz-export':
+        modalTitle.innerText = 'গুগল আর্থে মৌজা ম্যাপ (KMZ)';
+        modalIcon.className = 'bi bi-globe-americas text-primary';
+        this.initKmz();
+        break;
+
+      case 'map-measure':
+        modalTitle.innerText = 'মৌজা ম্যাপে জমি পরিমাপ';
+        modalIcon.className = 'bi bi-rulers text-primary';
+        this.initMeasure();
+        break;
     }
 
     modal.classList.add('active');
+  },
+
+
+  /* ------------------------------------------------------------------------
+     KMZ এক্সপোর্ট — মৌজা ম্যাপ → Google Earth
+     গণিত KmzExport এ, আঁকা KmzMap/KmzImage এ। এখানে কেবল সংযোগ।
+     ------------------------------------------------------------------------ */
+
+  kmz: { step: 0, img: null, imgBytes: null, imgName: '',
+         imgPts: [], geoPts: [], pairs: [],
+         opacity: 0.78, result: null,
+         tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
+         geoHits: [],
+         bgClear: false, threshold: 205, color: null, fx: null },
+
+  initKmz() {
+    this.kmzRenderColors();
+    this.kmzStep(this.kmz.img ? this.kmz.step : 0);
+  },
+
+  /* ---- ধাপ ব্যবস্থাপনা ---- */
+
+  kmzStep(n) {
+    const k = this.kmz;
+    if (n === 1 && !k.img) return;
+    if (n === 2 && k.imgPts.length < 2) return;
+    if (n === 3 && k.geoPts.length < k.imgPts.length) return;
+
+    k.step = n;
+    for (let i = 0; i <= 3; i++) {
+      const el = document.getElementById('kmz-s' + i);
+      if (el) el.style.display = i === n ? '' : 'none';
+    }
+    this.kmzStatus(null);
+
+    if (n === 1) { this.kmzSizeCanvas('kmz-canvas-img'); this.kmzInitImgStage(); }
+    if (n === 2) { this.kmzSizeCanvas('kmz-canvas-map'); this.kmzInitMapStage(); }
+    if (n === 3) { k.pairs = this.kmzPairs(); this.kmzRender(); this.kmzApplyFx(); }
+    this.kmzUpdatePills();
+  },
+
+  /** ক্যানভাসকে তার ধারকের মাপে বসানো (পূর্ণ পর্দার মঞ্চ) */
+  kmzSizeCanvas(id) {
+    const c = document.getElementById(id);
+    if (!c) return;
+    const r = c.parentElement.getBoundingClientRect();
+    const w = Math.max(280, Math.round(r.width));
+    const h = Math.max(240, Math.round(r.height));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  },
+
+  kmzInitImgStage() {
+    const c = document.getElementById('kmz-canvas-img');
+    if (!c) return;
+    if (!c._kmzInit) {
+      c._kmzInit = true;
+      KmzImage.init(c, { onPick: pt => this.kmzAddImgPt(pt) });
+    } else { KmzImage.state.canvas = c; }
+    if (this.kmz.img) KmzImage.setImage(this.kmz.img);
+    this.kmzDrawImgPts();
+  },
+
+  kmzInitMapStage() {
+    const c = document.getElementById('kmz-canvas-map');
+    if (!c) return;
+    if (!c._kmzInit) {
+      c._kmzInit = true;
+      KmzMap.init(c, { onPick: g => this.kmzAddGeoPt(g) });
+    } else { KmzMap.state.canvas = c; KmzMap.draw(); }
+    this.kmzDrawGeoPts();
+  },
+
+  /** নকশার বিন্দু ও ভূ-বিন্দু জোড়া বাঁধা (ক্রম অনুযায়ী) */
+  kmzPairs() {
+    const k = this.kmz;
+    const n = Math.min(k.imgPts.length, k.geoPts.length);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      out.push({ px: k.imgPts[i].x, py: k.imgPts[i].y,
+                 lat: k.geoPts[i].lat, lng: k.geoPts[i].lng });
+    }
+    return out;
+  },
+
+  kmzAddImgPt(pt) {
+    this.kmz.imgPts.push({ x: pt.x, y: pt.y });
+    this.kmzDrawImgPts();
+    this.kmzUpdatePills();
+  },
+
+  kmzAddGeoPt(g) {
+    const k = this.kmz;
+    if (k.geoPts.length >= k.imgPts.length) {
+      this.kmzStatus('সবগুলো পয়েন্ট বসানো হয়ে গেছে। "পরবর্তী ধাপ" চাপুন।');
+      return;
+    }
+    k.geoPts.push({ lat: g.lat, lng: g.lng });
+    this.kmzDrawGeoPts();
+    this.kmzUpdatePills();
+  },
+
+  kmzUndo(stage) {
+    const k = this.kmz;
+    if (stage === 1) {
+      k.imgPts.pop();
+      if (k.geoPts.length > k.imgPts.length) k.geoPts.length = k.imgPts.length;
+      this.kmzDrawImgPts();
+    } else {
+      k.geoPts.pop();
+      this.kmzDrawGeoPts();
+    }
+    this.kmzUpdatePills();
+  },
+
+  /** শেষ বসানো বিন্দু লাল, বাকিগুলো নীল — ওদের মতোই */
+  kmzDrawImgPts() {
+    if (!KmzImage.state) return;
+    const n = this.kmz.imgPts.length;
+    KmzImage.setMarkers(this.kmz.imgPts.map((p, i) => ({
+      x: p.x, y: p.y, n: toBn(i + 1), current: i === n - 1
+    })));
+  },
+
+  kmzDrawGeoPts() {
+    if (!KmzMap.state) return;
+    const n = this.kmz.geoPts.length;
+    KmzMap.setMarkers(this.kmz.geoPts.map((p, i) => ({
+      lat: p.lat, lng: p.lng, n: toBn(i + 1), current: i === n - 1
+    })));
+  },
+
+  kmzUpdatePills() {
+    const k = this.kmz;
+    const p1 = document.getElementById('kmz-pill1');
+    if (p1) p1.innerHTML = '<span class="dot"></span>নকশায় পয়েন্ট বসান<b>'
+      + toBn(k.imgPts.length) + '</b>';
+
+    const p2 = document.getElementById('kmz-pill2');
+    if (p2) {
+      const done = k.geoPts.length, need = k.imgPts.length;
+      p2.innerHTML = done >= need
+        ? '<span class="dot ok"></span>সব পয়েন্ট বসানো হয়েছে<b>' + toBn(done) + '/' + toBn(need) + '</b>'
+        : '<span class="dot"></span>পয়েন্ট ' + toBn(done + 1) + ' বসান<b>'
+          + toBn(done) + '/' + toBn(need) + '</b>';
+    }
+
+    const n1 = document.getElementById('kmz-next1');
+    if (n1) n1.disabled = k.imgPts.length < 2;
+    const n2 = document.getElementById('kmz-next2');
+    if (n2) n2.disabled = k.geoPts.length < k.imgPts.length || k.imgPts.length < 2;
+
+    const t1 = document.getElementById('kmz-tip1');
+    if (t1) t1.textContent = k.imgPts.length < 2
+      ? 'জুম করে চেনা জায়গায় ক্লিক করুন — রাস্তার মোড়, পুকুরের কোণা, ব্রিজ'
+      : 'আরও পয়েন্ট দিলে বাঁকা স্ক্যানও নিখুঁত বসবে (৩–৫টি ভালো)';
+  },
+
+  kmzImgZoom(d) {
+    const c = document.getElementById('kmz-canvas-img');
+    if (c && KmzImage.state) KmzImage.zoomAt({ x: c.width / 2, y: c.height / 2 }, d > 0 ? 1.4 : 1 / 1.4);
+  },
+
+  /* ---- উৎস বাছাই ---- */
+
+  kmzChoose(kind) {
+    if (kind === 'file') {
+      const f = document.getElementById('kmz-file');
+      if (f) f.click();
+      return;
+    }
+    const pa = document.getElementById('kmz-pane-arch');
+    if (pa) pa.style.display = pa.style.display === 'none' ? '' : 'none';
+    if (!this.kmz.treeLoaded) this.kmzArchInit();
+  },
+
+  /* ---- অগ্রগতি বার ---- */
+  kmzProg(pct, msg) {
+    const box = document.getElementById('kmz-prog');
+    const fill = document.getElementById('kmz-prog-fill');
+    const txt = document.getElementById('kmz-prog-txt');
+    if (!box) return;
+    if (pct == null) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if (txt) txt.textContent = msg || '';
+  },
+
+  /**
+   * নেটওয়ার্ক ব্যর্থতার কারণ বুঝিয়ে বলা।
+   * সবচেয়ে সাধারণ কারণ: index.html সরাসরি file:// দিয়ে খোলা হয়েছে —
+   * তখন ব্রাউজার নিরাপত্তার কারণে পাশের JSON ফাইলও পড়তে দেয় না।
+   */
+  kmzNetHint(what, err) {
+    if (location.protocol === 'file:') {
+      return what + ' আনা যায়নি — ফাইলটি সরাসরি খোলা হয়েছে (file://), '
+        + 'তাই ব্রাউজার পাশের ডেটা ফাইল পড়তে দিচ্ছে না। ফোল্ডারে গিয়ে '
+        + '"python -m http.server 8899" চালিয়ে http://127.0.0.1:8899/ খুলুন।';
+    }
+    const m = String((err && err.message) || '');
+    if (/Failed to fetch|NetworkError|ERR_INTERNET/i.test(m)) {
+      return what + ' আনা যায়নি — ইন্টারনেট সংযোগ দেখুন।';
+    }
+    if (/40[34]/.test(m)) {
+      return what + ' আনা যায়নি — ডেটা ফাইল খুঁজে পাওয়া যায়নি ('
+        + 'data/mouza-map/ ফোল্ডারটি আছে কি না দেখুন)।';
+    }
+    return what + ' আনা যায়নি: ' + m;
+  },
+
+  /* ---- ছবি বসানো (সব উৎসের সাধারণ ধাপ) ---- */
+  kmzUseImage(r, name) {
+    const k = this.kmz;
+    k.img = r.img; k.imgBytes = r.bytes; k.imgName = name || 'map.jpg';
+    k.imgPts = []; k.geoPts = []; k.pairs = []; k.fx = null;
+    this.kmzStep(1);
+    KmzImage.setImage(r.img);
+    this.kmzApplyFx();
+    this.kmzStatus('নকশা এলো — ' + toBn(r.width) + '×' + toBn(r.height)
+      + (r.wasPdf ? ' (PDF থেকে)' : '') + '। জুম করে চেনা জায়গায় ক্লিক করুন।');
+  },
+
+  kmzLoadFile(input) {
+    const f = input && input.files && input.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onerror = () => this.kmzStatus('ফাইলটি পড়া গেল না।', true);
+    reader.onload = async ev => {
+      const buf = new Uint8Array(ev.target.result);
+      this.kmzProg(5, 'ফাইল পড়া হচ্ছে…');
+      try {
+        const r = await KmzSource.toImage(buf, f.type, {
+          onStage: (pc, m) => this.kmzProg(pc, m)
+        });
+        this.kmzProg(null);
+        this.kmzUseImage(r, f.name);
+      } catch (e) {
+        this.kmzProg(null);
+        this.kmzStatus(e.message, true);
+      }
+    };
+    reader.readAsArrayBuffer(f);
+  },
+
+  /* ---- আর্কাইভ থেকে বাছাই ---- */
+
+  async kmzArchInit() {
+    const k = this.kmz;
+    const sel = document.getElementById('kmz-div');
+    try {
+      this.kmzProg(20, 'আর্কাইভের সূচি আসছে…');
+      k.tree = await KmzSource.tree();
+      k.treeLoaded = true;
+      this.kmzProg(null);
+      if (sel) {
+        sel.innerHTML = '<option value="">— বিভাগ বাছুন —</option>' +
+          k.tree.divisions.map((d, i) => '<option value="' + i + '">' + d.name + '</option>').join('');
+      }
+    } catch (e) {
+      this.kmzProg(null);
+      if (sel) sel.innerHTML = '<option value="">— আনা যায়নি —</option>';
+      this.kmzStatus(this.kmzNetHint('আর্কাইভের সূচি', e), true);
+    }
+  },
+
+  _kmzFill(id, items, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !items || !items.length;
+    el.innerHTML = '<option value="">— ' + label + ' —</option>' +
+      (items || []).map((x, i) => '<option value="' + i + '">' + x.name +
+        (x.count ? ' (' + toBn(x.count) + ')' : '') + '</option>').join('');
+  },
+
+  kmzArchDiv() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-div').value;
+    k.arch = { div: i === '' ? null : k.tree.divisions[i] };
+    this._kmzFill('kmz-dist', k.arch.div ? k.arch.div.districts : [], 'জেলা বাছুন');
+    this._kmzFill('kmz-upa', [], 'উপজেলা');
+    this._kmzFill('kmz-srv', [], 'জরিপ');
+    this.kmzArchList([]);
+  },
+  kmzArchDist() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-dist').value;
+    k.arch.dist = i === '' ? null : k.arch.div.districts[i];
+    this._kmzFill('kmz-upa', k.arch.dist ? k.arch.dist.upazilas : [], 'উপজেলা বাছুন');
+    this._kmzFill('kmz-srv', [], 'জরিপ');
+    this.kmzArchList([]);
+  },
+  kmzArchUpa() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-upa').value;
+    k.arch.upa = i === '' ? null : k.arch.dist.upazilas[i];
+    this._kmzFill('kmz-srv', k.arch.upa ? k.arch.upa.surveys : [], 'জরিপ বাছুন');
+    this.kmzArchList([]);
+  },
+  async kmzArchSrv() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-srv').value;
+    k.arch.srv = i === '' ? null : k.arch.upa.surveys[i];
+    const search = document.getElementById('kmz-fsearch');
+    if (!k.arch.srv) { this.kmzArchList([]); if (search) search.disabled = true; return; }
+    try {
+      this.kmzProg(30, 'ফাইলের তালিকা আসছে…');
+      k.archFiles = await KmzSource.filesOf(k.arch.srv.id);
+      this.kmzProg(null);
+      if (search) { search.disabled = false; search.value = ''; }
+      this.kmzArchList(k.archFiles);
+    } catch (e) {
+      this.kmzProg(null);
+      this.kmzArchList([]);
+      this.kmzStatus(this.kmzNetHint('ফাইলের তালিকা', e), true);
+    }
+  },
+
+  kmzArchFilter() {
+    const q = (document.getElementById('kmz-fsearch') || {}).value || '';
+    this.kmzArchList(MouzaMap.filterFiles(this.kmz.archFiles || [], q));
+  },
+
+  kmzArchList(files) {
+    const box = document.getElementById('kmz-arch-list');
+    if (!box) return;
+    const list = files || [];
+    if (!list.length) {
+      box.className = 'kmz-arch-list';
+      box.textContent = this.kmz.arch && this.kmz.arch.srv
+        ? 'এই জরিপে কোনো ফাইল মেলেনি।'
+        : 'উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।';
+      return;
+    }
+    const shown = list.slice(0, 150);
+    box.className = 'kmz-arch-list has';
+    box.innerHTML = shown.map((f, i) => {
+      const usable = MouzaMap.canProxy(f);
+      const isTiff = String(f.mimeType) === 'image/tiff';
+      const kind = MouzaMap.fileKind(f.mimeType);
+      const bad = !usable || isTiff;
+      return '<button type="button" class="kmz-af' + (bad ? ' bad' : '') + '"' +
+        (bad ? ' disabled title="' + (isTiff ? 'TIFF ব্রাউজারে খোলা যায় না'
+                                             : 'ফাইলটি খুব বড়') + '"' : '') +
+        ' onclick="AppController.kmzPickArchive(' + i + ')">' +
+        '<i class="bi ' + kind.icon + '"></i>' +
+        '<span class="kmz-af-n">' + f.name + '</span>' +
+        '<span class="kmz-af-s">' + MouzaMap.formatSize(f.size) + '</span>' +
+        '</button>';
+    }).join('') +
+    (list.length > shown.length
+      ? '<div class="kmz-af-more">আরও ' + toBn(list.length - shown.length) +
+        'টি — খুঁজে ছেঁকে নিন</div>' : '');
+    this.kmz.archShown = shown;
+  },
+
+  async kmzPickArchive(i) {
+    const f = (this.kmz.archShown || [])[i];
+    if (!f) return;
+    try {
+      this.kmzProg(3, 'ফাইল নামানো হচ্ছে…');
+      const r = await KmzSource.fromArchive(f, (pc, m) => this.kmzProg(pc, m));
+      this.kmzProg(null);
+      this.kmzUseImage(r, r.name || f.name);
+    } catch (e) {
+      this.kmzProg(null);
+      this.kmzStatus(e.message, true);
+    }
+  },
+
+  kmzFitImage() { if (this.kmz.img) KmzImage.fit(); },
+  kmzZoom(d) { KmzMap.zoomBy(d); },
+
+  /* ---- জায়গা খোঁজা (নাম বা স্থানাঙ্ক) ---- */
+
+  async kmzGoto() {
+    const el = document.getElementById('kmz-goto');
+    const btn = document.getElementById('kmz-go-btn');
+    if (!el) return;
+    const q = String(el.value || '').trim();
+    if (!q) { this.kmzStatus('জায়গার নাম বা স্থানাঙ্ক লিখুন।', true); return; }
+
+    if (btn) btn.disabled = true;
+    this.kmzGeoList(null, 'খোঁজা হচ্ছে…');
+    try {
+      const res = await KmzGeo.search(q);
+      if (!res.length) {
+        this.kmzGeoList([], 'কিছু পাওয়া যায়নি। বানান বদলে বা কাছের বড় জায়গার নাম দিয়ে দেখুন।');
+        return;
+      }
+      if (res.length === 1 || res[0].exact) {
+        this.kmzGoTo(res[0]);
+        this.kmzGeoList(null);
+      } else {
+        this.kmzGeoList(res);
+      }
+    } catch (e) {
+      this.kmzGeoList([], e.message);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  },
+
+  /** ফলের তালিকা দেখানো (null = লুকানো) */
+  kmzGeoList(list, msg) {
+    const box = document.getElementById('kmz-geo-results');
+    if (!box) return;
+    if (list === null && !msg) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+    if (!list || !list.length) {
+      box.innerHTML = '<div class="kmz-geo-msg">' + (msg || '…') + '</div>';
+      return;
+    }
+    this.kmz.geoHits = list;
+    box.innerHTML = list.map((r, i) =>
+      '<button type="button" class="kmz-geo-item" onclick="AppController.kmzGeoPick(' + i + ')">' +
+        '<i class="bi bi-geo-alt"></i>' +
+        '<span class="kmz-geo-n">' + r.name + '</span>' +
+        '<span class="kmz-geo-c">' + toBn(r.lat.toFixed(4)) + ', ' + toBn(r.lng.toFixed(4)) + '</span>' +
+      '</button>').join('') +
+      '<div class="kmz-geo-msg">তথ্যসূত্র: OpenStreetMap</div>';
+  },
+
+  kmzGeoPick(i) {
+    const r = (this.kmz.geoHits || [])[i];
+    if (!r) return;
+    this.kmzGoTo(r);
+    this.kmzGeoList(null);
+  },
+
+  /** ম্যাপকে একটি জায়গায় নেওয়া */
+  kmzGoTo(place, zoom) {
+    KmzMap.setCenter(place.lat, place.lng, zoom || 17);
+    this.kmzStatus((place.name ? place.name.split(',')[0] + ' — ' : '')
+      + 'ওই জায়গায় নেওয়া হলো। এবার ম্যাপে নিয়ন্ত্রণ বিন্দু বসান।');
+  },
+
+  /* ---- আমার অবস্থান ---- */
+
+  async kmzMyLocation() {
+    const btn = document.getElementById('kmz-loc-btn');
+    if (btn) { btn.disabled = true; btn.classList.add('busy'); }
+    this.kmzStatus('অবস্থান জানা হচ্ছে… ব্রাউজার অনুমতি চাইলে "Allow" দিন।');
+    try {
+      const pos = await KmzGeo.myLocation();
+      KmzMap.setCenter(pos.lat, pos.lng, 18);
+      this.kmzStatus('আপনার অবস্থানে নেওয়া হলো (নির্ভুলতা প্রায় '
+        + toBn(Math.round(pos.accuracy)) + ' মিটার)।');
+      if (!KmzGeo.inBd(pos.lat, pos.lng)) {
+        this.kmzStatus('আপনার অবস্থান বাংলাদেশের বাইরে দেখাচ্ছে — '
+          + 'ম্যাপে নিজে খুঁজে নিন।', true);
+      }
+    } catch (e) {
+      this.kmzStatus(e.message, true);
+    } finally {
+      if (btn) { btn.disabled = false; btn.classList.remove('busy'); }
+    }
+  },
+
+
+
+
+  kmzOpacity(v) {
+    this.kmz.opacity = Number(v) / 100;
+    const el = document.getElementById('kmz-op-val');
+    if (el) el.textContent = toBn(v) + '%';
+    this.kmzPreview(this.kmz.fx);
+  },
+
+  /* ---- নকশার পটভূমি ও রঙ (ভিডিওর "স্বচ্ছভাবে / ব্যাকগ্রাউন্ডসহ") ---- */
+
+  KMZ_COLORS: [
+    { id: null,      name: 'মূল রঙ',   swatch: 'orig' },
+    { id: '#111827', name: 'কালো',     swatch: '#111827' },
+    { id: '#dc2626', name: 'লাল',      swatch: '#dc2626' },
+    { id: '#2563eb', name: 'নীল',      swatch: '#2563eb' },
+    { id: '#16a34a', name: 'সবুজ',     swatch: '#16a34a' },
+    { id: '#f59e0b', name: 'হলুদ',     swatch: '#f59e0b' },
+    { id: '#ffffff', name: 'সাদা',     swatch: '#ffffff' }
+  ],
+
+  kmzRenderColors() {
+    const box = document.getElementById('kmz-colors');
+    if (!box) return;
+    box.innerHTML = this.KMZ_COLORS.map((c, i) =>
+      '<button type="button" class="kmz-sw' +
+        (this.kmz.color === c.id ? ' active' : '') + '"' +
+        ' title="' + c.name + '" onclick="AppController.kmzSetColor(' + i + ')">' +
+        (c.swatch === 'orig'
+          ? '<span class="kmz-sw-orig"></span>'
+          : '<span class="kmz-sw-c" style="background:' + c.swatch + '"></span>') +
+        '<span class="kmz-sw-n">' + c.name + '</span>' +
+      '</button>').join('');
+  },
+
+  kmzSetColor(i) {
+    const c = this.KMZ_COLORS[i];
+    if (!c) return;
+    this.kmz.color = c.id;
+    this.kmzRenderColors();
+    this.kmzApplyFx();
+  },
+
+  kmzSetBg(clear) {
+    this.kmz.bgClear = !!clear;
+    const a = document.getElementById('kmz-bg-keep');
+    const b = document.getElementById('kmz-bg-clear');
+    if (a) a.classList.toggle('active', !clear);
+    if (b) b.classList.toggle('active', clear);
+    const th = document.getElementById('kmz-th-field');
+    if (th) th.style.display = clear ? '' : 'none';
+    this.kmzApplyFx();
+  },
+
+  kmzThreshold(v) {
+    this.kmz.threshold = Number(v);
+    const el = document.getElementById('kmz-th-val');
+    if (el) el.textContent = toBn(v);
+    clearTimeout(this._kmzThTimer);
+    this._kmzThTimer = setTimeout(() => this.kmzApplyFx(), 220);
+  },
+
+  /**
+   * মূল ছবিতে স্বচ্ছতা/রঙ বসিয়ে রপ্তানির ছবি তৈরি।
+   * ফল `kmz.fx` এ রাখা হয় — KMZ বানানোর সময় এটিই ব্যবহৃত হয়।
+   */
+  async kmzApplyFx() {
+    const k = this.kmz;
+    if (!k.img) return;
+
+    // ★ রেস কন্ডিশন ঠেকানো — স্লাইডার টানলে পরপর অনেক অনুরোধ যায়।
+    //   ধীর অনুরোধ পরে শেষ হয়ে নতুন ফলকে চাপা দিতে পারত।
+    //   প্রতিটি অনুরোধের ক্রমিক নম্বর রাখি; শেষেরটি ছাড়া বাকি সব বাতিল।
+    const seq = (this._kmzFxSeq = (this._kmzFxSeq || 0) + 1);
+
+    if (!k.bgClear && !k.color) {              // কিছু বদলানোর নেই
+      k.fx = null;
+      this.kmzPreview(null);
+      this.kmzProg(null);
+      return;
+    }
+
+    // ★ বড় নকশায় এই কাজটা কয়েক সেকেন্ড নেয় (১২ MP ছবিতে PNG এনকোডিং ধীর)।
+    //   ইঙ্গিত না দিলে ব্যবহারকারী ভাবেন কিছুই হচ্ছে না — তাই আগে বার্তা,
+    //   তারপর এক টিক ছেড়ে দিই যাতে বার্তাটা পর্দায় আঁকা হয়।
+    const mp = (k.img.width * k.img.height) / 1e6;
+    this.kmzProg(15, 'নকশা প্রক্রিয়া করা হচ্ছে… (' + toBn(mp.toFixed(1))
+      + ' মেগাপিক্সেল, একটু সময় নিতে পারে)');
+    await new Promise(r => setTimeout(r, 0));
+    if (seq !== this._kmzFxSeq) return;
+
+    try {
+      const res = await KmzFx.apply(k.img, {
+        transparent: k.bgClear,
+        threshold: k.threshold,
+        color: k.color,
+        strength: 1
+      });
+      if (seq !== this._kmzFxSeq) return;      // এর মধ্যে নতুন অনুরোধ এসেছে
+      k.fx = res;
+      this.kmzProg(null);
+      this.kmzPreview(k.fx);
+
+      const mb = res.bytes.length / 1048576;
+      const pct = KmzFx.transparentPct(res.stats);
+      if (k.bgClear && pct < 5) {
+        this.kmzStatus('প্রায় কিছুই স্বচ্ছ হয়নি (' + toBn(pct.toFixed(1))
+          + '%) — নকশাটি হয়তো গাঢ় বা হলদেটে। "সাদার মাত্রা" কমিয়ে দেখুন।', true);
+      } else if (mb > 12) {
+        this.kmzStatus('ছবিটি বড় হয়ে গেছে (' + toBn(mb.toFixed(1))
+          + ' MB) — KMZ ফাইলও বড় হবে ও Google Earth এ ধীরে খুলবে।', true);
+      }
+    } catch (e) {
+      if (seq !== this._kmzFxSeq) return;
+      k.fx = null;
+      this.kmzProg(null);
+      this.kmzStatus('ছবি প্রক্রিয়া করা গেল না: ' + e.message, true);
+    }
+  },
+
+  /** প্রিভিউ — স্যাটেলাইট-সদৃশ পটভূমির উপর নকশা কেমন দেখাবে */
+  kmzPreview(fx) {
+    const box = document.getElementById('kmz-preview-box');
+    const cv = document.getElementById('kmz-preview');
+    const note = document.getElementById('kmz-preview-note');
+    if (!box || !cv) return;
+    const src = fx ? fx.img : this.kmz.img;
+    if (!src) { box.style.display = 'none'; return; }
+    box.style.display = '';
+
+    const ctx = cv.getContext('2d');
+    // চেকার + সবুজাভ পটভূমি — স্বচ্ছতা চোখে ধরা পড়ে
+    const S = 12;
+    for (let y = 0; y < cv.height; y += S) {
+      for (let x = 0; x < cv.width; x += S) {
+        ctx.fillStyle = ((x / S + y / S) % 2) ? '#3f6b3f' : '#4d7a4d';
+        ctx.fillRect(x, y, S, S);
+      }
+    }
+    const sc = Math.min(cv.width / src.width, cv.height / src.height);
+    const w = src.width * sc, h = src.height * sc;
+    ctx.globalAlpha = this.kmz.opacity;
+    ctx.drawImage(src, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+    ctx.globalAlpha = 1;
+
+    if (note) {
+      note.textContent = fx
+        ? (fx.mime === 'image/png' ? 'PNG · ' : 'JPEG · ')
+          + toBn(KmzFx.transparentPct(fx.stats).toFixed(0)) + '% স্বচ্ছ'
+        : 'মূল ছবি';
+    }
+  },
+
+
+  kmzStatus(msg, warn) {
+    const el = document.getElementById('kmz-status');
+    if (!el) return;
+    if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.style.display = '';
+    el.textContent = msg;
+    el.className = 'kmz-status' + (warn ? ' warn' : '');
+  },
+
+  kmzRender() {
+    const k = this.kmz;
+    const res = document.getElementById('kmz-result');
+    const dl = document.getElementById('kmz-dl');
+    k.result = null;
+    if (!res) return;
+
+    if (k.pairs.length < 2) {
+      res.className = 'kmz-empty';
+      res.textContent = 'অন্তত ২টি জোড়া বিন্দু লাগবে।';
+      if (dl) dl.disabled = true;
+      return;
+    }
+
+    let t;
+    try {
+      t = KmzExport.solveTransform(k.pairs);
+    } catch (e) {
+      res.className = 'kmz-empty bad';
+      res.textContent = e.message;
+      if (dl) dl.disabled = true;
+      return;
+    }
+
+    k.result = t;
+    const q = KmzExport.quality(t.rmse);
+    const modeTxt = t.mode === 'affine' ? 'অ্যাফাইন (তির্যকতাও ধরে)' : 'সিমিলারিটি';
+
+    res.className = 'kmz-ok';
+    res.innerHTML =
+      '<div class="fz-stats">' +
+        '<div class="fz-stat"><span class="v kmz-q-' + q.level + '">' + q.label + '</span><span class="l">ক্যালিব্রেশন</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.rmse.toFixed(2)) + ' মি</span><span class="l">গড় ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.maxError.toFixed(2)) + ' মি</span><span class="l">সর্বোচ্চ ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(k.pairs.length) + 'টি</span><span class="l">নিয়ন্ত্রণ বিন্দু</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.scale.toFixed(3)) + '</span><span class="l">মিটার / পিক্সেল</span></div>' +
+        '<div class="fz-stat"><span class="v" style="font-size:0.9rem">' + modeTxt + '</span><span class="l">পদ্ধতি</span></div>' +
+      '</div>' +
+      (k.pairs.length === 2
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-info-circle"></i>' +
+          '<span>২টি বিন্দুতে <b>তির্যকতা ঠিক হয় না</b>। পিছনে গিয়ে <b>আরও ১–২টি</b> ' +
+          'বিন্দু দিলে ত্রুটি কমবে।</span></div>'
+        : '') +
+      (t.maxError > 25
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-exclamation-triangle"></i>' +
+          '<span>কোনো একটি বিন্দুর ত্রুটি <b>' + toBn(t.maxError.toFixed(0)) + ' মিটার</b> — ' +
+          'সম্ভবত দুই পাশে একই জায়গা ক্লিক করা হয়নি বা ক্রম মেলেনি।</span></div>'
+        : '');
+
+    if (dl) dl.disabled = false;
+  },
+
+  kmzDownload() {
+    const k = this.kmz;
+    if (!k.img || !k.result) return;
+    let out;
+    try {
+      const useFx = k.fx;
+      out = KmzExport.build({
+        imageBytes: useFx ? useFx.bytes : k.imgBytes,
+        imageName: useFx ? KmzFx.nameFor(k.imgName, useFx.mime) : k.imgName,
+        width: k.img.width,
+        height: k.img.height,
+        name: (document.getElementById('kmz-name') || {}).value || 'মৌজা ম্যাপ',
+        opacity: k.opacity,
+        points: k.pairs
+      });
+    } catch (e) {
+      this.kmzStatus('KMZ বানানো গেল না: ' + e.message, true);
+      return;
+    }
+    const blob = new Blob([out.bytes], { type: 'application/vnd.google-earth.kmz' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const base = ((document.getElementById('kmz-name') || {}).value || 'mouza-map')
+      .replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+    a.href = url; a.download = base + '.kmz';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    this.kmzStatus('KMZ নামানো হলো — Google Earth এ খুলুন।');
+  },
+
+
+  /* ------------------------------------------------------------------------
+     মৌজা ম্যাপে জমি পরিমাপ — গণিত MapMeasure এ, আঁকা MeasureCanvas এ
+     ------------------------------------------------------------------------ */
+
+  mm: { img: null, imgName: '', isPdf: false, pdfScale: 0,
+        ftPerPx: 0, scaleFrom: '', calibrating: null,
+        tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
+        divMode: 'prop', shares: [], division: null, cutLine: null },
+
+  initMeasure() {
+    const c = document.getElementById('mm-canvas');
+    if (!c) return;
+    this.mmSizeCanvas();
+    if (!c._mmInit) {
+      c._mmInit = true;
+      MeasureCanvas.init(c, {
+        onChange: () => this.mmRefresh(),
+        onSelect: () => this.mmRefresh()
+      });
+    } else {
+      MeasureCanvas.state.canvas = c;
+      MeasureCanvas.draw();
+    }
+    this.mmFillScaleOptions();
+    this.mmRefresh();
+  },
+
+  mmSizeCanvas() {
+    const c = document.getElementById('mm-canvas');
+    const st = document.getElementById('mm-stage');
+    if (!c || !st) return;
+    const r = st.getBoundingClientRect();
+    const w = Math.max(280, Math.round(r.width));
+    const h = Math.max(320, Math.round(r.height));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  },
+
+  /* ---- স্কেলের ড্রপডাউন ---- */
+
+  mmFillScaleOptions() {
+    const ms = document.getElementById('mm-mapscale');
+    if (ms && !ms.options.length) {
+      ms.innerHTML = MapMeasure.MAP_SCALES.map((x, i) =>
+        '<option value="' + i + '">' + x.label + '</option>').join('');
+    }
+    const dp = document.getElementById('mm-dpi');
+    if (dp && !dp.options.length) {
+      dp.innerHTML = MapMeasure.DPI_OPTIONS.map(x =>
+        '<option value="' + x.dpi + '">' + x.label + '</option>').join('');
+    }
+    const bl = document.getElementById('mm-barlen');
+    if (bl && !bl.options.length) {
+      bl.innerHTML = MapMeasure.COMMON_SCALES.map(x =>
+        '<option value="' + x.ft + '">' + x.label + '</option>').join('') +
+        '<option value="custom">অন্য দৈর্ঘ্য (নিজে লিখব)</option>';
+    }
+  },
+
+  mmScaleDialog(show) {
+    const m = document.getElementById('mm-scale-modal');
+    if (!m) return;
+    m.style.display = show ? '' : 'none';
+    if (show) this.mmSyncDpiState();
+  },
+
+  /** PDF হলে DPI বন্ধ — কারণ রেন্ডার স্কেল থেকেই বেরিয়ে আসে */
+  mmSyncDpiState() {
+    const k = this.mm;
+    const dp = document.getElementById('mm-dpi');
+    const badge = document.getElementById('mm-dpi-badge');
+    const note = document.getElementById('mm-dpi-note');
+    if (!dp) return;
+    if (k.isPdf && k.pdfScale > 0) {
+      const dpi = MapMeasure.dpiForPdf(k.pdfScale);
+      dp.disabled = true;
+      if (badge) {
+        badge.style.display = '';
+        badge.textContent = 'PDF-এর জন্য বন্ধ';
+        badge.className = 'mm-badge off';
+      }
+      if (note) note.textContent = 'PDF থেকে DPI বেরিয়ে এসেছে: '
+        + toBn(dpi.toFixed(1)) + ' — বাছার দরকার নেই।';
+    } else {
+      dp.disabled = false;
+      if (badge) badge.style.display = 'none';
+      if (note) note.textContent = 'ছবির DPI জানা না থাকলে ৩০০ ধরে নিন — '
+        + 'নিখুঁত মাপ চাইলে পদ্ধতি ২ ব্যবহার করুন।';
+    }
+  },
+
+  mmApplyMapScale() {
+    const k = this.mm;
+    const i = Number((document.getElementById('mm-mapscale') || {}).value || 0);
+    const sc = MapMeasure.MAP_SCALES[i];
+    if (!sc) return;
+    let dpi;
+    if (k.isPdf && k.pdfScale > 0) {
+      dpi = MapMeasure.dpiForPdf(k.pdfScale);
+    } else {
+      dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
+    }
+    try {
+      const r = MapMeasure.fromMapScale(1, sc.ftPerInch, dpi);
+      k.ftPerPx = r.ftPerPx;
+      k.scaleFrom = sc.label + ' · ' + toBn(dpi.toFixed(0)) + ' DPI';
+      MeasureCanvas.setScale(k.ftPerPx);
+      this.mmScaleDialog(false);
+      this.mmRefresh();
+    } catch (e) { alert(e.message); }
+  },
+
+  /* ---- পদ্ধতি ২ — ম্যাপ থেকে ক্যালিব্রেট ---- */
+
+  mmStartCalibrate() {
+    const k = this.mm;
+    if (!k.img) { alert('আগে একটি ম্যাপ নিন'); return; }
+    let ft = (document.getElementById('mm-barlen') || {}).value;
+    if (ft === 'custom') {
+      const v = prompt('স্কেল-দণ্ডটি বাস্তবে কত ফুট?', '৬৬০');
+      if (v == null) return;
+      ft = Number(toEn(String(v)));
+      if (!(ft > 0)) { alert('সঠিক দূরত্ব দিন!'); return; }
+    }
+    k.calibrating = { feet: Number(ft) };
+    this.mmScaleDialog(false);
+    this.mmCalibHint(0);
+    MeasureCanvas.startCalibrate(
+      (p1, p2) => this.mmFinishCalibrate(p1, p2),
+      n => this.mmCalibHint(n)
+    );
+  },
+
+  mmCalibHint(done) {
+    const k = this.mm;
+    const bar = document.getElementById('mm-draw-bar');
+    const hint = document.getElementById('mm-draw-hint');
+    const fin = document.getElementById('mm-finish');
+    if (!bar || !hint || !k.calibrating) return;
+    bar.style.display = '';
+    if (fin) fin.style.display = 'none';
+    hint.innerHTML = '<b>স্কেল ক্যালিব্রেশন —</b> দণ্ডটি ' + toBn(k.calibrating.feet)
+      + ' ফুট। ' + (done === 0 ? '<b>প্রথম</b>' : '<b>দ্বিতীয়</b>')
+      + ' প্রান্তে ক্লিক করুন (' + toBn(done) + '/২)';
+  },
+
+  mmFinishCalibrate(p1, p2) {
+    const k = this.mm;
+    const bar = document.getElementById('mm-draw-bar');
+    const fin = document.getElementById('mm-finish');
+    if (fin) fin.style.display = '';
+    const feet = k.calibrating ? k.calibrating.feet : 0;
+    try {
+      const r = MapMeasure.calibrate(p1, p2, feet);
+      k.ftPerPx = r.ftPerPx;
+      k.scaleFrom = 'ম্যাপ থেকে মাপা (' + toBn(feet) + ' ফুট = '
+        + toBn(Math.round(r.pxLength)) + ' পিক্সেল)';
+      k.calibrating = null;
+      MeasureCanvas.setScale(k.ftPerPx);
+      if (bar) bar.style.display = 'none';
+      this.mmTool('pan');
+      this.mmRefresh();
+    } catch (e) {
+      k.calibrating = null;
+      if (bar) bar.style.display = 'none';
+      alert(e.message + ' — আবার চেষ্টা করুন।');
+      this.mmRefresh();
+    }
+  },
+
+  /* ---- টুল ---- */
+
+  mmTool(t) {
+    if (this.mm.calibrating) return;
+    MeasureCanvas.setTool(t);
+    document.querySelectorAll('#mm-tools .mm-tool').forEach(b =>
+      b.classList.toggle('active', b.dataset.tool === t));
+    const bar = document.getElementById('mm-draw-bar');
+    if (bar) bar.style.display = t === 'draw' ? '' : 'none';
+    this.mmRefresh();
+  },
+
+  mmZoom(d) { MeasureCanvas.zoom(d); },
+  mmFit() { MeasureCanvas.fit(); },
+
+  mmUndoPoint() { MeasureCanvas.undoDraftPoint(); },
+  mmCancelDraft() { MeasureCanvas.cancelDraft(); },
+
+  mmFinish() {
+    const r = MeasureCanvas.closePlot();
+    if (!r.ok) { alert(r.msg); return; }
+    this.mmRefresh();
+  },
+
+  mmClear() {
+    if (!MeasureCanvas.state.plots.length && !MeasureCanvas.state.draft.length) return;
+    if (!confirm('সব প্লট ও পয়েন্ট মুছে দেবেন?')) return;
+    MeasureCanvas.clearAll();
+    this.mmRefresh();
+  },
+
+  mmDeletePlot(i) {
+    MeasureCanvas.deletePlot(i);
+    this.mmRefresh();
+  },
+
+  mmSetDag(i, v) {
+    const p = MeasureCanvas.state.plots[i];
+    if (p) { p.dag = String(v || '').trim(); MeasureCanvas.draw(); }
+  },
+
+  /* ---- হালনাগাদ ---- */
+
+  mmRefresh() {
+    const k = this.mm;
+    const has = !!k.img;
+    ['mm-left', 'mm-tools', 'mm-tiles', 'mm-scale-pill', 'mm-list-wrap'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = has ? '' : 'none';
+    });
+    const intro = document.getElementById('mm-intro');
+    if (intro) intro.style.display = has ? 'none' : '';
+    if (!has) return;
+
+    // স্কেলের অবস্থা
+    const txt = document.getElementById('mm-scale-txt');
+    const pill = document.getElementById('mm-scale-pill');
+    if (txt) {
+      txt.textContent = k.ftPerPx > 0
+        ? '১ পিক্সেল = ' + toBn(k.ftPerPx.toFixed(4)) + ' ফুট'
+        : 'স্কেল ঠিক করুন — ক্লিক করুন';
+    }
+    if (pill) pill.className = 'mm-scale-pill' + (k.ftPerPx > 0 ? ' ok' : ' warn');
+
+    // টাইল
+    const st = MeasureCanvas.stats();
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    set('mm-t-cur', k.ftPerPx > 0 ? toBn(st.current.satak.toFixed(2)) + ' শতক' : '— শতক');
+    set('mm-t-tot', k.ftPerPx > 0 ? toBn(st.totals.satak.toFixed(2)) + ' শতক' : '— শতক');
+    set('mm-t-cnt', toBn(st.totals.count) + 'টি');
+
+    // আঁকার বার
+    const fin = document.getElementById('mm-finish');
+    if (fin && !k.calibrating) {
+      fin.style.display = '';
+      fin.disabled = MeasureCanvas.state.draft.length < 3;
+    }
+    const hint = document.getElementById('mm-draw-hint');
+    if (hint && !k.calibrating) {
+      const n = MeasureCanvas.state.draft.length;
+      hint.textContent = n === 0 ? 'ম্যাপে ক্লিক করে পয়েন্ট বসান'
+        : n < 3 ? toBn(n) + 'টি পয়েন্ট — অন্তত ৩টি দরকার'
+        : toBn(n) + 'টি পয়েন্ট — প্রথম পয়েন্টে ক্লিক করলেও প্লট বন্ধ হবে';
+    }
+
+    this.mmRenderList();
+  },
+
+  mmRenderList() {
+    const box = document.getElementById('mm-list');
+    const pill = document.getElementById('mm-list-pill');
+    if (!box) return;
+    const k = this.mm;
+    const plots = MeasureCanvas.state.plots;
+    if (pill) pill.textContent = toBn(plots.length) + 'টি';
+    if (!plots.length) { box.className = 'mm-list'; box.textContent = 'কোনো প্লট নেই'; return; }
+
+    box.className = 'mm-list has';
+    box.innerHTML = plots.map((p, i) => {
+      const m = MapMeasure.measure(p, k.ftPerPx);
+      const sel = i === MeasureCanvas.state.selected;
+      return '<div class="mm-row' + (sel ? ' sel' : '') + '">' +
+        '<span class="mm-row-n">' + toBn(i + 1) + '</span>' +
+        '<input class="mm-row-dag" value="' + (p.dag || '') + '" placeholder="দাগ নং"' +
+          ' oninput="AppController.mmSetDag(' + i + ', this.value)">' +
+        '<span class="mm-row-a">' +
+          (k.ftPerPx > 0 ? toBn(m.satak.toFixed(2)) + ' শতক' : '—') + '</span>' +
+        '<span class="mm-row-k">' +
+          (k.ftPerPx > 0 ? toBn(m.katha.toFixed(2)) + ' কাঠা' : '') + '</span>' +
+        '<button type="button" class="fz-btn-del" title="মুছুন"' +
+          ' onclick="AppController.mmDeletePlot(' + i + ')"><i class="bi bi-x-lg"></i></button>' +
+      '</div>';
+    }).join('') +
+    (k.ftPerPx > 0 ? '<div class="mm-row total"><span></span><span>মোট</span>' +
+      '<span class="mm-row-a">' + toBn(MeasureCanvas.stats().totals.satak.toFixed(2)) +
+      ' শতক</span><span class="mm-row-k">' +
+      toBn(MeasureCanvas.stats().totals.katha.toFixed(2)) + ' কাঠা</span><span></span></div>' : '');
+  },
+
+
+  /* ---- ভাগবণ্টন ---- */
+
+  mmDivideMode() {
+    const k = this.mm;
+    if (!MeasureCanvas.state.plots.length) {
+      alert('আগে অন্তত একটি প্লট আঁকুন!');
+      return;
+    }
+    if (MeasureCanvas.state.selected < 0) MeasureCanvas.state.selected = 0;
+    this.mmTool('select');
+    document.querySelectorAll('#mm-tools .mm-tool').forEach(b =>
+      b.classList.toggle('active', b.dataset.tool === 'divide'));
+    const w = document.getElementById('mm-div-wrap');
+    if (w) w.style.display = '';
+    if (!k.shares.length) { k.shares = [{ name: '', satak: '' }, { name: '', satak: '' }]; }
+    this.mmDivRefresh();
+  },
+
+  mmDivMode(m) {
+    this.mm.divMode = m;
+    const a = document.getElementById('mm-dm-prop');
+    const b = document.getElementById('mm-dm-man');
+    if (a) a.classList.toggle('active', m === 'prop');
+    if (b) b.classList.toggle('active', m === 'manual');
+    const pp = document.getElementById('mm-div-prop');
+    const pm = document.getElementById('mm-div-man');
+    if (pp) pp.style.display = m === 'prop' ? '' : 'none';
+    if (pm) pm.style.display = m === 'manual' ? '' : 'none';
+  },
+
+  /** নির্বাচিত প্লট */
+  mmSelPlot() {
+    const i = MeasureCanvas.state.selected;
+    return i >= 0 ? MeasureCanvas.state.plots[i] : null;
+  },
+
+  mmDivRefresh() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    const pill = document.getElementById('mm-div-plot');
+    if (pill) {
+      pill.textContent = plot
+        ? (plot.dag ? 'দাগ ' + plot.dag : plot.name) + ' — '
+          + (k.ftPerPx > 0 ? toBn(MapMeasure.measure(plot, k.ftPerPx).satak.toFixed(2)) + ' শতক' : '')
+        : 'প্লট বাছুন';
+      pill.className = 'fz-pill' + (plot ? ' ok' : '');
+    }
+
+    // বাহুর তালিকা
+    const sel = document.getElementById('mm-div-side');
+    if (sel && plot) {
+      const cur = sel.value;
+      const opts = MapMeasure.sideOptions(plot.points, k.ftPerPx);
+      sel.innerHTML = opts.map(o => '<option value="' + o.index + '">' + o.label +
+        (k.ftPerPx > 0 ? ' · ' + MapMeasure.formatFtIn(o.feet) : '') + '</option>').join('');
+      if (cur && cur < opts.length) sel.value = cur;
+    }
+
+    this.mmRenderShares();
+  },
+
+  mmAddShare() {
+    this.mm.shares.push({ name: '', satak: '' });
+    this.mmRenderShares();
+  },
+  mmDelShare(i) {
+    this.mm.shares.splice(i, 1);
+    this.mmRenderShares();
+  },
+  mmSetShare(i, field, v) {
+    if (!this.mm.shares[i]) return;
+    this.mm.shares[i][field] = field === 'satak' ? toEn(String(v)) : v;
+    this.mmSharePill();
+  },
+
+  mmSharePill() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    const total = plot && k.ftPerPx > 0 ? MapMeasure.measure(plot, k.ftPerPx).satak : 0;
+    const asked = k.shares.reduce((a, b) => a + (Number(b.satak) || 0), 0);
+    const el = document.getElementById('mm-share-pill');
+    if (!el) return;
+    el.textContent = toBn(asked.toFixed(2)) + ' / ' + toBn(total.toFixed(2)) + ' শতক';
+    el.className = 'fz-pill' + (asked > total + 0.01 ? ' bad' : asked > 0 ? ' ok' : '');
+  },
+
+  mmRenderShares() {
+    const box = document.getElementById('mm-shares');
+    if (!box) return;
+    box.innerHTML = this.mm.shares.map((sh, i) =>
+      '<div class="mm-share">' +
+        '<span class="mm-share-n">' + toBn(i + 1) + '</span>' +
+        '<input class="mm-share-name" placeholder="শরিক ' + toBn(i + 1) + ' এর নাম"' +
+          ' value="' + (sh.name || '') + '"' +
+          ' oninput="AppController.mmSetShare(' + i + ',\'name\',this.value)">' +
+        '<span class="fz-input-wrap mm-share-amt"><input inputmode="decimal" placeholder="০"' +
+          ' value="' + (sh.satak || '') + '"' +
+          ' oninput="AppController.mmSetShare(' + i + ',\'satak\',this.value)">' +
+          '<span class="mm-share-u">শতক</span></span>' +
+        '<button type="button" class="fz-btn-del" onclick="AppController.mmDelShare(' + i + ')">' +
+          '<i class="bi bi-x-lg"></i></button>' +
+      '</div>').join('');
+    this.mmSharePill();
+  },
+
+  mmDivPreview() { /* বাহু বদলালে কিছু করার নেই — ভাগ করলে দেখা যাবে */ },
+
+  mmDoDivide() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
+    if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    const side = Number((document.getElementById('mm-div-side') || {}).value || 0);
+    const people = k.shares
+      .map((x, i) => ({ name: (x.name || '').trim() || ('শরিক ' + toBn(i + 1)),
+                        satak: Number(x.satak) || 0 }))
+      .filter(x => x.satak > 0);
+    if (!people.length) { alert('অন্তত একজন শরিকের অংশ দিন'); return; }
+
+    try {
+      const res = MapMeasure.divideByArea(plot.points, side, people, k.ftPerPx);
+      k.division = res;
+      MeasureCanvas.setDivision(res);
+      this.mmShowDivResult(MapMeasure.divisionReport(res,
+        plot.dag ? 'দাগ ' + plot.dag : plot.name));
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+
+  mmStartManualCut() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
+    if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    const bar = document.getElementById('mm-draw-bar');
+    const hint = document.getElementById('mm-draw-hint');
+    const fin = document.getElementById('mm-finish');
+    if (bar) bar.style.display = '';
+    if (fin) fin.style.display = 'none';
+    if (hint) hint.innerHTML = '<b>ম্যানুয়াল ভাগ —</b> প্লটের এক পাশ থেকে অন্য পাশে '
+      + 'দুটি ক্লিক করে রেখা টানুন';
+    MeasureCanvas.startCalibrate(
+      (p1, p2) => this.mmFinishManualCut(plot, p1, p2),
+      n => { if (hint) hint.innerHTML = '<b>ম্যানুয়াল ভাগ —</b> আর '
+        + toBn(2 - n) + 'টি ক্লিক'; }
+    );
+  },
+
+  mmFinishManualCut(plot, p1, p2) {
+    const k = this.mm;
+    const bar = document.getElementById('mm-draw-bar');
+    const fin = document.getElementById('mm-finish');
+    if (bar) bar.style.display = 'none';
+    if (fin) fin.style.display = '';
+    this.mmTool('select');
+    try {
+      const c = MapMeasure.sliceByLine(plot.points, p1, p2);
+      const f = k.ftPerPx, S = MapMeasure.SQFT_PER_SATAK;
+      const base = plot.dag ? 'দাগ ' + plot.dag : plot.name;
+      const res = {
+        parts: [
+          { name: base + '-ক', polygon: c.a, areaPx: c.areaA, satak: c.areaA * f * f / S },
+          { name: base + '-খ', polygon: c.b, areaPx: c.areaB, satak: c.areaB * f * f / S }
+        ],
+        leftover: null,
+        totalSatak: MapMeasure.areaPx(plot.points) * f * f / S,
+        askedSatak: 0
+      };
+      k.division = res;
+      MeasureCanvas.setDivision(res);
+      this.mmShowDivResult(MapMeasure.divisionReport(res, base));
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+
+  mmClearDivision() {
+    this.mm.division = null;
+    MeasureCanvas.setDivision(null);
+    const r = document.getElementById('mm-div-result');
+    if (r) r.style.display = 'none';
+  },
+
+  mmShowDivResult(rep) {
+    const box = document.getElementById('mm-div-result');
+    if (!box) return;
+    box.style.display = '';
+    box.innerHTML =
+      '<div class="mm-div-title"><i class="bi bi-file-earmark-text"></i> ' +
+        'জমি ভাগ-বন্টন রিপোর্ট' + (rep.plotName ? ' — ' + rep.plotName : '') + '</div>' +
+      '<table class="mm-div-table"><thead><tr>' +
+        '<th>ক্রম</th><th>শরিক</th><th>জমি</th><th>শতাংশ</th></tr></thead><tbody>' +
+      rep.rows.map((r, i) =>
+        '<tr' + (r.name === 'অবশিষ্ট' ? ' class="left"' : '') + '>' +
+          '<td><span class="mm-div-dot" style="background:' + this.mmDivColor(i) + '"></span>' +
+            toBn(r.serial) + '</td>' +
+          '<td>' + r.name + '</td>' +
+          '<td class="num">' + toBn(r.satak.toFixed(2)) + ' শতক</td>' +
+          '<td class="num">' + toBn(r.percent.toFixed(2)) + '%</td>' +
+        '</tr>').join('') +
+      '</tbody><tfoot><tr>' +
+        '<td colspan="2">সর্বমোট</td>' +
+        '<td class="num">' + toBn(rep.sumSatak.toFixed(2)) + ' শতক</td>' +
+        '<td class="num">১০০.০০%</td>' +
+      '</tr></tfoot></table>' +
+      (rep.exact
+        ? '<p class="mm-div-ok"><i class="bi bi-check-circle"></i> যোগফল মূল প্লটের সাথে হুবহু মিলেছে।</p>'
+        : '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> যোগফল মিলছে না — আবার দেখুন।</p>') +
+      '<button type="button" class="btn btn-outline btn-sm" onclick="AppController.mmCopyReport()">' +
+        '<i class="bi bi-clipboard"></i> রিপোর্ট কপি করুন</button>';
+    this.mm.lastReport = rep;
+  },
+
+  mmDivColor(i) {
+    const C = ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#14b8a6'];
+    return C[i % C.length];
+  },
+
+  mmCopyReport() {
+    const rep = this.mm.lastReport;
+    if (!rep) return;
+    const L = ['জমি ভাগ-বন্টন রিপোর্ট' + (rep.plotName ? ' — ' + rep.plotName : ''),
+               'মোট জমি: ' + toBn(rep.totalSatak.toFixed(2)) + ' শতক', '', 'শরিকদের বিবরণ:'];
+    rep.rows.forEach(r => L.push('  ' + toBn(r.serial) + '. ' + r.name + ' — '
+      + toBn(r.satak.toFixed(2)) + ' শতক (' + toBn(r.percent.toFixed(2)) + '%)'));
+    L.push('', 'সর্বমোট: ' + toBn(rep.sumSatak.toFixed(2)) + ' শতক');
+    const txt = L.join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(
+      () => this.showToast && this.showToast('রিপোর্ট কপি হয়েছে'), () => {});
+  },
+
+  /* ---- অগ্রগতি ---- */
+
+  mmProg(pct, msg) {
+    const box = document.getElementById('mm-prog');
+    const fill = document.getElementById('mm-prog-fill');
+    const txt = document.getElementById('mm-prog-txt');
+    if (!box) return;
+    if (pct == null) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if (txt) txt.textContent = msg || '';
+  },
+
+  /* ---- ম্যাপ আনা ---- */
+
+  mmPick(kind) {
+    if (kind === 'file' || kind === 'menu') {
+      if (kind === 'menu') {
+        const a = document.getElementById('mm-arch');
+        if (a && a.style.display !== 'none') { a.style.display = 'none'; return; }
+      }
+      if (kind === 'file') { const f = document.getElementById('mm-file'); if (f) f.click(); return; }
+    }
+    const a = document.getElementById('mm-arch');
+    if (a) a.style.display = a.style.display === 'none' ? '' : 'none';
+    if (!this.mm.treeLoaded) this.mmArchInit();
+  },
+
+  mmUseImage(r, name, isPdf, pdfScale) {
+    const k = this.mm;
+    k.img = r.img; k.imgName = name || 'map.jpg';
+    k.isPdf = !!isPdf; k.pdfScale = pdfScale || 0;
+    k.ftPerPx = 0; k.scaleFrom = ''; k.calibrating = null;
+    MeasureCanvas.setImage(r.img);
+    MeasureCanvas.setScale(0);
+    const a = document.getElementById('mm-arch');
+    if (a) a.style.display = 'none';
+    this.mmRefresh();
+    this.mmScaleDialog(true);
+  },
+
+  mmLoadFile(input) {
+    const f = input && input.files && input.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const buf = new Uint8Array(ev.target.result);
+      this.mmProg(5, 'ফাইল পড়া হচ্ছে…');
+      try {
+        const isPdf = KmzSource.looksLikePdf(buf) || f.type === 'application/pdf';
+        const r = await KmzSource.toImage(buf, f.type, {
+          onStage: (pc, m) => this.mmProg(pc, m)
+        });
+        this.mmProg(null);
+        // PDF হলে রেন্ডার স্কেল বের করি (DPI এর জন্য)
+        let pdfScale = 0;
+        if (isPdf && r.width) pdfScale = r.pdfScale || 0;
+        this.mmUseImage(r, f.name, isPdf, pdfScale);
+      } catch (e) {
+        this.mmProg(null);
+        alert(e.message);
+      }
+    };
+    reader.readAsArrayBuffer(f);
+  },
+
+  /* ---- আর্কাইভ ---- */
+
+  async mmArchInit() {
+    const sel = document.getElementById('mm-div');
+    try {
+      this.mmProg(20, 'আর্কাইভের সূচি আসছে…');
+      this.mm.tree = await KmzSource.tree();
+      this.mm.treeLoaded = true;
+      this.mmProg(null);
+      if (sel) sel.innerHTML = '<option value="">— বিভাগ বাছুন —</option>' +
+        this.mm.tree.divisions.map((d, i) => '<option value="' + i + '">' + d.name + '</option>').join('');
+    } catch (e) {
+      this.mmProg(null);
+      if (sel) sel.innerHTML = '<option value="">— আনা যায়নি —</option>';
+      alert(this.kmzNetHint('আর্কাইভের সূচি', e));
+    }
+  },
+
+  _mmFill(id, items, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !items || !items.length;
+    el.innerHTML = '<option value="">— ' + label + ' —</option>' +
+      (items || []).map((x, i) => '<option value="' + i + '">' + x.name +
+        (x.count ? ' (' + toBn(x.count) + ')' : '') + '</option>').join('');
+  },
+
+  mmArchDiv() {
+    const k = this.mm, i = document.getElementById('mm-div').value;
+    k.arch = { div: i === '' ? null : k.tree.divisions[i] };
+    this._mmFill('mm-dist', k.arch.div ? k.arch.div.districts : [], 'জেলা বাছুন');
+    this._mmFill('mm-upa', [], 'উপজেলা'); this._mmFill('mm-srv', [], 'জরিপ');
+    this.mmArchList([]);
+  },
+  mmArchDist() {
+    const k = this.mm, i = document.getElementById('mm-dist').value;
+    k.arch.dist = i === '' ? null : k.arch.div.districts[i];
+    this._mmFill('mm-upa', k.arch.dist ? k.arch.dist.upazilas : [], 'উপজেলা বাছুন');
+    this._mmFill('mm-srv', [], 'জরিপ'); this.mmArchList([]);
+  },
+  mmArchUpa() {
+    const k = this.mm, i = document.getElementById('mm-upa').value;
+    k.arch.upa = i === '' ? null : k.arch.dist.upazilas[i];
+    this._mmFill('mm-srv', k.arch.upa ? k.arch.upa.surveys : [], 'জরিপ বাছুন');
+    this.mmArchList([]);
+  },
+  async mmArchSrv() {
+    const k = this.mm, i = document.getElementById('mm-srv').value;
+    k.arch.srv = i === '' ? null : k.arch.upa.surveys[i];
+    const se = document.getElementById('mm-fsearch');
+    if (!k.arch.srv) { this.mmArchList([]); if (se) se.disabled = true; return; }
+    try {
+      this.mmProg(30, 'ফাইলের তালিকা আসছে…');
+      k.archFiles = await KmzSource.filesOf(k.arch.srv.id);
+      this.mmProg(null);
+      if (se) { se.disabled = false; se.value = ''; }
+      this.mmArchList(k.archFiles);
+    } catch (e) {
+      this.mmProg(null); this.mmArchList([]);
+      alert(this.kmzNetHint('ফাইলের তালিকা', e));
+    }
+  },
+  mmArchFilter() {
+    const q = (document.getElementById('mm-fsearch') || {}).value || '';
+    this.mmArchList(MouzaMap.filterFiles(this.mm.archFiles || [], q));
+  },
+  mmArchList(files) {
+    const box = document.getElementById('mm-arch-list');
+    if (!box) return;
+    const list = files || [];
+    if (!list.length) {
+      box.className = 'kmz-arch-list';
+      box.textContent = this.mm.arch && this.mm.arch.srv
+        ? 'এই জরিপে কোনো ফাইল মেলেনি।' : 'উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।';
+      return;
+    }
+    const shown = list.slice(0, 150);
+    box.className = 'kmz-arch-list has';
+    box.innerHTML = shown.map((f, i) => {
+      const bad = !MouzaMap.canProxy(f) || String(f.mimeType) === 'image/tiff';
+      const kind = MouzaMap.fileKind(f.mimeType);
+      return '<button type="button" class="kmz-af' + (bad ? ' bad' : '') + '"' +
+        (bad ? ' disabled' : '') + ' onclick="AppController.mmPickArchive(' + i + ')">' +
+        '<i class="bi ' + kind.icon + '"></i><span class="kmz-af-n">' + f.name + '</span>' +
+        '<span class="kmz-af-s">' + MouzaMap.formatSize(f.size) + '</span></button>';
+    }).join('');
+    this.mm.archShown = shown;
+  },
+  async mmPickArchive(i) {
+    const f = (this.mm.archShown || [])[i];
+    if (!f) return;
+    try {
+      this.mmProg(3, 'ফাইল নামানো হচ্ছে…');
+      const r = await KmzSource.fromArchive(f, (pc, m) => this.mmProg(pc, m));
+      this.mmProg(null);
+      this.mmUseImage(r, r.name || f.name, !!r.wasPdf, r.pdfScale || 0);
+    } catch (e) {
+      this.mmProg(null); alert(e.message);
+    }
   },
 
   closeModal() {

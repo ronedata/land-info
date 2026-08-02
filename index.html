@@ -258,6 +258,32 @@
         <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
       </div>
 
+      <!-- কার্ড: মৌজা ম্যাপে জমি পরিমাপ — কাজ চলমান -->
+      <div class="tool-card" data-category="measure" data-title="মৌজা ম্যাপে জমি পরিমাপ ভাগবণ্টন নকশা থেকে জমি মাপা স্কেল ক্যালিব্রেশন দাগ শতক basics measure" onclick="AppController.openToolModal('map-measure')">
+        <span class="tool-badge badge-wip">কাজ চলছে</span>
+        <div>
+          <div class="tool-icon-wrapper" style="background:#fef3c7;color:#b45309">
+            <i class="bi bi-rulers"></i>
+          </div>
+          <h3 class="tool-title">মৌজা ম্যাপে জমি পরিমাপ</h3>
+          <p class="tool-desc">নকশার স্কেল ঠিক করে সরাসরি ম্যাপের উপর দাগ এঁকে জমির পরিমাণ বের করুন — প্রতিটি বাহুর মাপসহ।</p>
+        </div>
+        <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
+      </div>
+
+      <!-- কার্ড: গুগল আর্থে মৌজা ম্যাপ (KMZ) — কাজ চলমান -->
+      <div class="tool-card" data-category="map" data-title="গুগল আর্থ KMZ এক্সপোর্ট মৌজা ম্যাপ স্যাটেলাইট ক্যালিব্রেশন google earth kmz overlay নিয়ন্ত্রণ বিন্দু" onclick="AppController.openToolModal('kmz-export')">
+        <span class="tool-badge badge-wip">কাজ চলছে</span>
+        <div>
+          <div class="tool-icon-wrapper" style="background:#dcfce7;color:#15803d">
+            <i class="bi bi-globe-americas"></i>
+          </div>
+          <h3 class="tool-title">গুগল আর্থে মৌজা ম্যাপ (KMZ)</h3>
+          <p class="tool-desc">মৌজা ম্যাপের ছবিকে স্যাটেলাইট ছবির সাথে মিলিয়ে KMZ ফাইল বানান — Google Earth এ খুললে জমি ঠিক জায়গায় বসবে।</p>
+        </div>
+        <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
+      </div>
+
       <!-- Card: খতিয়ান বিশ্লেষণ (পর্চার হিসাব) -->
       <div class="tool-card" data-category="khotian" data-title="খতিয়ান বিশ্লেষণ পর্চার হিসাব পর্চা গণনা দাগভিত্তিক বণ্টন khotian bisleshon porcha hisab তফসিল" onclick="AppController.openToolModal('khotian-porcha')">
         <span class="tool-badge badge-featured">নতুন</span>
@@ -412,8 +438,9 @@
         </div>
       </div>
 
-      <!-- Card 8: Map Pantograph Overlay -->
+      <!-- কার্ড ৮: তুলনামূলক প্যান্টোগ্রাফ — কাজ চলমান -->
       <div class="tool-card" data-category="map" data-title="তুলনামূলক প্যান্টোগ্রাফ ম্যাপ ওভারলে" onclick="AppController.openToolModal('map-overlay')">
+        <span class="tool-badge badge-wip">কাজ চলছে</span>
         <div>
           <div class="tool-icon-wrapper" style="background:#f3e8ff;color:#9333ea">
             <i class="bi bi-layers-half"></i>
@@ -427,8 +454,9 @@
         </div>
       </div>
 
-      <!-- Card 9: Print Studio -->
+      <!-- কার্ড ৯: প্রিন্ট স্টুডিও — কাজ চলমান -->
       <div class="tool-card" data-category="measure" data-title="সার্ভে প্রতিবেদন প্রিন্ট স্টুডিও" onclick="AppController.openToolModal('print-studio')">
+        <span class="tool-badge badge-wip">কাজ চলছে</span>
         <div>
           <div class="tool-icon-wrapper" style="background:#e0f2fe;color:#0369a1">
             <i class="bi bi-printer-fill"></i>
@@ -462,6 +490,412 @@
 
       <!-- Modal Body -->
       <div class="modal-body" id="modal-dynamic-body">
+
+        <!-- VIEW: মৌজা ম্যাপে জমি পরিমাপ -->
+        <div id="view-map-measure" class="tool-view-content mm-wrap" style="display:none">
+
+          <div class="fz-warn">
+            <i class="bi bi-cone-striped"></i>
+            <span><b>এই টুলের কাজ চলছে।</b> এখন স্কেল ঠিক করে প্লট আঁকা ও জমির
+            পরিমাণ বের করা যায়। <b>ভাগবণ্টন, লাইন, বৃত্ত, টেক্সট ও রপ্তানি</b> পরে যোগ হবে।</span>
+          </div>
+
+          <div class="mm-stage" id="mm-stage">
+            <canvas id="mm-canvas"></canvas>
+
+            <!-- শুরুর কার্ড -->
+            <div class="mm-intro" id="mm-intro">
+              <div class="mm-intro-ic"><i class="bi bi-map"></i></div>
+              <h4>মৌজা ম্যাপ নিন</h4>
+              <p>আর্কাইভ থেকে বেছে নিন, অথবা নিজের ছবি/PDF আপলোড করুন।</p>
+              <div class="mm-intro-btns">
+                <button type="button" class="btn btn-primary" onclick="AppController.mmPick('archive')">
+                  <i class="bi bi-collection"></i> আর্কাইভ থেকে
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.mmPick('file')">
+                  <i class="bi bi-upload"></i> আপলোড
+                </button>
+              </div>
+              <input type="file" id="mm-file" accept="image/jpeg,image/png,application/pdf"
+                     style="display:none" onchange="AppController.mmLoadFile(this)">
+            </div>
+
+            <!-- স্কেলের অবস্থা -->
+            <div class="mm-scale-pill" id="mm-scale-pill" style="display:none"
+                 onclick="AppController.mmScaleDialog(true)">
+              <i class="bi bi-rulers"></i><span id="mm-scale-txt">স্কেল ঠিক করুন</span>
+            </div>
+
+            <!-- বাঁ পাশের নিয়ন্ত্রণ -->
+            <div class="mm-left" id="mm-left" style="display:none">
+              <button type="button" class="mm-cbtn" title="বড়" onclick="AppController.mmZoom(1)"><i class="bi bi-plus-lg"></i></button>
+              <button type="button" class="mm-cbtn" title="ছোট" onclick="AppController.mmZoom(-1)"><i class="bi bi-dash-lg"></i></button>
+              <button type="button" class="mm-cbtn" title="পুরোটা" onclick="AppController.mmFit()"><i class="bi bi-arrows-fullscreen"></i></button>
+              <button type="button" class="mm-cbtn danger" title="সব মুছুন" onclick="AppController.mmClear()"><i class="bi bi-trash3"></i></button>
+            </div>
+
+            <!-- ডান পাশের টুলবার -->
+            <div class="mm-tools" id="mm-tools" style="display:none">
+              <button type="button" class="mm-tool" data-tool="map" title="ম্যাপ নিন"
+                      onclick="AppController.mmPick('menu')"><i class="bi bi-image"></i><span>ম্যাপ</span></button>
+              <button type="button" class="mm-tool" data-tool="draw" title="প্লট আঁকুন"
+                      onclick="AppController.mmTool('draw')"><i class="bi bi-pentagon"></i><span>আঁকুন</span></button>
+              <button type="button" class="mm-tool" data-tool="point" title="পয়েন্ট এডিট"
+                      onclick="AppController.mmTool('point')"><i class="bi bi-bounding-box-circles"></i><span>পয়েন্ট</span></button>
+              <button type="button" class="mm-tool active" data-tool="pan" title="সরান"
+                      onclick="AppController.mmTool('pan')"><i class="bi bi-hand-index"></i><span>প্যান</span></button>
+              <button type="button" class="mm-tool" data-tool="select" title="নির্বাচন"
+                      onclick="AppController.mmTool('select')"><i class="bi bi-cursor"></i><span>নির্বাচন</span></button>
+              <button type="button" class="mm-tool" data-tool="divide" title="ভাগবণ্টন"
+                      onclick="AppController.mmDivideMode()"><i class="bi bi-pie-chart"></i><span>ভাগ</span></button>
+            </div>
+
+            <!-- আঁকার সময় নিচের বার -->
+            <div class="mm-draw-bar" id="mm-draw-bar" style="display:none">
+              <span id="mm-draw-hint">ম্যাপে ক্লিক করে পয়েন্ট বসান</span>
+              <button type="button" class="kmz-mini" onclick="AppController.mmUndoPoint()">শেষ পয়েন্ট মুছুন</button>
+              <button type="button" class="kmz-mini" onclick="AppController.mmCancelDraft()">বাতিল</button>
+              <button type="button" class="btn btn-primary btn-sm" id="mm-finish"
+                      onclick="AppController.mmFinish()" disabled>
+                <i class="bi bi-check-lg"></i> প্লট সম্পন্ন
+              </button>
+            </div>
+
+            <!-- নিচে-বাঁয়ে তিন টাইল -->
+            <div class="mm-tiles" id="mm-tiles" style="display:none">
+              <div class="mm-tile"><b id="mm-t-cur">০ শতক</b><span>বর্তমান প্লট</span></div>
+              <div class="mm-tile"><b id="mm-t-tot">০ শতক</b><span>মোট এলাকা</span></div>
+              <div class="mm-tile"><b id="mm-t-cnt">০টি</b><span>সম্পন্ন প্লট</span></div>
+            </div>
+          </div>
+
+          <!-- প্লট তালিকা -->
+          <div class="mm-list-wrap" id="mm-list-wrap" style="display:none">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num"><i class="bi bi-list-ul"></i></span>
+              <h3>প্লটের তালিকা</h3>
+              <span class="fz-pill" id="mm-list-pill">০টি</span>
+            </div>
+            <div id="mm-list" class="mm-list">কোনো প্লট নেই</div>
+          </div>
+
+          <!-- ভাগবণ্টন -->
+          <div class="mm-div-wrap" id="mm-div-wrap" style="display:none">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num"><i class="bi bi-pie-chart"></i></span>
+              <h3>জমি ভাগবণ্টন</h3>
+              <span class="fz-pill" id="mm-div-plot">প্লট বাছুন</span>
+            </div>
+
+            <div class="fz-seg" style="margin-bottom:12px">
+              <button type="button" class="fz-seg-btn active" id="mm-dm-prop"
+                      onclick="AppController.mmDivMode('prop')">আনুপাতিক (শরিকের অংশ)</button>
+              <button type="button" class="fz-seg-btn" id="mm-dm-man"
+                      onclick="AppController.mmDivMode('manual')">ম্যানুয়াল (রেখা টেনে)</button>
+            </div>
+
+            <!-- আনুপাতিক -->
+            <div id="mm-div-prop">
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-signpost-split"></i> কোন বাহু বরাবর কাটবেন</span></div>
+                <div class="fz-input-wrap fz-select-wrap">
+                  <select id="mm-div-side" onchange="AppController.mmDivPreview()"></select>
+                </div>
+              </div>
+
+              <div class="fz-panel-head" style="padding:0;margin:14px 0 8px">
+                <h3 style="font-size:0.95rem">শরিকগণ</h3>
+                <span class="fz-pill" id="mm-share-pill">০ / ০ শতক</span>
+                <button type="button" class="fz-btn-add" onclick="AppController.mmAddShare()">
+                  <i class="bi bi-plus-lg"></i> শরিক যোগ
+                </button>
+              </div>
+              <div id="mm-shares" class="mm-shares"></div>
+
+              <div class="mm-div-actions">
+                <button type="button" class="btn btn-primary" onclick="AppController.mmDoDivide()">
+                  <i class="bi bi-scissors"></i> ভাগ করুন
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.mmClearDivision()">
+                  <i class="bi bi-arrow-counterclockwise"></i> ভাগ মুছুন
+                </button>
+              </div>
+            </div>
+
+            <!-- ম্যানুয়াল -->
+            <div id="mm-div-man" style="display:none">
+              <p class="kmz-hint">
+                প্লটের এক পাশ থেকে অন্য পাশে <b>দুটি ক্লিক</b> করে রেখা টানুন —
+                প্লটটি <b>ক</b> ও <b>খ</b> দুই ভাগে কাটবে।
+              </p>
+              <div class="mm-div-actions">
+                <button type="button" class="btn btn-primary" onclick="AppController.mmStartManualCut()">
+                  <i class="bi bi-pencil"></i> রেখা টানুন
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.mmClearDivision()">
+                  <i class="bi bi-arrow-counterclockwise"></i> ভাগ মুছুন
+                </button>
+              </div>
+            </div>
+
+            <div id="mm-div-result" class="mm-div-result" style="display:none"></div>
+          </div>
+
+          <!-- অগ্রগতি -->
+          <div id="mm-prog" class="kmz-prog" style="display:none">
+            <div class="kmz-prog-bar"><span id="mm-prog-fill"></span></div>
+            <div class="kmz-prog-txt" id="mm-prog-txt">…</div>
+          </div>
+
+          <!-- আর্কাইভ বাছাই -->
+          <div id="mm-arch" class="kmz-arch" style="display:none">
+            <div class="fz-assets kmz-arch-grid">
+              <div class="fz-field"><div class="fz-field-label"><span>বিভাগ</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-div" onchange="AppController.mmArchDiv()"><option>লোড হচ্ছে…</option></select></div></div>
+              <div class="fz-field"><div class="fz-field-label"><span>জেলা</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-dist" onchange="AppController.mmArchDist()" disabled><option>—</option></select></div></div>
+              <div class="fz-field"><div class="fz-field-label"><span>উপজেলা</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-upa" onchange="AppController.mmArchUpa()" disabled><option>—</option></select></div></div>
+              <div class="fz-field"><div class="fz-field-label"><span>জরিপ</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-srv" onchange="AppController.mmArchSrv()" disabled><option>—</option></select></div></div>
+            </div>
+            <div class="fz-field"><div class="fz-field-label"><span><i class="bi bi-search"></i> ফাইল খুঁজুন</span></div>
+              <div class="fz-input-wrap"><input type="text" id="mm-fsearch" placeholder="ম্যাপের নাম" oninput="AppController.mmArchFilter()" disabled></div></div>
+            <div id="mm-arch-list" class="kmz-arch-list">উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।</div>
+          </div>
+
+          <!-- স্কেল ডায়ালগ -->
+          <div class="mm-modal" id="mm-scale-modal" style="display:none">
+            <div class="mm-modal-box">
+              <div class="mm-modal-head"><i class="bi bi-rulers"></i> স্কেল সেটিংস</div>
+
+              <div class="mm-method">
+                <h5>পদ্ধতি ১ — মৌজার স্কেল</h5>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>ম্যাপের স্কেল</span></div>
+                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-mapscale"></select></div>
+                </div>
+                <div class="fz-field">
+                  <div class="fz-field-label">
+                    <span>স্ক্যান DPI</span>
+                    <span class="mm-badge" id="mm-dpi-badge" style="display:none"></span>
+                  </div>
+                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-dpi"></select></div>
+                </div>
+                <p class="kmz-hint" id="mm-dpi-note">
+                  PDF হলে DPI নিজে থেকেই বেরিয়ে আসে — বাছার দরকার নেই।
+                </p>
+                <div class="mm-modal-btns">
+                  <button type="button" class="btn btn-outline" onclick="AppController.mmScaleDialog(false)">বাতিল</button>
+                  <button type="button" class="btn btn-primary" onclick="AppController.mmApplyMapScale()">সেভ করুন</button>
+                </div>
+              </div>
+
+              <div class="mm-method alt">
+                <h5>পদ্ধতি ২ — ম্যাপ থেকে মাপুন <span>(সর্বোচ্চ নিখুঁত)</span></h5>
+                <p class="kmz-hint">নকশায় আঁকা স্কেল-দণ্ডের দুই প্রান্তে ক্লিক করুন,
+                   তারপর ওই দূরত্ব কত ফুট তা লিখুন।</p>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>দণ্ডের দৈর্ঘ্য</span></div>
+                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-barlen"></select></div>
+                </div>
+                <button type="button" class="btn btn-purple" onclick="AppController.mmStartCalibrate()">
+                  <i class="bi bi-pencil"></i> ম্যাপ থেকে ক্যালিব্রেট করুন
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- VIEW: গুগল আর্থে মৌজা ম্যাপ (KMZ) — ধাপে ধাপে -->
+        <div id="view-kmz-export" class="tool-view-content kmz-wrap" style="display:none">
+
+          <!-- ══ ধাপ ০ — উৎস বাছাই ══ -->
+          <div class="kmz-step" id="kmz-s0">
+            <div class="kmz-hero">
+              <h3><i class="bi bi-geo-alt-fill"></i> গুগল আর্থে মৌজা ম্যাপ</h3>
+              <p>মৌজা নকশাকে স্যাটেলাইট ছবির সাথে মিলিয়ে <b>KMZ ফাইল</b> তৈরি করুন।
+                 কমপক্ষে <b>দুটি</b> নিয়ন্ত্রণ বিন্দু দিয়ে নকশাটি সঠিক জায়গায় বসানো হবে।</p>
+            </div>
+
+            <div class="kmz-choices">
+              <button type="button" class="kmz-choice" onclick="AppController.kmzChoose('archive')">
+                <span class="kmz-choice-ic ic-blue"><i class="bi bi-map"></i></span>
+                <span class="kmz-choice-t">মৌজা ম্যাপ সিলেক্ট করুন</span>
+                <span class="kmz-choice-s">আর্কাইভ থেকে বেছে নিন — ১,৯৪,৩১৭টি নকশা</span>
+              </button>
+              <button type="button" class="kmz-choice" onclick="AppController.kmzChoose('file')">
+                <span class="kmz-choice-ic ic-green"><i class="bi bi-upload"></i></span>
+                <span class="kmz-choice-t">মৌজা ম্যাপ আপলোড করুন</span>
+                <span class="kmz-choice-s">ছবি (JPG/PNG) বা PDF ফাইল দিন</span>
+              </button>
+            </div>
+            <input type="file" id="kmz-file" accept="image/jpeg,image/png,application/pdf"
+                   style="display:none" onchange="AppController.kmzLoadFile(this)">
+
+            <!-- আর্কাইভ বাছাই -->
+            <div id="kmz-pane-arch" class="kmz-arch" style="display:none">
+              <div class="fz-assets kmz-arch-grid">
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>বিভাগ</span></div>
+                  <div class="fz-input-wrap fz-select-wrap">
+                    <select id="kmz-div" onchange="AppController.kmzArchDiv()"><option>লোড হচ্ছে…</option></select>
+                  </div>
+                </div>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>জেলা</span></div>
+                  <div class="fz-input-wrap fz-select-wrap">
+                    <select id="kmz-dist" onchange="AppController.kmzArchDist()" disabled><option>—</option></select>
+                  </div>
+                </div>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>উপজেলা</span></div>
+                  <div class="fz-input-wrap fz-select-wrap">
+                    <select id="kmz-upa" onchange="AppController.kmzArchUpa()" disabled><option>—</option></select>
+                  </div>
+                </div>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>জরিপ</span></div>
+                  <div class="fz-input-wrap fz-select-wrap">
+                    <select id="kmz-srv" onchange="AppController.kmzArchSrv()" disabled><option>—</option></select>
+                  </div>
+                </div>
+              </div>
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-search"></i> ফাইল খুঁজুন</span></div>
+                <div class="fz-input-wrap">
+                  <input type="text" id="kmz-fsearch" placeholder="ম্যাপের নাম লিখুন"
+                         oninput="AppController.kmzArchFilter()" disabled>
+                </div>
+              </div>
+              <div id="kmz-arch-list" class="kmz-arch-list">উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।</div>
+            </div>
+
+            <div id="kmz-prog" class="kmz-prog" style="display:none">
+              <div class="kmz-prog-bar"><span id="kmz-prog-fill"></span></div>
+              <div class="kmz-prog-txt" id="kmz-prog-txt">…</div>
+            </div>
+          </div>
+
+          <!-- ══ ধাপ ১ — নকশায় পয়েন্ট ══ -->
+          <div class="kmz-step" id="kmz-s1" style="display:none">
+            <div class="kmz-stage">
+              <div class="kmz-pill" id="kmz-pill1"><span class="dot"></span>নকশায় পয়েন্ট বসান<b>০</b></div>
+              <canvas id="kmz-canvas-img"></canvas>
+              <div class="kmz-ctrls">
+                <button type="button" class="kmz-cbtn" title="বড়" onclick="AppController.kmzImgZoom(1)"><i class="bi bi-plus-lg"></i></button>
+                <button type="button" class="kmz-cbtn" title="ছোট" onclick="AppController.kmzImgZoom(-1)"><i class="bi bi-dash-lg"></i></button>
+                <button type="button" class="kmz-cbtn" title="পুরোটা দেখুন" onclick="AppController.kmzFitImage()"><i class="bi bi-arrows-fullscreen"></i></button>
+                <button type="button" class="kmz-cbtn" title="শেষ পয়েন্ট মুছুন" onclick="AppController.kmzUndo(1)"><i class="bi bi-arrow-counterclockwise"></i></button>
+              </div>
+              <div class="kmz-tip" id="kmz-tip1">জুম করে চেনা জায়গায় ক্লিক করুন — রাস্তার মোড়, পুকুরের কোণা, ব্রিজ</div>
+            </div>
+            <div class="kmz-nav">
+              <button type="button" class="btn btn-outline" onclick="AppController.kmzStep(0)">বাতিল</button>
+              <button type="button" class="btn btn-primary" id="kmz-next1" disabled
+                      onclick="AppController.kmzStep(2)">পরবর্তী ধাপ <i class="bi bi-arrow-right"></i></button>
+            </div>
+          </div>
+
+          <!-- ══ ধাপ ২ — স্যাটেলাইটে একই পয়েন্ট ══ -->
+          <div class="kmz-step" id="kmz-s2" style="display:none">
+            <div class="kmz-stage">
+              <div class="kmz-pill" id="kmz-pill2"><span class="dot"></span>পয়েন্ট ১ বসান<b>০/২</b></div>
+              <canvas id="kmz-canvas-map"></canvas>
+              <div class="kmz-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="kmz-goto" placeholder="স্থান খুঁজুন বা lat,lng (২৩.৭৮, ৯০.৪১)"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();AppController.kmzGoto()}">
+                <button type="button" class="kmz-cbtn" title="খুঁজুন" id="kmz-go-btn"
+                        onclick="AppController.kmzGoto()"><i class="bi bi-arrow-right-short"></i></button>
+              </div>
+              <div id="kmz-geo-results" class="kmz-geo" style="display:none"></div>
+              <div class="kmz-ctrls">
+                <button type="button" class="kmz-cbtn" title="আমার অবস্থান" id="kmz-loc-btn"
+                        onclick="AppController.kmzMyLocation()"><i class="bi bi-crosshair"></i></button>
+                <button type="button" class="kmz-cbtn" title="বড়" onclick="AppController.kmzZoom(1)"><i class="bi bi-plus-lg"></i></button>
+                <button type="button" class="kmz-cbtn" title="ছোট" onclick="AppController.kmzZoom(-1)"><i class="bi bi-dash-lg"></i></button>
+                <button type="button" class="kmz-cbtn" title="শেষ পয়েন্ট মুছুন" onclick="AppController.kmzUndo(2)"><i class="bi bi-arrow-counterclockwise"></i></button>
+              </div>
+              <div class="kmz-tip" id="kmz-tip2">নকশায় যে ক্রমে বসিয়েছেন, ঠিক সেই ক্রমেই ক্লিক করুন</div>
+            </div>
+            <div class="kmz-nav">
+              <button type="button" class="btn btn-outline" onclick="AppController.kmzStep(1)"><i class="bi bi-arrow-left"></i> পিছনে</button>
+              <button type="button" class="btn btn-primary" id="kmz-next2" disabled
+                      onclick="AppController.kmzStep(3)">পরবর্তী ধাপ <i class="bi bi-arrow-right"></i></button>
+            </div>
+          </div>
+
+          <!-- ══ ধাপ ৩ — ফলাফল ও ডাউনলোড ══ -->
+          <div class="kmz-step" id="kmz-s3" style="display:none">
+            <div class="kmz-done">
+
+              <div id="kmz-result" class="kmz-empty">…</div>
+
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-tag"></i> ম্যাপের নাম (Google Earth এ দেখাবে)</span></div>
+                <div class="fz-input-wrap">
+                  <input type="text" id="kmz-name" placeholder="যেমন: আলোকদিয়া মৌজা — বাগেরহাট">
+                </div>
+              </div>
+
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-layers"></i> নকশার পটভূমি</span></div>
+                <div class="fz-seg">
+                  <button type="button" class="fz-seg-btn active" id="kmz-bg-keep"
+                          onclick="AppController.kmzSetBg(false)">ব্যাকগ্রাউন্ডসহ</button>
+                  <button type="button" class="fz-seg-btn" id="kmz-bg-clear"
+                          onclick="AppController.kmzSetBg(true)">স্বচ্ছ (সাদা বাদ)</button>
+                </div>
+                <p class="kmz-hint">স্বচ্ছ বাছলে সাদা কাগজ সরে গিয়ে কেবল দাগের রেখা থাকবে —
+                  নিচে স্যাটেলাইট ছবি দেখা যাবে।</p>
+              </div>
+
+              <div class="fz-field" id="kmz-th-field" style="display:none">
+                <div class="fz-field-label">
+                  <span><i class="bi bi-sliders"></i> সাদার মাত্রা</span>
+                  <span id="kmz-th-val" class="kmz-op-val">২০৫</span>
+                </div>
+                <input type="range" id="kmz-threshold" min="120" max="255" value="205"
+                       class="kmz-range" oninput="AppController.kmzThreshold(this.value)">
+              </div>
+
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-palette"></i> দাগের রঙ</span></div>
+                <div class="kmz-colors" id="kmz-colors"></div>
+              </div>
+
+              <div class="fz-field">
+                <div class="fz-field-label">
+                  <span><i class="bi bi-droplet-half"></i> স্বচ্ছতা</span>
+                  <span id="kmz-op-val" class="kmz-op-val">৭৮%</span>
+                </div>
+                <input type="range" id="kmz-opacity" min="20" max="100" value="78"
+                       class="kmz-range" oninput="AppController.kmzOpacity(this.value)">
+              </div>
+
+              <div id="kmz-preview-box" class="kmz-preview" style="display:none">
+                <div class="kmz-preview-head">
+                  <span>নকশা যেমন বসবে</span>
+                  <span id="kmz-preview-note"></span>
+                </div>
+                <canvas id="kmz-preview" width="420" height="200"></canvas>
+              </div>
+
+              <p class="kmz-hint">নামানো ফাইলটি <b>Google Earth</b> এ খুললেই নকশাটি স্যাটেলাইট
+                ছবির উপর বসবে। স্যাটেলাইট ছবি © Esri, Maxar, Earthstar Geographics।</p>
+            </div>
+
+            <div class="kmz-nav">
+              <button type="button" class="btn btn-outline" onclick="AppController.kmzStep(2)"><i class="bi bi-arrow-left"></i> পিছনে</button>
+              <button type="button" class="btn btn-primary" id="kmz-dl"
+                      onclick="AppController.kmzDownload()"><i class="bi bi-download"></i> KMZ ডাউনলোড</button>
+            </div>
+          </div>
+
+          <div class="kmz-status" id="kmz-status" style="display:none"></div>
+        </div>
 
         <!-- VIEW: ফরায়েজ — মুসলিম উত্তরাধিকার -->
         <div id="view-farayeiz" class="tool-view-content" style="display:none">
@@ -2251,11 +2685,24 @@
 
         <!-- VIEW 6: Map Pantograph Overlay -->
         <div id="view-map-overlay" class="tool-view-content" style="display:none">
+          <div class="fz-warn">
+            <i class="bi bi-cone-striped"></i>
+            <span><b>এই টুলের কাজ চলছে।</b> এখন কেবল দুটি ম্যাপ ওভারলে করে
+            স্বচ্ছতা বদলানো যায়। <b>সূক্ষ্ম ঘোরানো (±০.১°), পয়েন্ট মিলিয়ে
+            জোড়া লাগানো, ক্রপ ও ইরেজ</b> — এগুলো এখনো যোগ করা হয়নি।</span>
+          </div>
           <div id="pantograph-container"></div>
         </div>
 
         <!-- VIEW 7: Print Studio -->
         <div id="view-print-studio" class="tool-view-content" style="display:none">
+
+          <div class="fz-warn">
+            <i class="bi bi-cone-striped"></i>
+            <span><b>এই টুলের কাজ চলছে।</b> এখন তথ্য দিয়ে A4 জরিপ প্রতিবেদন
+            তৈরি ও প্রিন্ট করা যায়। <b>একাধিক ম্যাপ লেয়ার (SA/RS/CS), কম্পাস,
+            সাক্ষীগণের স্বাক্ষরের ঘর ও প্রকল্প সংরক্ষণ</b> — এগুলো পরে যোগ হবে।</span>
+          </div>
 
           <div class="fz-panel">
             <div class="fz-panel-head">
@@ -2794,6 +3241,12 @@
   <script src="js/mouza-map.js"></script>
   <script src="js/mouza-sources.js"></script>
   <script src="js/mouza-value.js"></script>
+  <script src="js/kmz-export.js"></script>
+  <script src="js/kmz-ui.js"></script>
+  <script src="js/kmz-source.js"></script>
+  <script src="js/kmz-fx.js"></script>
+  <script src="js/map-measure.js"></script>
+  <script src="js/map-measure-ui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

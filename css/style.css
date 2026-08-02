@@ -499,6 +499,37 @@ html.dark-theme .app-header {
   color: var(--info);
 }
 
+/* কাজ চলমান — টুলটি ব্যবহারযোগ্য, তবে ফিচার এখনো যোগ হচ্ছে।
+   অ্যাম্বার রং (--accent) বেছে নেওয়া হয়েছে: "নতুন" (সবুজ) থেকে আলাদা,
+   কিন্তু "বিপদ" (লাল) নয় — কাজ করে, শুধু অসম্পূর্ণ। */
+.badge-wip {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ছোট বিন্দুটি ধীরে জ্বলে-নেভে — "চলমান" বোঝাতে */
+.badge-wip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: wip-pulse 2s ease-in-out infinite;
+}
+
+@keyframes wip-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* যাঁরা অ্যানিমেশন বন্ধ রাখেন তাঁদের জন্য স্থির */
+@media (prefers-reduced-motion: reduce) {
+  .badge-wip::before { animation: none; }
+}
+
 .tool-title {
   font-size: 1.15rem;
   font-weight: 700;
@@ -544,6 +575,8 @@ html.dark-theme .app-header {
 }
 
 /* Modal View */
+/* মডাল সব পর্দায় পূর্ণ পাতা জুড়ে — ইউজারের সিদ্ধান্ত (৩০ জুলাই ২০২৬)।
+   ম্যাপ, ক্যানভাস ও বড় টেবিলওয়ালা টুলে ৯৬০px বাক্স খুব সংকীর্ণ ছিল। */
 .app-modal {
   position: fixed;
   inset: 0;
@@ -551,9 +584,9 @@ html.dark-theme .app-header {
   background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
   opacity: 0;
   visibility: hidden;
   transition: var(--transition-normal);
@@ -566,17 +599,28 @@ html.dark-theme .app-header {
 
 .modal-content {
   background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border: none;
+  border-radius: 0;
   width: 100%;
-  max-width: 960px;
-  max-height: 90vh;
+  max-width: 100%;
+  height: 100vh;
+  height: 100dvh;                 /* মোবাইল ব্রাউজারের ঠিকানা-বার বাদ দিয়ে */
+  max-height: 100vh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   overflow: hidden;
-  transform: scale(0.95);
+  transform: scale(0.985);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ভেতরের লেখা যেন খুব চওড়া পর্দায় প্রান্ত থেকে প্রান্তে ছড়িয়ে না যায় —
+   পড়তে কষ্ট হয়। বাক্সটি পূর্ণ, কিন্তু ভেতরের কনটেন্ট মাঝে সীমিত। */
+.modal-body > .tool-view-content,
+.modal-header > .modal-title {
+  max-width: 1280px;
+  margin-inline: auto;
+  width: 100%;
 }
 
 .app-modal.active .modal-content {
