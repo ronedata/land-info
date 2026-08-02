@@ -1956,3 +1956,131 @@
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+
+/* ── KMZ: জায়গা খোঁজার ফলাফল ── */
+
+.kmz-search-row { gap: 5px; }
+.kmz-search-row .kmz-mini { padding: 4px 9px; }
+.kmz-mini.busy { opacity: 0.6; }
+.kmz-mini i { font-size: 0.9rem; }
+
+.kmz-geo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 6px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-input);
+}
+
+.kmz-geo-item {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.81rem;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+.kmz-geo-item:hover { border-color: var(--primary); color: var(--primary); }
+.kmz-geo-item i { color: var(--danger); margin-top: 2px; }
+.kmz-geo-n { min-width: 0; overflow-wrap: anywhere; }
+.kmz-geo-c {
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.kmz-geo-msg {
+  padding: 7px 9px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+/* ── KMZ: রঙ ও পটভূমির বিকল্প ── */
+
+.kmz-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.kmz-sw {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 6px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kmz-sw:hover { border-color: var(--primary); }
+.kmz-sw.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.kmz-sw-c, .kmz-sw-orig {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+/* "মূল রঙ" — রংধনু দিয়ে বোঝানো */
+.kmz-sw-orig {
+  background: conic-gradient(#ef4444, #f59e0b, #10b981, #0ea5e9, #6366f1, #ef4444);
+}
+.kmz-sw-n { min-width: 0; }
+
+/* প্রিভিউ */
+.kmz-preview {
+  margin-top: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.kmz-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 11px;
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.kmz-preview-head > span:last-child {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.kmz-preview canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #2f4f2f;
+}

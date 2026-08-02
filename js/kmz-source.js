@@ -163,4 +163,148 @@ const KmzSource = {
   }
 };
 
-if (typeof module !== 'undefined' && module.exports) module.exports = KmzSource;
+/* ==========================================================================
+   KmzGeo — জায়গার নাম দিয়ে খোঁজা ও নিজের অবস্থান
+   --------------------------------------------------------------------------
+   ⚠️ কোনো API key নেই। দুটি ফ্রি সেবা ব্যবহার করা হয় (৩০ জুলাই ২০২৬ এ
+      যাচাই করা — দুটোই `Access-Control-Allow-Origin: *` দেয়):
+        ১. Nominatim (OpenStreetMap) — `countrycodes=bd` দিয়ে বাংলাদেশে সীমিত
+        ২. Photon (Komoot) — Nominatim ব্যর্থ হলে
+
+   দুটোরই শর্ত: **সেকেন্ডে একটির বেশি অনুরোধ নয়**। তাই টাইপ করার সাথে সাথে
+   খোঁজা হয় না — ব্যবহারকারী বোতাম চাপলে বা Enter দিলে তবেই।
+   ========================================================================== */
+
+const KmzGeo = {
+
+  NOMINATIM: 'https://nominatim.openstreetmap.org/search',
+  PHOTON: 'https://photon.komoot.io/api/',
+
+  /* বাংলাদেশের সীমা — ফল এই ঘেরের ভেতরে রাখতে */
+  BD: { minLat: 20.5, maxLat: 26.7, minLng: 88.0, maxLng: 92.7 },
+
+  _last: 0,
+
+  /** শর্ত মানতে দুই অনুরোধের মাঝে অন্তত ১ সেকেন্ড */
+  async throttle() {
+    const gap = Date.now() - this._last;
+    if (gap < 1100) await new Promise(r => setTimeout(r, 1100 - gap));
+    this._last = Date.now();
+  },
+
+  inBd(lat, lng) {
+    const b = this.BD;
+    return lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
+  },
+
+  /**
+   * লেখাটি কি "অক্ষাংশ, দ্রাঘিমাংশ"? হলে সরাসরি সেটিই ফেরত দেয় —
+   * অকারণে সার্ভারে অনুরোধ যায় না।
+   */
+  parseLatLng(text) {
+    const t = (typeof toEn === 'function' ? toEn(String(text)) : String(text))
+      .replace(/[^\d.,\-\s]/g, ' ').trim();
+    const m = t.split(/[,\s]+/).filter(Boolean).map(Number);
+    if (m.length < 2 || !isFinite(m[0]) || !isFinite(m[1])) return null;
+    const [lat, lng] = m;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng, name: lat.toFixed(6) + ', ' + lng.toFixed(6), exact: true };
+  },
+
+  /**
+   * নাম দিয়ে জায়গা খোঁজা
+   * @returns {Promise<Array<{lat, lng, name, kind}>>}
+   */
+  async search(query) {
+    const q = String(query || '').trim();
+    if (q.length < 2) throw new Error('অন্তত দুটি অক্ষর লিখুন');
+
+    const direct = this.parseLatLng(q);
+    if (direct) return [direct];
+
+    await this.throttle();
+    try {
+      const r = await this._nominatim(q);
+      if (r.length) return r;
+    } catch (e) { /* ফলব্যাকে যাই */ }
+
+    await this.throttle();
+    return await this._photon(q);
+  },
+
+  async _nominatim(q) {
+    const b = this.BD;
+    const url = this.NOMINATIM + '?' + new URLSearchParams({
+      q, format: 'jsonv2', countrycodes: 'bd', limit: '8',
+      'accept-language': 'bn',
+      viewbox: [b.minLng, b.maxLat, b.maxLng, b.minLat].join(','),
+      bounded: '1'
+    });
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('Nominatim ' + res.status);
+    const d = await res.json();
+    return d.map(x => ({
+      lat: Number(x.lat), lng: Number(x.lon),
+      name: x.display_name || x.name || '',
+      kind: x.type || x.category || ''
+    })).filter(x => isFinite(x.lat) && isFinite(x.lng));
+  },
+
+  async _photon(q) {
+    const url = this.PHOTON + '?' + new URLSearchParams({
+      q, limit: '8', lang: 'default', lat: '23.8', lon: '90.4'
+    });
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Photon ' + res.status);
+    const d = await res.json();
+    return (d.features || []).map(f => {
+      const p = f.properties || {}, c = (f.geometry || {}).coordinates || [];
+      return {
+        lat: Number(c[1]), lng: Number(c[0]),
+        name: [p.name, p.district, p.county, p.state, p.country].filter(Boolean).join(', '),
+        kind: p.osm_value || p.type || ''
+      };
+    }).filter(x => isFinite(x.lat) && isFinite(x.lng) && this.inBd(x.lat, x.lng));
+  },
+
+  /**
+   * ব্যবহারকারীর নিজের অবস্থান
+   * ব্রাউজার অনুমতি চাইবে। HTTPS (বা localhost) ছাড়া কাজ করে না।
+   */
+  myLocation(opts) {
+    const o = opts || {};
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('এই ব্রাউজারে অবস্থান জানার সুবিধা নেই।'));
+        return;
+      }
+      if (!window.isSecureContext && location.protocol !== 'file:') {
+        reject(new Error('অবস্থান জানতে হলে সাইটটি https দিয়ে খুলতে হবে।'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy
+        }),
+        err => {
+          const msg = {
+            1: 'অবস্থান জানার অনুমতি দেওয়া হয়নি। ব্রাউজারের ঠিকানা-বারের পাশে '
+               + 'তালা আইকনে গিয়ে Location অনুমতি দিন।',
+            2: 'অবস্থান পাওয়া যাচ্ছে না — GPS বা নেটওয়ার্ক সংযোগ দেখুন।',
+            3: 'অবস্থান জানতে বেশি সময় লাগছে। খোলা জায়গায় গিয়ে আবার চেষ্টা করুন।'
+          }[err && err.code] || 'অবস্থান জানা গেল না।';
+          reject(new Error(msg));
+        },
+        { enableHighAccuracy: true, timeout: o.timeout || 15000, maximumAge: 60000 }
+      );
+    });
+  }
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = KmzSource;
+  module.exports.KmzSource = KmzSource;
+  module.exports.KmzGeo = KmzGeo;
+}
