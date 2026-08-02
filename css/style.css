@@ -499,6 +499,37 @@ html.dark-theme .app-header {
   color: var(--info);
 }
 
+/* কাজ চলমান — টুলটি ব্যবহারযোগ্য, তবে ফিচার এখনো যোগ হচ্ছে।
+   অ্যাম্বার রং (--accent) বেছে নেওয়া হয়েছে: "নতুন" (সবুজ) থেকে আলাদা,
+   কিন্তু "বিপদ" (লাল) নয় — কাজ করে, শুধু অসম্পূর্ণ। */
+.badge-wip {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ছোট বিন্দুটি ধীরে জ্বলে-নেভে — "চলমান" বোঝাতে */
+.badge-wip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: wip-pulse 2s ease-in-out infinite;
+}
+
+@keyframes wip-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+/* যাঁরা অ্যানিমেশন বন্ধ রাখেন তাঁদের জন্য স্থির */
+@media (prefers-reduced-motion: reduce) {
+  .badge-wip::before { animation: none; }
+}
+
 .tool-title {
   font-size: 1.15rem;
   font-weight: 700;
