@@ -390,6 +390,131 @@ const MapMeasure = {
     return { a, b, areaA: aA, areaB: aB };
   },
 
+  /**
+   * কোনো বাহুর **লম্ব দিক** (ডিগ্রিতে) — ভাগের রেখা ওই বাহুর সমান্তরাল হবে
+   * ওদের UI তে "কোন বাহু বরাবর কাটবেন" বাছাই করা যায়; সেটাই এখানে।
+   */
+  sideNormalAngle(pts, sideIndex) {
+    if (!Array.isArray(pts) || pts.length < 3) throw new Error('বহুভুজ লাগবে');
+    const i = ((Number(sideIndex) || 0) % pts.length + pts.length) % pts.length;
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (Math.hypot(dx, dy) < 1e-9) throw new Error('বাহুটির দৈর্ঘ্য শূন্য');
+    // বাহুর দিক (dx,dy) → লম্ব (−dy,dx) → কাটার রেখা বাহুর সমান্তরাল
+    return Math.atan2(dx, -dy) * 180 / Math.PI;
+  },
+
+  /** বাহুগুলোর তালিকা — ড্রপডাউনে দেখানোর জন্য */
+  sideOptions(pts, ftPerPx) {
+    const out = [];
+    if (!Array.isArray(pts) || pts.length < 3) return out;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      const bn = v => (typeof toBn === 'function' ? toBn(v) : String(v));
+      out.push({
+        index: i,
+        label: 'বাহু ' + bn(i + 1) + '–' + bn(j + 1),
+        feet: this.dist(pts[i], pts[j]) * (ftPerPx || 0)
+      });
+    }
+    return out;
+  },
+
+  /**
+   * নির্দিষ্ট বাহু বরাবর অনুপাতে ভাগ
+   * @param {Array} pts
+   * @param {number} sideIndex
+   * @param {Array<number>} shares
+   */
+  divideAlongSide(pts, sideIndex, shares) {
+    return this.divide(pts, this.sideNormalAngle(pts, sideIndex), shares);
+  },
+
+  /**
+   * শরিকদের **নির্দিষ্ট শতক** অনুযায়ী কাটা — যোগফল মোটের চেয়ে কম হলে
+   * অবশিষ্ট আলাদা করে ফেরত দেয় (বাস্তবে প্রায়ই কিছু জমি বাকি থাকে)।
+   *
+   * @param {Array} pts
+   * @param {number} sideIndex
+   * @param {Array<{name, satak}>} people
+   * @param {number} ftPerPx
+   * @returns {{parts:Array, leftover:object|null, totalSatak:number, askedSatak:number}}
+   */
+  divideByArea(pts, sideIndex, people, ftPerPx) {
+    const f = Number(ftPerPx);
+    if (!(f > 0)) throw new Error('আগে স্কেল ঠিক করুন');
+    const list = (people || [])
+      .map(x => ({ name: x.name || '', satak: Number(x.satak) || 0 }))
+      .filter(x => x.satak > 0);
+    if (!list.length) throw new Error('অন্তত একজন শরিকের অংশ দিন');
+
+    const totalPx = this.areaPx(pts);
+    const totalSqft = totalPx * f * f;
+    const totalSatak = totalSqft / this.SQFT_PER_SATAK;
+    const asked = list.reduce((a, b) => a + b.satak, 0);
+    // ★ রাউন্ডিং সহনশীলতা — UI তে ক্ষেত্রফল দুই দশমিকে দেখানো হয়
+    //   (৮৮.৮৮৮৮… → "৮৮.৮৯")। ব্যবহারকারী ওই দেখানো সংখ্যাটাই লিখবেন,
+    //   তখন কড়াভাবে তুলনা করলে "প্লটের চেয়ে বেশি" বলে আটকে যেত।
+    const tol = Math.max(0.01, totalSatak * 1e-6);
+    if (asked > totalSatak + tol) {
+      throw new Error('শরিকদের মোট (' + asked.toFixed(2) + ' শতক) প্লটের চেয়ে বেশি — '
+        + 'প্লটে আছে ' + totalSatak.toFixed(2) + ' শতক');
+    }
+
+    const angle = this.sideNormalAngle(pts, sideIndex);
+    const parts = [];
+    let remain = pts.slice();
+
+    for (let i = 0; i < list.length; i++) {
+      const wantPx = (list[i].satak * this.SQFT_PER_SATAK) / (f * f);
+      const remainPx = this.areaPx(remain);
+      if (wantPx >= remainPx - remainPx * 1e-9) {      // শেষটুকু পুরোটাই
+        parts.push({ ...list[i], polygon: remain, areaPx: remainPx,
+                     satak: (remainPx * f * f) / this.SQFT_PER_SATAK });
+        remain = [];
+        break;
+      }
+      const c = this.cutByArea(remain, angle, wantPx);
+      parts.push({ ...list[i], polygon: c.piece, areaPx: c.areaPx,
+                   satak: (c.areaPx * f * f) / this.SQFT_PER_SATAK });
+      remain = c.rest;
+    }
+
+    const leftPx = remain.length >= 3 ? this.areaPx(remain) : 0;
+    const leftover = leftPx > totalPx * 1e-6
+      ? { name: 'অবশিষ্ট', polygon: remain, areaPx: leftPx,
+          satak: (leftPx * f * f) / this.SQFT_PER_SATAK }
+      : null;
+
+    return { parts, leftover, totalSatak, askedSatak: asked, angle };
+  },
+
+  /**
+   * ভাগবণ্টনের রিপোর্টের তথ্য — শতক ও শতাংশসহ
+   */
+  divisionReport(res, plotName) {
+    const rows = res.parts.map((p, i) => ({
+      serial: i + 1,
+      name: p.name || ('শরিক ' + (i + 1)),
+      satak: p.satak,
+      percent: res.totalSatak > 0 ? (p.satak / res.totalSatak) * 100 : 0
+    }));
+    if (res.leftover) {
+      rows.push({ serial: rows.length + 1, name: 'অবশিষ্ট',
+                  satak: res.leftover.satak,
+                  percent: res.totalSatak > 0 ? (res.leftover.satak / res.totalSatak) * 100 : 0 });
+    }
+    const sum = rows.reduce((a, b) => a + b.satak, 0);
+    return {
+      plotName: plotName || '',
+      totalSatak: res.totalSatak,
+      rows,
+      sumSatak: sum,
+      // যোগফল মোটের সাথে মেলে কি না — কাগজে লেখার আগে দেখা জরুরি
+      exact: Math.abs(sum - res.totalSatak) < Math.max(1e-6, res.totalSatak * 1e-6)
+    };
+  },
+
   /* ---------------- প্লট ব্যবস্থাপনা ---------------- */
 
   /** নতুন প্লটের কাঠামো */

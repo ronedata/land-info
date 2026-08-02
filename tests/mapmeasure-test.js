@@ -368,6 +368,114 @@ head('বিন্দু ভেতরে? · বৃত্ত · ম্যান�
     () => M.sliceByLine(sq, { x: 50, y: 50 }, { x: 50, y: 50 }), 'অনেক ছোট');
 }
 
+/* ═══════════ ১৫. বাহু বরাবর ভাগ ═══════════ */
+head('বাহু বরাবর ভাগ');
+{
+  // ১০০×১০০, বাহু ০ = (0,0)→(100,0) অর্থাৎ অনুভূমিক
+  const sq = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+
+  const opts = M.sideOptions(sq, 2);
+  ok('৪টি বাহু', opts.length === 4);
+  // toBn না থাকলে (Node) ইংরেজি সংখ্যায় নেমে আসে — সেটাই প্রত্যাশিত
+  ok('toBn ছাড়া লেবেল "বাহু 1–2"', opts[0].label === 'বাহু 1–2', opts[0].label);
+  near('বাহু ১ = ২০০ ফুট', opts[0].feet, 200, 1e-9);
+
+  // ব্রাউজারের মতো toBn থাকলে বাংলা সংখ্যা আসে
+  const BN = '০১২৩৪৫৬৭৮৯';
+  global.toBn = v => String(v).replace(/[0-9]/g, d => BN[+d]);
+  const optsBn = M.sideOptions(sq, 2);
+  ok('toBn সহ লেবেল "বাহু ১–২"', optsBn[0].label === 'বাহু ১–২', optsBn[0].label);
+  ok('শেষ বাহু প্রথমে ফেরে "বাহু ৪–১"', optsBn[3].label === 'বাহু ৪–১', optsBn[3].label);
+  delete global.toBn;
+
+  // বাহু ০ বরাবর কাটলে কাটার রেখা অনুভূমিক → ভাগ উপরে-নিচে
+  const d0 = M.divideAlongSide(sq, 0, [1, 1]);
+  near('বাহু ০: দুই সমান ভাগ', d0[0].areaPx, 5000, 1e-3);
+  // প্রথম ভাগ কোন দিকে তা গুরুত্বপূর্ণ নয়, কিন্তু কাটা রেখা অনুভূমিক হতে হবে
+  const ys = d0[0].polygon.map(q => q.y);
+  ok('বাহু ০ বরাবর কাটলে ভাগ অনুভূমিক',
+     Math.max(...ys) - Math.min(...ys) < 51, 'উচ্চতা ' + (Math.max(...ys) - Math.min(...ys)).toFixed(1));
+
+  // বাহু ১ = (100,0)→(100,100) উল্লম্ব → ভাগ বাঁয়ে-ডানে
+  const d1 = M.divideAlongSide(sq, 1, [1, 1]);
+  const xs = d1[0].polygon.map(q => q.x);
+  ok('বাহু ১ বরাবর কাটলে ভাগ উল্লম্ব',
+     Math.max(...xs) - Math.min(...xs) < 51, 'প্রস্থ ' + (Math.max(...xs) - Math.min(...xs)).toFixed(1));
+
+  near('যোগফল অটুট', d1[0].areaPx + d1[1].areaPx, 10000, 1e-2);
+  throws('বহুভুজ ছাড়া ত্রুটি', () => M.sideNormalAngle([{ x: 0, y: 0 }], 0), 'বহুভুজ');
+}
+
+/* ═══════════ ১৬. শরিকদের শতক অনুযায়ী ভাগ ═══════════ */
+head('শরিকদের শতক অনুযায়ী ভাগ');
+{
+  // ২.২ ফুট/পিক্সেল, ১০০×৮০ পিক্সেল → ৮৮.৮৯ শতক (আগের টেস্টের মতোই)
+  const F = 2.2;
+  const plot = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 80 }, { x: 0, y: 80 }];
+  const total = (M.areaPx(plot) * F * F) / 435.6;
+  near('মোট ৮৮.৮৯ শতক', total, 88.8889, 1e-3);
+
+  // তিন শরিক — ৩০ + ২৫ + ২০ = ৭৫, বাকি ১৩.৮৯ অবশিষ্ট
+  const res = M.divideByArea(plot, 0,
+    [{ name: 'করিম', satak: 30 }, { name: 'রহিম', satak: 25 }, { name: 'সালাম', satak: 20 }], F);
+
+  ok('তিন ভাগ', res.parts.length === 3);
+  near('করিম ৩০ শতক', res.parts[0].satak, 30, 1e-3);
+  near('রহিম ২৫ শতক', res.parts[1].satak, 25, 1e-3);
+  near('সালাম ২০ শতক', res.parts[2].satak, 20, 1e-3);
+  ok('অবশিষ্ট আছে', !!res.leftover);
+  near('অবশিষ্ট ১৩.৮৯ শতক', res.leftover.satak, total - 75, 1e-3);
+  near('সব মিলে মোট', res.parts.reduce((a, b) => a + b.satak, 0) + res.leftover.satak,
+       total, 1e-3);
+  ok('প্রতিটি ভাগ বৈধ বহুভুজ', res.parts.every(x => x.polygon.length >= 3));
+
+  // পুরোটা ভাগ করলে অবশিষ্ট থাকবে না
+  const full = M.divideByArea(plot, 0,
+    [{ name: 'ক', satak: 44.4444 }, { name: 'খ', satak: 44.4445 }], F);
+  ok('পুরো ভাগে অবশিষ্ট নেই', !full.leftover, full.leftover ? full.leftover.satak.toFixed(4) : '');
+  near('দুই ভাগের যোগ', full.parts[0].satak + full.parts[1].satak, total, 1e-3);
+
+  // ★ ব্যবহারকারী UI-তে দেখানো রাউন্ড করা সংখ্যাই লিখবেন (৮৮.৮৯), যা
+  //   প্রকৃত মোটের (৮৮.৮৮৮৮…) চেয়ে সামান্য বেশি — আটকানো যাবে না
+  const rounded = M.divideByArea(plot, 0, [{ name: 'সবটুকু', satak: 88.89 }], F);
+  ok('রাউন্ড করা মোট গ্রহণ করে', rounded.parts.length === 1);
+  near('পুরো প্লটই পায়', rounded.parts[0].satak, total, 1e-6);
+  ok('অবশিষ্ট নেই', !rounded.leftover);
+  // দুই দশমিকে লেখা কয়েকজন
+  const r2 = M.divideByArea(plot, 0,
+    [{ name: 'ক', satak: 44.44 }, { name: 'খ', satak: 44.45 }], F);
+  near('৪৪.৪৪ + ৪৪.৪৫ চলে', r2.parts[0].satak + r2.parts[1].satak, total, 1e-3);
+  // কিন্তু সত্যিই বেশি হলে আটকাবে
+  throws('০.৫ শতক বেশি হলে আটকায়',
+    () => M.divideByArea(plot, 0, [{ name: 'ক', satak: 89.5 }], F), 'চেয়ে বেশি');
+
+  throws('মোটের বেশি চাইলে ত্রুটি',
+    () => M.divideByArea(plot, 0, [{ name: 'ক', satak: 200 }], F), 'চেয়ে বেশি');
+  throws('স্কেল ছাড়া ত্রুটি',
+    () => M.divideByArea(plot, 0, [{ name: 'ক', satak: 10 }], 0), 'স্কেল');
+  throws('শরিক ছাড়া ত্রুটি', () => M.divideByArea(plot, 0, [], F), 'একজন শরিকের');
+}
+
+/* ═══════════ ১৭. ভাগবণ্টনের রিপোর্ট ═══════════ */
+head('ভাগবণ্টনের রিপোর্ট');
+{
+  const F = 2.2;
+  const plot = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 80 }, { x: 0, y: 80 }];
+  const res = M.divideByArea(plot, 0,
+    [{ name: 'করিম', satak: 40 }, { name: 'রহিম', satak: 20 }], F);
+  const rep = M.divisionReport(res, 'দাগ ৩৫৬');
+
+  ok('প্লটের নাম', rep.plotName === 'দাগ ৩৫৬');
+  ok('৩টি সারি (২ শরিক + অবশিষ্ট)', rep.rows.length === 3, rep.rows.length + 'টি');
+  ok('শেষ সারি অবশিষ্ট', rep.rows[2].name === 'অবশিষ্ট');
+  near('করিম ৪০ শতক', rep.rows[0].satak, 40, 1e-3);
+  near('করিমের শতাংশ ৪৫%', rep.rows[0].percent, 40 / rep.totalSatak * 100, 1e-6);
+  near('শতাংশের যোগ = ১০০', rep.rows.reduce((a, b) => a + b.percent, 0), 100, 1e-6);
+  near('শতকের যোগ = মোট', rep.sumSatak, rep.totalSatak, 1e-3);
+  ok('যোগফল মেলে (exact)', rep.exact === true);
+  ok('ক্রমিক নং ঠিক', rep.rows.map(r => r.serial).join(',') === '1,2,3');
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');
