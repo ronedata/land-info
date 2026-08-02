@@ -821,8 +821,19 @@ const AppController = {
     if (!k.bgClear && !k.color) {              // কিছু বদলানোর নেই
       k.fx = null;
       this.kmzPreview(null);
+      this.kmzProg(null);
       return;
     }
+
+    // ★ বড় নকশায় এই কাজটা কয়েক সেকেন্ড নেয় (১২ MP ছবিতে PNG এনকোডিং ধীর)।
+    //   ইঙ্গিত না দিলে ব্যবহারকারী ভাবেন কিছুই হচ্ছে না — তাই আগে বার্তা,
+    //   তারপর এক টিক ছেড়ে দিই যাতে বার্তাটা পর্দায় আঁকা হয়।
+    const mp = (k.img.width * k.img.height) / 1e6;
+    this.kmzProg(15, 'নকশা প্রক্রিয়া করা হচ্ছে… (' + toBn(mp.toFixed(1))
+      + ' মেগাপিক্সেল, একটু সময় নিতে পারে)');
+    await new Promise(r => setTimeout(r, 0));
+    if (seq !== this._kmzFxSeq) return;
+
     try {
       const res = await KmzFx.apply(k.img, {
         transparent: k.bgClear,
@@ -832,10 +843,22 @@ const AppController = {
       });
       if (seq !== this._kmzFxSeq) return;      // এর মধ্যে নতুন অনুরোধ এসেছে
       k.fx = res;
+      this.kmzProg(null);
       this.kmzPreview(k.fx);
+
+      const mb = res.bytes.length / 1048576;
+      const pct = KmzFx.transparentPct(res.stats);
+      if (k.bgClear && pct < 5) {
+        this.kmzStatus('প্রায় কিছুই স্বচ্ছ হয়নি (' + toBn(pct.toFixed(1))
+          + '%) — নকশাটি হয়তো গাঢ় বা হলদেটে। "সাদার মাত্রা" কমিয়ে দেখুন।', true);
+      } else if (mb > 12) {
+        this.kmzStatus('ছবিটি বড় হয়ে গেছে (' + toBn(mb.toFixed(1))
+          + ' MB) — KMZ ফাইলও বড় হবে ও Google Earth এ ধীরে খুলবে।', true);
+      }
     } catch (e) {
       if (seq !== this._kmzFxSeq) return;
       k.fx = null;
+      this.kmzProg(null);
       this.kmzStatus('ছবি প্রক্রিয়া করা গেল না: ' + e.message, true);
     }
   },
