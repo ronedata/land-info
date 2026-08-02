@@ -34,6 +34,98 @@ const MapMeasure = {
     { ft: 66,  label: '৬৬ ফুট (১ চেইন)' }
   ],
 
+  /**
+   * মৌজা নকশার প্রচলিত স্কেল — "কত ইঞ্চিতে কত ফুট"
+   * বাংলাদেশে সবচেয়ে প্রচলিত ১৬ ইঞ্চি = ১ মাইল, অর্থাৎ ইঞ্চিপ্রতি ৩৩০ ফুট।
+   */
+  MAP_SCALES: [
+    { ftPerInch: 5280 / 16, label: '১৬ ইঞ্চি = ১ মাইল (৩৩০ ফিট/ইঞ্চি)' },
+    { ftPerInch: 5280 / 32, label: '৩২ ইঞ্চি = ১ মাইল (১৬৫ ফিট/ইঞ্চি)' },
+    { ftPerInch: 5280 / 8,  label: '৮ ইঞ্চি = ১ মাইল (৬৬০ ফিট/ইঞ্চি)' },
+    { ftPerInch: 5280 / 4,  label: '৪ ইঞ্চি = ১ মাইল (১৩২০ ফিট/ইঞ্চি)' },
+    { ftPerInch: 400,       label: '১ ইঞ্চি = ৪০০ ফুট' },
+    { ftPerInch: 200,       label: '১ ইঞ্চি = ২০০ ফুট' }
+  ],
+
+  /** স্ক্যানের প্রচলিত DPI */
+  DPI_OPTIONS: [
+    { dpi: 300, label: '৩০০ DPI (স্ট্যান্ডার্ড স্ক্যান)' },
+    { dpi: 150, label: '১৫০ DPI (সাধারণ)' },
+    { dpi: 200, label: '২০০ DPI' },
+    { dpi: 400, label: '৪০০ DPI (উচ্চ মান)' },
+    { dpi: 600, label: '৬০০ DPI (সর্বোচ্চ)' }
+  ],
+
+  /**
+   * ★ PDF এ DPI বাছার দরকার নেই — রেন্ডার স্কেল থেকেই বেরিয়ে আসে।
+   *
+   * PDF এর পাতা পরিমাপ হয় **পয়েন্টে** (১ পয়েন্ট = ১/৭২ ইঞ্চি)। আমরা যখন
+   * স্কেল `s` এ আঁকি, পাতার প্রস্থ `W` পয়েন্ট হলে ক্যানভাস হয় `W×s` পিক্সেল,
+   * আর বাস্তব প্রস্থ `W/৭২` ইঞ্চি। তাই
+   *      পিক্সেল/ইঞ্চি = (W×s) ÷ (W/৭২) = ৭২ × s
+   * অর্থাৎ DPI কেবল রেন্ডার স্কেলের উপর নির্ভর করে — স্ক্যানের উপর নয়।
+   * (প্রতিযোগীর ডায়ালগেও তাই "স্ক্যান DPI — PDF-এর জন্য বন্ধ" লেখা।)
+   */
+  dpiForPdf(renderScale) {
+    const s = Number(renderScale);
+    if (!(s > 0)) throw new Error('রেন্ডার স্কেল শূন্যের বেশি হতে হবে');
+    return 72 * s;
+  },
+
+  /**
+   * ফুটকে "৬০'১\"" ধাঁচে — মাঠে আমিনরা এভাবেই বলেন
+   * ইঞ্চি ১২ হয়ে গেলে ফুটে চড়িয়ে দেওয়া হয় (৫৯'১২" নয়, ৬০'০")
+   */
+  formatFtIn(feet, bn) {
+    const f = Number(feet) || 0;
+    const neg = f < 0;
+    let ft = Math.floor(Math.abs(f));
+    let inch = Math.round((Math.abs(f) - ft) * 12);
+    if (inch >= 12) { ft += 1; inch = 0; }
+    const num = n => (bn === false || typeof toBn !== 'function') ? String(n) : toBn(n);
+    return (neg ? '−' : '') + num(ft) + "'" + num(inch) + '"';
+  },
+
+  /** বহুভুজের প্রতিটি বাহুর দৈর্ঘ্য (ফুটে) — লেবেল বসানোর জন্য */
+  edgeLengths(pts, ftPerPx, closed) {
+    const out = [];
+    if (!Array.isArray(pts) || pts.length < 2) return out;
+    const n = closed === false ? pts.length - 1 : pts.length;
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      out.push({
+        from: i, to: (i + 1) % pts.length,
+        mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        px: this.dist(a, b),
+        feet: this.dist(a, b) * (ftPerPx || 0)
+      });
+    }
+    return out;
+  },
+
+  /** বহুভুজের কেন্দ্র (ক্ষেত্রফল-ভারিত) — ভেতরে লেবেল বসাতে */
+  centroid(pts) {
+    if (!Array.isArray(pts) || pts.length === 0) return { x: 0, y: 0 };
+    if (pts.length < 3) {
+      const n = pts.length;
+      return { x: pts.reduce((s, p) => s + p.x, 0) / n,
+               y: pts.reduce((s, p) => s + p.y, 0) / n };
+    }
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      const cr = p.x * q.y - q.x * p.y;
+      a += cr; cx += (p.x + q.x) * cr; cy += (p.y + q.y) * cr;
+    }
+    if (Math.abs(a) < 1e-12) {          // অবক্ষয়িত — গড় ধরি
+      const n = pts.length;
+      return { x: pts.reduce((s, p) => s + p.x, 0) / n,
+               y: pts.reduce((s, p) => s + p.y, 0) / n };
+    }
+    a *= 0.5;
+    return { x: cx / (6 * a), y: cy / (6 * a) };
+  },
+
   /* ---------------- স্কেল ---------------- */
 
   /**

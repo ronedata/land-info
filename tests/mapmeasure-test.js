@@ -247,6 +247,73 @@ head('প্রজেক্ট সেভ ও রিস্টোর');
   ok('অবৈধ বিন্দু বাদ যায়', bad.plots[0].points.length === 2);
 }
 
+/* ═══════════ ১১. প্রিসেট ও PDF এর DPI ═══════════ */
+head('স্কেল প্রিসেট ও PDF এর DPI');
+{
+  ok('MAP_SCALES আছে', M.MAP_SCALES.length >= 4);
+  near('১৬ ইঞ্চি = ১ মাইল → ৩৩০ ফুট/ইঞ্চি', M.MAP_SCALES[0].ftPerInch, 330, 1e-12);
+  ok('সব লেবেল বাংলায়', M.MAP_SCALES.every(x => /[\u0980-\u09FF]/.test(x.label)));
+  ok('DPI বিকল্পে ৩০০ আছে', M.DPI_OPTIONS.some(x => x.dpi === 300));
+
+  // PDF: DPI = ৭২ × রেন্ডার স্কেল
+  near('স্কেল ১ → ৭২ DPI', M.dpiForPdf(1), 72, 1e-12);
+  near('স্কেল ২.২ → ১৫৮.৪ DPI', M.dpiForPdf(2.2), 158.4, 1e-9);
+  // স্বাধীন যাচাই — প্রতিযোগীর ডিবাগ লগের সংখ্যা দিয়ে:
+  //   পাতা ২৩৮৪ পয়েন্ট চওড়া, স্কেল ২.২ → ক্যানভাস ৫২৪৫ পিক্সেল
+  //   বাস্তব প্রস্থ ২৩৮৪/৭২ ইঞ্চি → ৫২৪৫ ÷ তা = ১৫৮.৪ DPI
+  const canvasPx = 2384 * 2.2, inches = 2384 / 72;
+  near('প্রতিযোগীর লগের সাথে মেলে', M.dpiForPdf(2.2), canvasPx / inches, 1e-6);
+  throws('স্কেল শূন্যে ত্রুটি', () => M.dpiForPdf(0), 'শূন্যের বেশি');
+
+  // পুরো শৃঙ্খল
+  const dpi = M.dpiForPdf(2.2);
+  const cal = M.fromMapScale(1, 330, dpi);
+  near('ফুট/পিক্সেল = ৩৩০/১৫৮.৪', cal.ftPerPx, 330 / 158.4, 1e-12);
+}
+
+/* ═══════════ ১২. ফুট-ইঞ্চি লেখা ═══════════ */
+head('ফুট-ইঞ্চি ফরম্যাট');
+{
+  const F = (v) => M.formatFtIn(v, false);
+  ok('৬০.০৮৩ ফুট → 60\'1"', F(60 + 1 / 12) === '60\'1"', F(60 + 1 / 12));
+  ok('৪০ ফুট → 40\'0"', F(40) === '40\'0"');
+  ok('০ → 0\'0"', F(0) === '0\'0"');
+  ok('৫৯.৯৯৯ → 60\'0" (১২ ইঞ্চি চড়ে যায়)', F(59.9999) === '60\'0"', F(59.9999));
+  ok('আধা ফুট → 0\'6"', F(0.5) === '0\'6"');
+  ok('ঋণাত্মক', F(-3.25) === '−3\'3"', F(-3.25));
+}
+
+/* ═══════════ ১৩. বাহুর দৈর্ঘ্য ও কেন্দ্র ═══════════ */
+head('বাহুর দৈর্ঘ্য ও কেন্দ্র');
+{
+  const sq = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 80 }, { x: 0, y: 80 }];
+  const e = M.edgeLengths(sq, 2.2, true);
+  ok('চারটি বাহু', e.length === 4);
+  near('বাহু ১ = ২২০ ফুট', e[0].feet, 220, 1e-9);
+  near('বাহু ২ = ১৭৬ ফুট', e[1].feet, 176, 1e-9);
+  near('বাহু ১ এর মাঝবিন্দু x', e[0].mid.x, 50, 1e-9);
+  ok('শেষ বাহু প্রথম বিন্দুতে ফেরে', e[3].to === 0);
+  ok('বাহুর যোগ = পরিসীমা',
+     Math.abs(e.reduce((a, b) => a + b.px, 0) - M.perimeterPx(sq)) < 1e-9);
+
+  const open = M.edgeLengths(sq, 1, false);
+  ok('খোলা রেখায় ৩ বাহু', open.length === 3);
+
+  const c = M.centroid(sq);
+  near('কেন্দ্র x = ৫০', c.x, 50, 1e-9);
+  near('কেন্দ্র y = ৪০', c.y, 40, 1e-9);
+
+  const tri = [{ x: 0, y: 0 }, { x: 90, y: 0 }, { x: 0, y: 60 }];
+  near('ত্রিভুজের কেন্দ্র x = ৩০', M.centroid(tri).x, 30, 1e-9);
+  near('ত্রিভুজের কেন্দ্র y = ২০', M.centroid(tri).y, 20, 1e-9);
+
+  const line = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }];
+  const lc = M.centroid(line);
+  ok('এক রেখায় NaN নয়', isFinite(lc.x) && isFinite(lc.y), lc.x + ',' + lc.y);
+  ok('খালিতে ০,০', M.centroid([]).x === 0);
+  ok('এক বিন্দুতে সেটিই', M.centroid([{ x: 7, y: 9 }]).x === 7);
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');
