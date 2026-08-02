@@ -378,7 +378,9 @@ const AppController = {
      গণিত KmzExport এ, আঁকা KmzMap/KmzImage এ। এখানে কেবল সংযোগ।
      ------------------------------------------------------------------------ */
 
-  kmz: { img: null, imgBytes: null, imgName: '', pairs: [], pending: null, opacity: 0.78, result: null },
+  kmz: { img: null, imgBytes: null, imgName: '', pairs: [], pending: null,
+         opacity: 0.78, result: null,
+         tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [] },
 
   initKmz() {
     const k = this.kmz;
@@ -405,34 +407,200 @@ const AppController = {
     this.kmzRender();
   },
 
+  /* ---- উৎস বদলানো ---- */
+  kmzSetSource(kind) {
+    const isArch = kind === 'archive';
+    const bf = document.getElementById('kmz-src-file');
+    const ba = document.getElementById('kmz-src-arch');
+    if (bf) bf.classList.toggle('active', !isArch);
+    if (ba) ba.classList.toggle('active', isArch);
+    const pf = document.getElementById('kmz-pane-file');
+    const pa = document.getElementById('kmz-pane-arch');
+    if (pf) pf.style.display = isArch ? 'none' : '';
+    if (pa) pa.style.display = isArch ? '' : 'none';
+    if (isArch && !this.kmz.treeLoaded) this.kmzArchInit();
+  },
+
+  /* ---- অগ্রগতি বার ---- */
+  kmzProg(pct, msg) {
+    const box = document.getElementById('kmz-prog');
+    const fill = document.getElementById('kmz-prog-fill');
+    const txt = document.getElementById('kmz-prog-txt');
+    if (!box) return;
+    if (pct == null) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if (txt) txt.textContent = msg || '';
+  },
+
+  /* ---- ছবি বসানো (সব উৎসের সাধারণ ধাপ) ---- */
+  kmzUseImage(r, name) {
+    const k = this.kmz;
+    k.img = r.img; k.imgBytes = r.bytes; k.imgName = name || 'map.jpg';
+    k.pairs = []; k.pending = null;
+    KmzImage.setImage(r.img);
+
+    const pill = document.getElementById('kmz-img-pill');
+    if (pill) {
+      pill.textContent = toBn(r.width) + '×' + toBn(r.height)
+        + (r.wasPdf ? ' · PDF' : '');
+      pill.className = 'fz-pill ok';
+    }
+    const info = document.getElementById('kmz-img-info');
+    if (info) {
+      info.textContent = (r.wasPdf && r.pageCount > 1
+        ? 'PDF এর ' + toBn(r.pageCount) + ' পাতার ১ম পাতা · '
+        : '') + 'চাকা ঘুরিয়ে জুম · টেনে সরান · ক্লিক করে বিন্দু বসান';
+    }
+    this.kmzStatus('ছবিতে একটি চেনা জায়গা ক্লিক করুন, তারপর স্যাটেলাইটে সেই জায়গাটি।');
+    this.kmzRender();
+  },
+
   kmzLoadFile(input) {
     const f = input && input.files && input.files[0];
     if (!f) return;
-    const k = this.kmz;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onerror = () => this.kmzStatus('ফাইলটি পড়া গেল না।', true);
+    reader.onload = async ev => {
       const buf = new Uint8Array(ev.target.result);
-      const blob = new Blob([buf], { type: f.type || 'image/jpeg' });
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
-      img.onload = () => {
-        k.img = img; k.imgBytes = buf; k.imgName = f.name;
-        k.pairs = []; k.pending = null;
-        KmzImage.setImage(img);
-        const pill = document.getElementById('kmz-img-pill');
-        if (pill) { pill.textContent = toBn(img.width) + '×' + toBn(img.height); pill.className = 'fz-pill ok'; }
-        const info = document.getElementById('kmz-img-info');
-        if (info) info.textContent = 'চাকা ঘুরিয়ে জুম · টেনে সরান · ক্লিক করে বিন্দু বসান';
-        URL.revokeObjectURL(url);
-        this.kmzRender();
-      };
-      img.onerror = () => {
-        this.showToast && this.showToast('ছবিটি পড়া গেল না');
-        URL.revokeObjectURL(url);
-      };
-      img.src = url;
+      this.kmzProg(5, 'ফাইল পড়া হচ্ছে…');
+      try {
+        const r = await KmzSource.toImage(buf, f.type, {
+          onStage: (pc, m) => this.kmzProg(pc, m)
+        });
+        this.kmzProg(null);
+        this.kmzUseImage(r, f.name);
+      } catch (e) {
+        this.kmzProg(null);
+        this.kmzStatus(e.message, true);
+      }
     };
     reader.readAsArrayBuffer(f);
+  },
+
+  /* ---- আর্কাইভ থেকে বাছাই ---- */
+
+  async kmzArchInit() {
+    const k = this.kmz;
+    const sel = document.getElementById('kmz-div');
+    try {
+      this.kmzProg(20, 'আর্কাইভের সূচি আসছে…');
+      k.tree = await KmzSource.tree();
+      k.treeLoaded = true;
+      this.kmzProg(null);
+      if (sel) {
+        sel.innerHTML = '<option value="">— বিভাগ বাছুন —</option>' +
+          k.tree.divisions.map((d, i) => '<option value="' + i + '">' + d.name + '</option>').join('');
+      }
+    } catch (e) {
+      this.kmzProg(null);
+      if (sel) sel.innerHTML = '<option>সূচি আনা গেল না</option>';
+      this.kmzStatus('আর্কাইভের সূচি আনা গেল না: ' + e.message, true);
+    }
+  },
+
+  _kmzFill(id, items, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !items || !items.length;
+    el.innerHTML = '<option value="">— ' + label + ' —</option>' +
+      (items || []).map((x, i) => '<option value="' + i + '">' + x.name +
+        (x.count ? ' (' + toBn(x.count) + ')' : '') + '</option>').join('');
+  },
+
+  kmzArchDiv() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-div').value;
+    k.arch = { div: i === '' ? null : k.tree.divisions[i] };
+    this._kmzFill('kmz-dist', k.arch.div ? k.arch.div.districts : [], 'জেলা বাছুন');
+    this._kmzFill('kmz-upa', [], 'উপজেলা');
+    this._kmzFill('kmz-srv', [], 'জরিপ');
+    this.kmzArchList([]);
+  },
+  kmzArchDist() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-dist').value;
+    k.arch.dist = i === '' ? null : k.arch.div.districts[i];
+    this._kmzFill('kmz-upa', k.arch.dist ? k.arch.dist.upazilas : [], 'উপজেলা বাছুন');
+    this._kmzFill('kmz-srv', [], 'জরিপ');
+    this.kmzArchList([]);
+  },
+  kmzArchUpa() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-upa').value;
+    k.arch.upa = i === '' ? null : k.arch.dist.upazilas[i];
+    this._kmzFill('kmz-srv', k.arch.upa ? k.arch.upa.surveys : [], 'জরিপ বাছুন');
+    this.kmzArchList([]);
+  },
+  async kmzArchSrv() {
+    const k = this.kmz;
+    const i = document.getElementById('kmz-srv').value;
+    k.arch.srv = i === '' ? null : k.arch.upa.surveys[i];
+    const search = document.getElementById('kmz-fsearch');
+    if (!k.arch.srv) { this.kmzArchList([]); if (search) search.disabled = true; return; }
+    try {
+      this.kmzProg(30, 'ফাইলের তালিকা আসছে…');
+      k.archFiles = await KmzSource.filesOf(k.arch.srv.id);
+      this.kmzProg(null);
+      if (search) { search.disabled = false; search.value = ''; }
+      this.kmzArchList(k.archFiles);
+    } catch (e) {
+      this.kmzProg(null);
+      this.kmzArchList([]);
+      this.kmzStatus('ফাইলের তালিকা আনা গেল না: ' + e.message, true);
+    }
+  },
+
+  kmzArchFilter() {
+    const q = (document.getElementById('kmz-fsearch') || {}).value || '';
+    this.kmzArchList(MouzaMap.filterFiles(this.kmz.archFiles || [], q));
+  },
+
+  kmzArchList(files) {
+    const box = document.getElementById('kmz-arch-list');
+    if (!box) return;
+    const list = files || [];
+    if (!list.length) {
+      box.className = 'kmz-arch-list';
+      box.textContent = this.kmz.arch && this.kmz.arch.srv
+        ? 'এই জরিপে কোনো ফাইল মেলেনি।'
+        : 'উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।';
+      return;
+    }
+    const shown = list.slice(0, 150);
+    box.className = 'kmz-arch-list has';
+    box.innerHTML = shown.map((f, i) => {
+      const usable = MouzaMap.canProxy(f);
+      const isTiff = String(f.mimeType) === 'image/tiff';
+      const kind = MouzaMap.fileKind(f.mimeType);
+      const bad = !usable || isTiff;
+      return '<button type="button" class="kmz-af' + (bad ? ' bad' : '') + '"' +
+        (bad ? ' disabled title="' + (isTiff ? 'TIFF ব্রাউজারে খোলা যায় না'
+                                             : 'ফাইলটি খুব বড়') + '"' : '') +
+        ' onclick="AppController.kmzPickArchive(' + i + ')">' +
+        '<i class="bi ' + kind.icon + '"></i>' +
+        '<span class="kmz-af-n">' + f.name + '</span>' +
+        '<span class="kmz-af-s">' + MouzaMap.formatSize(f.size) + '</span>' +
+        '</button>';
+    }).join('') +
+    (list.length > shown.length
+      ? '<div class="kmz-af-more">আরও ' + toBn(list.length - shown.length) +
+        'টি — খুঁজে ছেঁকে নিন</div>' : '');
+    this.kmz.archShown = shown;
+  },
+
+  async kmzPickArchive(i) {
+    const f = (this.kmz.archShown || [])[i];
+    if (!f) return;
+    try {
+      this.kmzProg(3, 'ফাইল নামানো হচ্ছে…');
+      const r = await KmzSource.fromArchive(f, (pc, m) => this.kmzProg(pc, m));
+      this.kmzProg(null);
+      this.kmzUseImage(r, r.name || f.name);
+    } catch (e) {
+      this.kmzProg(null);
+      this.kmzStatus(e.message, true);
+    }
   },
 
   kmzFitImage() { if (this.kmz.img) KmzImage.fit(); },

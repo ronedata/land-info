@@ -357,9 +357,11 @@ const KmzExport = {
    */
   safeName(n) {
     const base = String(n == null ? '' : n).split(/[\\/]/).pop() || '';
+    // চেনা ছবির এক্সটেনশন থাকলে সেটাই, নইলে .jpg
+    // (PDF থেকে রূপান্তরিত হলে ডেটা JPEG, তাই "x.pdf" → "x.jpg", "x.pdf.jpg" নয়)
     const ext = (base.match(/\.(jpe?g|png|gif|tiff?)$/i) || [])[0] || '.jpg';
     const stem = base
-      .replace(/\.(jpe?g|png|gif|tiff?)$/i, '')
+      .replace(/\.[A-Za-z0-9]{1,5}$/, '')    // যেকোনো এক্সটেনশন বাদ
       .replace(/[^A-Za-z0-9._-]+/g, '_')     // অ-ASCII ও ফাঁকা → এক আন্ডারস্কোর
       .replace(/_+/g, '_')                   // পরপর একাধিক → একটি
       .replace(/^[_.-]+|[_.-]+$/g, '');      // দুই প্রান্তের বিভাজক বাদ

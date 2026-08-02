@@ -483,8 +483,8 @@
 
           <div class="fz-warn">
             <i class="bi bi-cone-striped"></i>
-            <span><b>এই টুলের কাজ চলছে।</b> এখন ছবি (JPG/PNG) দিয়ে KMZ বানানো যায়।
-            <b>PDF ম্যাপ ও আর্কাইভ থেকে সরাসরি বেছে নেওয়া</b> এখনো যোগ করা হয়নি।</span>
+            <span><b>এই টুলের কাজ চলছে।</b> JPG · PNG · PDF ম্যাপ চলে, আর্কাইভ থেকেও
+            বেছে নেওয়া যায়। <b>TIFF</b> ব্রাউজারে খোলা যায় না (আর্কাইভে ২৬১টি)।</span>
           </div>
 
           <!-- ধাপ ১ — ছবি -->
@@ -495,14 +495,70 @@
               <span class="fz-pill" id="kmz-img-pill">ছবি নেই</span>
             </div>
             <div class="fz-panel-body">
-              <div class="fz-field">
-                <div class="fz-field-label"><span><i class="bi bi-image"></i> ছবি বাছুন (JPG / PNG)</span></div>
-                <input type="file" id="kmz-file" accept="image/jpeg,image/png"
-                       class="kmz-file" onchange="AppController.kmzLoadFile(this)">
+
+              <div class="fz-seg kmz-seg">
+                <button type="button" class="fz-seg-btn active" id="kmz-src-file"
+                        onclick="AppController.kmzSetSource('file')">নিজের ফাইল</button>
+                <button type="button" class="fz-seg-btn" id="kmz-src-arch"
+                        onclick="AppController.kmzSetSource('archive')">আর্কাইভ থেকে</button>
               </div>
-              <p class="kmz-hint">
-                স্ক্যান করা মৌজা ম্যাপ, অথবা <b>সারাদেশের মৌজা ম্যাপ</b> টুল থেকে নামানো ফাইল দিন।
-              </p>
+
+              <!-- উৎস ১: নিজের ফাইল -->
+              <div id="kmz-pane-file">
+                <div class="fz-field">
+                  <div class="fz-field-label"><span><i class="bi bi-file-earmark-arrow-up"></i> ফাইল বাছুন (JPG · PNG · PDF)</span></div>
+                  <input type="file" id="kmz-file" accept="image/jpeg,image/png,application/pdf"
+                         class="kmz-file" onchange="AppController.kmzLoadFile(this)">
+                </div>
+                <p class="kmz-hint">
+                  স্ক্যান করা মৌজা ম্যাপ, অথবা <b>সারাদেশের মৌজা ম্যাপ</b> টুল থেকে নামানো ফাইল।
+                </p>
+              </div>
+
+              <!-- উৎস ২: আর্কাইভ -->
+              <div id="kmz-pane-arch" style="display:none">
+                <div class="fz-assets kmz-arch-grid">
+                  <div class="fz-field">
+                    <div class="fz-field-label"><span>বিভাগ</span></div>
+                    <div class="fz-select-wrap">
+                      <select id="kmz-div" onchange="AppController.kmzArchDiv()"><option>লোড হচ্ছে…</option></select>
+                    </div>
+                  </div>
+                  <div class="fz-field">
+                    <div class="fz-field-label"><span>জেলা</span></div>
+                    <div class="fz-select-wrap">
+                      <select id="kmz-dist" onchange="AppController.kmzArchDist()" disabled><option>—</option></select>
+                    </div>
+                  </div>
+                  <div class="fz-field">
+                    <div class="fz-field-label"><span>উপজেলা</span></div>
+                    <div class="fz-select-wrap">
+                      <select id="kmz-upa" onchange="AppController.kmzArchUpa()" disabled><option>—</option></select>
+                    </div>
+                  </div>
+                  <div class="fz-field">
+                    <div class="fz-field-label"><span>জরিপ</span></div>
+                    <div class="fz-select-wrap">
+                      <select id="kmz-srv" onchange="AppController.kmzArchSrv()" disabled><option>—</option></select>
+                    </div>
+                  </div>
+                </div>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span><i class="bi bi-search"></i> ফাইল খুঁজুন</span></div>
+                  <div class="fz-input-wrap">
+                    <input type="text" id="kmz-fsearch" placeholder="ম্যাপের নাম লিখুন"
+                           oninput="AppController.kmzArchFilter()" disabled>
+                  </div>
+                </div>
+                <div id="kmz-arch-list" class="kmz-arch-list">
+                  উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।
+                </div>
+              </div>
+
+              <div id="kmz-prog" class="kmz-prog" style="display:none">
+                <div class="kmz-prog-bar"><span id="kmz-prog-fill"></span></div>
+                <div class="kmz-prog-txt" id="kmz-prog-txt">…</div>
+              </div>
             </div>
           </div>
 
@@ -2946,6 +3002,7 @@
   <script src="js/mouza-value.js"></script>
   <script src="js/kmz-export.js"></script>
   <script src="js/kmz-ui.js"></script>
+  <script src="js/kmz-source.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -275,6 +275,13 @@ head('ফাইলনাম');
   ok('দুই প্রান্তে বিভাজক থাকে না', !/^[_.-]|[_.-]\.jpg$/.test(K.safeName('__a__.jpg')));
   ok('খালি নাম → map.jpg', K.safeName('') === 'map.jpg');
   ok('null → map.jpg', K.safeName(null) === 'map.jpg');
+  // PDF রূপান্তরের পর ডেটা JPEG — নাম "x.pdf.jpg" নয়, "x.jpg"
+  ok('PDF নাম → .jpg (দুই এক্সটেনশন নয়)', K.safeName('testmap.pdf') === 'testmap.jpg',
+     K.safeName('testmap.pdf'));
+  ok('.tif নাম → .tif রাখে', K.safeName('sheet.tif') === 'sheet.tif');
+  ok('অজানা এক্সটেনশন → .jpg', K.safeName('scan.bin') === 'scan.jpg');
+  ok('বিন্দুওয়ালা নাম ঠিক থাকে', K.safeName('RS.12.sheet.png') === 'RS.12.sheet.png',
+     K.safeName('RS.12.sheet.png'));
 }
 
 /* ═══════════ ১১. পূর্ণ KMZ ═══════════ */
