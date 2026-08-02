@@ -17,9 +17,14 @@ const KmzSource = {
   PDFJS: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
   PDFJS_WORKER: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
 
-  /** রেন্ডার করা ছবির দীর্ঘতম বাহুর সীমা — খুব বড় হলে ব্রাউজার আটকে যায় */
-  MAX_SIDE: 6000,
-  DEFAULT_SIDE: 3000,
+  /**
+   * রেন্ডার করা ছবির দীর্ঘতম বাহু
+   * ৩০০০px এ দাগ নম্বর পড়া যেত না। প্রতিযোগীর ডিবাগ লগে দেখা গেল ওরা
+   * ২৩৮৪×১৬৮৪ পয়েন্টের পাতা ২.২ গুণে **৫২৪৫×৩৭০৫ (১৯.৪ MP)** এ আঁকে।
+   * সেটাই লক্ষ্য ধরা হলো — জুম করলে দাগ নম্বর পড়া যায়।
+   */
+  MAX_SIDE: 8000,
+  DEFAULT_SIDE: 5200,
 
   _pdfPromise: null,
 

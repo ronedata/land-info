@@ -2084,3 +2084,221 @@
   height: auto;
   background: #2f4f2f;
 }
+
+/* ==========================================================================
+   KMZ — ধাপে ধাপে (wizard) লেআউট
+   ========================================================================== */
+
+.kmz-wrap { display: flex; flex-direction: column; min-height: 0; }
+.kmz-step { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+
+/* ── ধাপ ০: উৎস বাছাই ── */
+.kmz-hero {
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  color: #fff;
+  margin-bottom: 18px;
+}
+.kmz-hero h3 { color: #fff; font-size: 1.25rem; margin-bottom: 7px; }
+.kmz-hero p { font-size: 0.88rem; line-height: 1.75; opacity: 0.95; }
+
+.kmz-choices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 700px) { .kmz-choices { grid-template-columns: 1fr 1fr; } }
+
+.kmz-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 30px 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.kmz-choice:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.kmz-choice-ic {
+  display: grid; place-items: center;
+  width: 60px; height: 60px;
+  border-radius: var(--radius-lg);
+  font-size: 1.55rem;
+}
+.kmz-choice-ic.ic-blue  { background: #e0e7ff; color: #4f46e5; }
+.kmz-choice-ic.ic-green { background: #dcfce7; color: #15803d; }
+.kmz-choice-t { font-size: 1.02rem; font-weight: 700; text-align: center; }
+.kmz-choice-s { font-size: 0.82rem; color: var(--text-muted); text-align: center; }
+
+.kmz-arch { margin-top: 18px; }
+
+/* ── ধাপ ১ ও ২: পূর্ণ মঞ্চ ── */
+.kmz-stage {
+  position: relative;
+  flex: 1;
+  min-height: 380px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #0b1220;
+}
+.kmz-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* উপরের পিল — ওদের মতো মাঝখানে */
+.kmz-pill {
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: calc(100% - 24px);
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font-size: 0.86rem;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+.kmz-pill .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--secondary);
+  flex-shrink: 0;
+}
+.kmz-pill .dot.ok { background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,0.2); }
+.kmz-pill b {
+  margin-left: 4px;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  background: #eef2ff;
+  color: var(--primary);
+  font-size: 0.82rem;
+}
+
+/* ডানের কন্ট্রোল */
+.kmz-ctrls {
+  position: absolute;
+  right: 12px; bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.kmz-cbtn {
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+.kmz-cbtn:hover { background: #fff; color: var(--primary); }
+.kmz-cbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* সার্চ বক্স — ওদের মতো বাঁ উপরে */
+.kmz-search {
+  position: absolute;
+  top: 12px; left: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: min(340px, calc(100% - 24px));
+  padding: 6px 8px 6px 12px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
+}
+.kmz-search > i { color: #64748b; flex-shrink: 0; }
+.kmz-search input {
+  flex: 1; min-width: 0;
+  border: none; background: transparent; outline: none;
+  font-family: inherit; font-size: 0.84rem; color: #0f172a;
+}
+.kmz-search .kmz-cbtn { width: 30px; height: 30px; box-shadow: none; background: #eef2ff; }
+
+/* নিচের ইঙ্গিত */
+.kmz-tip {
+  position: absolute;
+  left: 50%; bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 2;
+  max-width: calc(100% - 120px);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  font-size: 0.77rem;
+  text-align: center;
+}
+@media (max-width: 599px) { .kmz-tip { display: none; } }
+
+/* নিচের নেভিগেশন */
+.kmz-nav {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 14px 0 4px;
+}
+.kmz-nav .btn { min-width: 140px; justify-content: center; }
+@media (max-width: 599px) {
+  .kmz-nav { flex-direction: column-reverse; }
+  .kmz-nav .btn { width: 100%; }
+}
+
+/* ধাপ ৩ */
+.kmz-done { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* ধাপ ২ এর ফল-তালিকা মঞ্চের উপরে ভাসে */
+#kmz-s2 .kmz-geo {
+  position: absolute;
+  top: 58px; left: 12px;
+  z-index: 4;
+  width: min(340px, calc(100% - 24px));
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* ছোট পর্দায় সার্চ বক্স ও পিল একই সারিতে ধরে না — উপরে-নিচে সাজাই */
+@media (max-width: 760px) {
+  #kmz-s2 .kmz-search {
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+  #kmz-s2 .kmz-pill {
+    top: 60px;
+  }
+  #kmz-s2 .kmz-geo {
+    top: 106px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+  .kmz-pill {
+    font-size: 0.8rem;
+    padding: 7px 13px;
+  }
+}

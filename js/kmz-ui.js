@@ -205,7 +205,7 @@ const KmzMap = {
     // চিহ্ন
     s.markers.forEach(m => {
       const p = this.lngLatToPixel(m.lng, m.lat);
-      this._marker(ctx, p.x, p.y, m.n);
+      this._marker(ctx, p.x, p.y, m.n, m.current);
     });
 
     // কৃতজ্ঞতা (টাইল উৎসের শর্ত)
@@ -218,17 +218,40 @@ const KmzMap = {
     ctx.fillText(txt, W - tw - 5, H - 5);
   },
 
-  _marker(ctx, x, y, n) {
+  /**
+   * নিয়ন্ত্রণ বিন্দুর চিহ্ন
+   * সর্বশেষ বসানোটি **লাল পিন**, আগেরগুলো **নীল বৃত্ত** — এতে বোঝা যায়
+   * এইমাত্র কোনটি বসল, আর ক্রমও চোখে পড়ে।
+   */
+  _marker(ctx, x, y, n, current) {
     ctx.save();
-    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2);
-    ctx.fillStyle = '#ef4444'; ctx.fill();
+    const col = current ? '#ef4444' : '#2563eb';
+
+    if (current) {
+      // পিনের ফলা
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 6, y - 11);
+      ctx.lineTo(x + 6, y - 11);
+      ctx.closePath();
+      ctx.fillStyle = col; ctx.fill();
+    }
+
+    const cy = current ? y - 18 : y;
+    ctx.beginPath(); ctx.arc(x, cy, 10, 0, Math.PI * 2);
+    ctx.fillStyle = col; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x + 14, y);
-    ctx.moveTo(x, y - 14); ctx.lineTo(x, y + 14);
-    ctx.strokeStyle = 'rgba(239,68,68,0.85)'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif';
+
+    // ঠিক কোন পিক্সেলে বসেছে তা বোঝাতে ক্রসহেয়ার
+    ctx.beginPath();
+    ctx.moveTo(x - 13, y); ctx.lineTo(x + 13, y);
+    ctx.moveTo(x, y - 13); ctx.lineTo(x, y + 13);
+    ctx.strokeStyle = current ? 'rgba(239,68,68,0.9)' : 'rgba(37,99,235,0.75)';
+    ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(n), x, y + 0.5);
+    ctx.fillText(String(n), x, cy + 0.5);
     ctx.restore();
   },
 
@@ -389,7 +412,7 @@ const KmzImage = {
 
     s.markers.forEach(m => {
       const p = this.imageToCanvas(m.x, m.y);
-      KmzMap._marker(ctx, p.x, p.y, m.n);
+      KmzMap._marker(ctx, p.x, p.y, m.n, m.current);
     });
   }
 };
