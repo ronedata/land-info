@@ -314,6 +314,60 @@ head('বাহুর দৈর্ঘ্য ও কেন্দ্র');
   ok('এক বিন্দুতে সেটিই', M.centroid([{ x: 7, y: 9 }]).x === 7);
 }
 
+/* ═══════════ ১৪. প্লট বাছাই · বৃত্ত · ম্যানুয়াল ভাগ ═══════════ */
+head('বিন্দু ভেতরে? · বৃত্ত · ম্যানুয়াল ভাগ');
+{
+  const sq = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+  ok('কেন্দ্র ভেতরে', M.pointInPolygon({ x: 50, y: 50 }, sq));
+  ok('বাইরে', !M.pointInPolygon({ x: 150, y: 50 }, sq));
+  ok('ঠিক বাইরের ধারে', !M.pointInPolygon({ x: -0.1, y: 50 }, sq));
+  ok('কোণার ভেতরে', M.pointInPolygon({ x: 0.5, y: 0.5 }, sq));
+  ok('২ বিন্দুর বহুভুজে false', !M.pointInPolygon({ x: 1, y: 1 }, [{ x: 0, y: 0 }, { x: 2, y: 2 }]));
+
+  // অবতল (L আকৃতি) — খাঁজের ভেতরের বিন্দু বাইরে হওয়া চাই
+  const L = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 40 },
+             { x: 40, y: 40 }, { x: 40, y: 100 }, { x: 0, y: 100 }];
+  ok('L আকৃতির বাহুতে ভেতরে', M.pointInPolygon({ x: 20, y: 20 }, L));
+  ok('L আকৃতির খাঁজে বাইরে', !M.pointInPolygon({ x: 70, y: 70 }, L));
+
+  // বৃত্ত → বহুভুজ
+  const c = M.circleToPolygon({ x: 0, y: 0 }, 100, 72);
+  ok('৭২ বাহু', c.length === 72);
+  // ক্ষেত্রফল-রক্ষী — বাহু যত কমই হোক, ক্ষেত্রফল ঠিক πr²
+  const err = Math.abs(M.areaPx(c) - Math.PI * 1e4) / (Math.PI * 1e4);
+  ok('ক্ষেত্রফল ঠিক πr² (ত্রুটি <০.০০১%)', err < 1e-5, (err * 100).toExponential(2) + '%');
+  [12, 36, 180, 720].forEach(n => {
+    const e = Math.abs(M.areaPx(M.circleToPolygon({ x: 0, y: 0 }, 50, n)) - Math.PI * 2500)
+              / (Math.PI * 2500);
+    ok(`${n} বাহুতেও ক্ষেত্রফল ঠিক`, e < 1e-5, (e * 100).toExponential(2) + '%');
+  });
+  ok('ডিফল্ট ১৮০ বাহু', M.circleToPolygon({ x: 0, y: 0 }, 10).length === 180);
+  ok('ন্যূনতম বাহু মানা হয়', M.circleToPolygon({ x: 0, y: 0 }, 10, 3).length === 12);
+  near('circleAreaPx = πr²', M.circleAreaPx(100), Math.PI * 1e4, 1e-9);
+  // ব্যাসার্ধ সামান্য বাড়ে, কিন্তু ১৮০ বাহুতে অদৃশ্য
+  const p180 = M.circleToPolygon({ x: 0, y: 0 }, 100, 180);
+  const rOut = Math.hypot(p180[0].x, p180[0].y);
+  ok('১৮০ বাহুতে ব্যাসার্ধ ০.০১০২% বাড়ে (চোখে অদৃশ্য)',
+     Math.abs((rOut - 100) / 100 - 0.000102) < 2e-6,
+     ((rOut - 100) / 100 * 100).toFixed(4) + '%');
+
+  // ম্যানুয়াল ভাগ — উল্লম্ব রেখা মাঝখানে
+  const cut = M.sliceByLine(sq, { x: 50, y: -10 }, { x: 50, y: 110 });
+  near('ক অংশ = ৫০০০', cut.areaA, 5000, 1e-6);
+  near('খ অংশ = ৫০০০', cut.areaB, 5000, 1e-6);
+  near('যোগফল = মোট', cut.areaA + cut.areaB, 10000, 1e-6);
+
+  // তির্যক রেখা — কর্ণ বরাবর
+  const diag = M.sliceByLine(sq, { x: -10, y: -10 }, { x: 110, y: 110 });
+  near('কর্ণে দুই সমান ভাগ', diag.areaA, 5000, 1e-6);
+  near('কর্ণে যোগফল', diag.areaA + diag.areaB, 10000, 1e-6);
+
+  throws('প্লটের বাইরের রেখায় ত্রুটি',
+    () => M.sliceByLine(sq, { x: 200, y: 0 }, { x: 200, y: 100 }), 'দুই ভাগে কাটছে না');
+  throws('অতি ছোট রেখায় ত্রুটি',
+    () => M.sliceByLine(sq, { x: 50, y: 50 }, { x: 50, y: 50 }), 'অনেক ছোট');
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');

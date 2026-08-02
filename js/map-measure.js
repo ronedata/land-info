@@ -320,6 +320,76 @@ const MapMeasure = {
     return out;
   },
 
+  /**
+   * বিন্দুটি বহুভুজের ভেতরে? (ray casting)
+   * প্লটে ট্যাপ করে বাছাই করার জন্য দরকার।
+   */
+  pointInPolygon(pt, poly) {
+    if (!Array.isArray(poly) || poly.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      const hit = (a.y > pt.y) !== (b.y > pt.y) &&
+                  pt.x < ((b.x - a.x) * (pt.y - a.y)) / (b.y - a.y) + a.x;
+      if (hit) inside = !inside;
+    }
+    return inside;
+  },
+
+  /**
+   * বৃত্তকে বহুভুজে রূপান্তর — ক্ষেত্রফল ও ভাগ করার জন্য
+   *
+   * ★ ক্ষেত্রফল-রক্ষী (area-preserving)
+   *   সাধারণ অন্তর্লিখিত n-ভুজের ক্ষেত্রফল πr² এর চেয়ে কম — ৭২ বাহুতে
+   *   ০.১২৭% কম। জমির হিসাবে ১০০ শতকে ০.১৩ শতক ভুল, যা এড়ানো যায়।
+   *   তাই ব্যাসার্ধ সামান্য বাড়িয়ে নেওয়া হয়:
+   *        k = √( (2π/n) ÷ sin(2π/n) )
+   *   এতে বহুভুজের ক্ষেত্রফল **ঠিক πr²** হয়, আর ১৮০ বাহুতে ব্যাসার্ধ
+   *   মাত্র ০.০১০২% বাড়ে — চোখে ধরা পড়ে না।
+   */
+  circleToPolygon(center, radiusPx, segments) {
+    const n = Math.max(12, Math.min(720, segments || 180));
+    const step = (Math.PI * 2) / n;
+    const k = Math.sqrt(step / Math.sin(step));      // ক্ষেত্রফল-রক্ষী সংশোধন
+    const r = radiusPx * k;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = i * step;
+      out.push({ x: center.x + r * Math.cos(a),
+                 y: center.y + r * Math.sin(a) });
+    }
+    return out;
+  },
+
+  /** বৃত্তের প্রকৃত ক্ষেত্রফল (পিক্সেল²) */
+  circleAreaPx(radiusPx) {
+    const r = Number(radiusPx) || 0;
+    return Math.PI * r * r;
+  },
+
+  /**
+   * ম্যানুয়াল ভাগ — যেকোনো রেখা টেনে প্লটকে দুই ভাগে কাটা
+   * রেখাটি প্লটকে সত্যিই দুই ভাগ করছে কি না যাচাই করা হয়।
+   * @returns {{a:Array, b:Array, areaA:number, areaB:number}}
+   */
+  sliceByLine(pts, p1, p2) {
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy);
+    if (!(len > 1e-9)) throw new Error('রেখাটি অনেক ছোট — টেনে বড় করুন');
+
+    // রেখার লম্ব ভেক্টর
+    const n = { x: -dy / len, y: dx / len };
+    const a = this.clipHalfPlane(pts, p1, n);
+    const b = this.clipHalfPlane(pts, p1, { x: -n.x, y: -n.y });
+
+    const aA = this.areaPx(a), aB = this.areaPx(b);
+    const total = this.areaPx(pts);
+    if (aA < total * 1e-6 || aB < total * 1e-6) {
+      throw new Error('রেখাটি প্লটকে দুই ভাগে কাটছে না — প্লটের ভেতর দিয়ে টানুন');
+    }
+    return { a, b, areaA: aA, areaB: aB };
+  },
+
   /* ---------------- প্লট ব্যবস্থাপনা ---------------- */
 
   /** নতুন প্লটের কাঠামো */
