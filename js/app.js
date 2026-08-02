@@ -433,6 +433,28 @@ const AppController = {
     if (txt) txt.textContent = msg || '';
   },
 
+  /**
+   * নেটওয়ার্ক ব্যর্থতার কারণ বুঝিয়ে বলা।
+   * সবচেয়ে সাধারণ কারণ: index.html সরাসরি file:// দিয়ে খোলা হয়েছে —
+   * তখন ব্রাউজার নিরাপত্তার কারণে পাশের JSON ফাইলও পড়তে দেয় না।
+   */
+  kmzNetHint(what, err) {
+    if (location.protocol === 'file:') {
+      return what + ' আনা যায়নি — ফাইলটি সরাসরি খোলা হয়েছে (file://), '
+        + 'তাই ব্রাউজার পাশের ডেটা ফাইল পড়তে দিচ্ছে না। ফোল্ডারে গিয়ে '
+        + '"python -m http.server 8899" চালিয়ে http://127.0.0.1:8899/ খুলুন।';
+    }
+    const m = String((err && err.message) || '');
+    if (/Failed to fetch|NetworkError|ERR_INTERNET/i.test(m)) {
+      return what + ' আনা যায়নি — ইন্টারনেট সংযোগ দেখুন।';
+    }
+    if (/40[34]/.test(m)) {
+      return what + ' আনা যায়নি — ডেটা ফাইল খুঁজে পাওয়া যায়নি ('
+        + 'data/mouza-map/ ফোল্ডারটি আছে কি না দেখুন)।';
+    }
+    return what + ' আনা যায়নি: ' + m;
+  },
+
   /* ---- ছবি বসানো (সব উৎসের সাধারণ ধাপ) ---- */
   kmzUseImage(r, name) {
     const k = this.kmz;
@@ -494,8 +516,8 @@ const AppController = {
       }
     } catch (e) {
       this.kmzProg(null);
-      if (sel) sel.innerHTML = '<option>সূচি আনা গেল না</option>';
-      this.kmzStatus('আর্কাইভের সূচি আনা গেল না: ' + e.message, true);
+      if (sel) sel.innerHTML = '<option value="">— আনা যায়নি —</option>';
+      this.kmzStatus(this.kmzNetHint('আর্কাইভের সূচি', e), true);
     }
   },
 
@@ -547,7 +569,7 @@ const AppController = {
     } catch (e) {
       this.kmzProg(null);
       this.kmzArchList([]);
-      this.kmzStatus('ফাইলের তালিকা আনা গেল না: ' + e.message, true);
+      this.kmzStatus(this.kmzNetHint('ফাইলের তালিকা', e), true);
     }
   },
 

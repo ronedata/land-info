@@ -681,16 +681,8 @@
      flex-wrap শুধু তখনই কাজ করে যখন জায়গা কম, তাই অন্য টুলে কিছু বদলাবে না। */
   .fz-panel-head { flex-wrap: wrap; }
 
-  /* মডাল পুরো স্ক্রিন জুড়ে — মোবাইল অ্যাপের মতো */
-  .app-modal { padding: 0; align-items: stretch; justify-content: stretch; }
-  .modal-content {
-    max-width: 100%;
-    width: 100%;
-    max-height: 100vh;
-    height: 100vh;
-    border-radius: 0;
-    border: none;
-  }
+  /* মডাল সব পর্দাতেই পূর্ণ পাতা (css/style.css এ) — এখানে কেবল ছোট পর্দার
+     ফাঁক-ফোকর কমানো */
   .modal-header { padding: 13px 14px; }
   .modal-title { font-size: 1rem; gap: 8px; }
   .modal-body { padding: 14px; }
