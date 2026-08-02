@@ -33,6 +33,7 @@ const MeasureCanvas = {
       dragPt: null,         // {plot, index} — টেনে সরানো বিন্দু
       drag: null,
       calib: null,            // {pts:[], cb}
+      division: null,         // ভাগবণ্টনের ফল — আলাদা রঙে আঁকা হয়
       onChange: o.onChange || null,
       onSelect: o.onSelect || null
     };
@@ -279,6 +280,11 @@ const MeasureCanvas = {
     this.setTool('pan');
   },
 
+  /** ভাগবণ্টনের ফল বসানো (null দিলে মুছে যায়) */
+  setDivision(res) { this.state.division = res; this.draw(); },
+
+  DIV_COLORS: ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#14b8a6'],
+
   undoDraftPoint() {
     const s = this.state;
     if (s.draft.length) { s.draft.pop(); this.draw(); this._changed(); return true; }
@@ -326,8 +332,53 @@ const MeasureCanvas = {
     }
 
     s.plots.forEach((p, i) => this._drawPlot(p, i === s.selected, false));
+    if (s.division) this._drawDivision();
     if (s.draft.length) this._drawDraft();
     if (s.calib) this._drawCalib();
+  },
+
+  /** ভাগবণ্টনের অংশগুলো — প্রতিটি আলাদা রঙে, ভেতরে নাম ও শতক */
+  _drawDivision() {
+    const s = this.state, ctx = s.ctx;
+    const all = s.division.parts.slice();
+    if (s.division.leftover) all.push(s.division.leftover);
+
+    all.forEach((part, i) => {
+      const pts = part.polygon;
+      if (!pts || pts.length < 3) return;
+      const isLeft = part.name === 'অবশিষ্ট';
+      const col = isLeft ? '#94a3b8' : this.DIV_COLORS[i % this.DIV_COLORS.length];
+      const cps = pts.map(q => this.toCanvas(q.x, q.y));
+
+      ctx.beginPath();
+      cps.forEach((q, j) => j ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
+      ctx.closePath();
+      ctx.fillStyle = col + (isLeft ? '44' : '66');
+      ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.5;
+      if (isLeft) ctx.setLineDash([7, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // লেবেল
+      const cen = MapMeasure.centroid(pts);
+      const q = this.toCanvas(cen.x, cen.y);
+      const bn = v => (typeof toBn === 'function' ? toBn(v) : String(v));
+      const lines = [part.name || '', bn(part.satak.toFixed(2)) + ' শতক'];
+      ctx.font = '700 12px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const w = Math.max(...lines.map(t => ctx.measureText(t).width)) + 14;
+      const h = lines.length * 16 + 6;
+      ctx.fillStyle = 'rgba(255,255,255,0.93)';
+      ctx.fillRect(q.x - w / 2, q.y - h / 2, w, h);
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      ctx.strokeRect(q.x - w / 2, q.y - h / 2, w, h);
+      lines.forEach((t, j) => {
+        ctx.fillStyle = j === 0 ? '#0f172a' : col;
+        ctx.fillText(t, q.x, q.y - h / 2 + 11 + j * 16);
+      });
+    });
   },
 
   /** ক্যালিব্রেশনের দণ্ড — বেগুনি, ওদের বোতামের রঙের সাথে মিলিয়ে */

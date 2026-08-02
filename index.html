@@ -546,6 +546,8 @@
                       onclick="AppController.mmTool('pan')"><i class="bi bi-hand-index"></i><span>প্যান</span></button>
               <button type="button" class="mm-tool" data-tool="select" title="নির্বাচন"
                       onclick="AppController.mmTool('select')"><i class="bi bi-cursor"></i><span>নির্বাচন</span></button>
+              <button type="button" class="mm-tool" data-tool="divide" title="ভাগবণ্টন"
+                      onclick="AppController.mmDivideMode()"><i class="bi bi-pie-chart"></i><span>ভাগ</span></button>
             </div>
 
             <!-- আঁকার সময় নিচের বার -->
@@ -575,6 +577,68 @@
               <span class="fz-pill" id="mm-list-pill">০টি</span>
             </div>
             <div id="mm-list" class="mm-list">কোনো প্লট নেই</div>
+          </div>
+
+          <!-- ভাগবণ্টন -->
+          <div class="mm-div-wrap" id="mm-div-wrap" style="display:none">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num"><i class="bi bi-pie-chart"></i></span>
+              <h3>জমি ভাগবণ্টন</h3>
+              <span class="fz-pill" id="mm-div-plot">প্লট বাছুন</span>
+            </div>
+
+            <div class="fz-seg" style="margin-bottom:12px">
+              <button type="button" class="fz-seg-btn active" id="mm-dm-prop"
+                      onclick="AppController.mmDivMode('prop')">আনুপাতিক (শরিকের অংশ)</button>
+              <button type="button" class="fz-seg-btn" id="mm-dm-man"
+                      onclick="AppController.mmDivMode('manual')">ম্যানুয়াল (রেখা টেনে)</button>
+            </div>
+
+            <!-- আনুপাতিক -->
+            <div id="mm-div-prop">
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-signpost-split"></i> কোন বাহু বরাবর কাটবেন</span></div>
+                <div class="fz-input-wrap fz-select-wrap">
+                  <select id="mm-div-side" onchange="AppController.mmDivPreview()"></select>
+                </div>
+              </div>
+
+              <div class="fz-panel-head" style="padding:0;margin:14px 0 8px">
+                <h3 style="font-size:0.95rem">শরিকগণ</h3>
+                <span class="fz-pill" id="mm-share-pill">০ / ০ শতক</span>
+                <button type="button" class="fz-btn-add" onclick="AppController.mmAddShare()">
+                  <i class="bi bi-plus-lg"></i> শরিক যোগ
+                </button>
+              </div>
+              <div id="mm-shares" class="mm-shares"></div>
+
+              <div class="mm-div-actions">
+                <button type="button" class="btn btn-primary" onclick="AppController.mmDoDivide()">
+                  <i class="bi bi-scissors"></i> ভাগ করুন
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.mmClearDivision()">
+                  <i class="bi bi-arrow-counterclockwise"></i> ভাগ মুছুন
+                </button>
+              </div>
+            </div>
+
+            <!-- ম্যানুয়াল -->
+            <div id="mm-div-man" style="display:none">
+              <p class="kmz-hint">
+                প্লটের এক পাশ থেকে অন্য পাশে <b>দুটি ক্লিক</b> করে রেখা টানুন —
+                প্লটটি <b>ক</b> ও <b>খ</b> দুই ভাগে কাটবে।
+              </p>
+              <div class="mm-div-actions">
+                <button type="button" class="btn btn-primary" onclick="AppController.mmStartManualCut()">
+                  <i class="bi bi-pencil"></i> রেখা টানুন
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.mmClearDivision()">
+                  <i class="bi bi-arrow-counterclockwise"></i> ভাগ মুছুন
+                </button>
+              </div>
+            </div>
+
+            <div id="mm-div-result" class="mm-div-result" style="display:none"></div>
           </div>
 
           <!-- অগ্রগতি -->

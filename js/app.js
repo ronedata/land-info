@@ -1086,7 +1086,8 @@ const AppController = {
 
   mm: { img: null, imgName: '', isPdf: false, pdfScale: 0,
         ftPerPx: 0, scaleFrom: '', calibrating: null,
-        tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [] },
+        tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
+        divMode: 'prop', shares: [], division: null, cutLine: null },
 
   initMeasure() {
     const c = document.getElementById('mm-canvas');
@@ -1365,6 +1366,239 @@ const AppController = {
       '<span class="mm-row-a">' + toBn(MeasureCanvas.stats().totals.satak.toFixed(2)) +
       ' শতক</span><span class="mm-row-k">' +
       toBn(MeasureCanvas.stats().totals.katha.toFixed(2)) + ' কাঠা</span><span></span></div>' : '');
+  },
+
+
+  /* ---- ভাগবণ্টন ---- */
+
+  mmDivideMode() {
+    const k = this.mm;
+    if (!MeasureCanvas.state.plots.length) {
+      alert('আগে অন্তত একটি প্লট আঁকুন!');
+      return;
+    }
+    if (MeasureCanvas.state.selected < 0) MeasureCanvas.state.selected = 0;
+    this.mmTool('select');
+    document.querySelectorAll('#mm-tools .mm-tool').forEach(b =>
+      b.classList.toggle('active', b.dataset.tool === 'divide'));
+    const w = document.getElementById('mm-div-wrap');
+    if (w) w.style.display = '';
+    if (!k.shares.length) { k.shares = [{ name: '', satak: '' }, { name: '', satak: '' }]; }
+    this.mmDivRefresh();
+  },
+
+  mmDivMode(m) {
+    this.mm.divMode = m;
+    const a = document.getElementById('mm-dm-prop');
+    const b = document.getElementById('mm-dm-man');
+    if (a) a.classList.toggle('active', m === 'prop');
+    if (b) b.classList.toggle('active', m === 'manual');
+    const pp = document.getElementById('mm-div-prop');
+    const pm = document.getElementById('mm-div-man');
+    if (pp) pp.style.display = m === 'prop' ? '' : 'none';
+    if (pm) pm.style.display = m === 'manual' ? '' : 'none';
+  },
+
+  /** নির্বাচিত প্লট */
+  mmSelPlot() {
+    const i = MeasureCanvas.state.selected;
+    return i >= 0 ? MeasureCanvas.state.plots[i] : null;
+  },
+
+  mmDivRefresh() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    const pill = document.getElementById('mm-div-plot');
+    if (pill) {
+      pill.textContent = plot
+        ? (plot.dag ? 'দাগ ' + plot.dag : plot.name) + ' — '
+          + (k.ftPerPx > 0 ? toBn(MapMeasure.measure(plot, k.ftPerPx).satak.toFixed(2)) + ' শতক' : '')
+        : 'প্লট বাছুন';
+      pill.className = 'fz-pill' + (plot ? ' ok' : '');
+    }
+
+    // বাহুর তালিকা
+    const sel = document.getElementById('mm-div-side');
+    if (sel && plot) {
+      const cur = sel.value;
+      const opts = MapMeasure.sideOptions(plot.points, k.ftPerPx);
+      sel.innerHTML = opts.map(o => '<option value="' + o.index + '">' + o.label +
+        (k.ftPerPx > 0 ? ' · ' + MapMeasure.formatFtIn(o.feet) : '') + '</option>').join('');
+      if (cur && cur < opts.length) sel.value = cur;
+    }
+
+    this.mmRenderShares();
+  },
+
+  mmAddShare() {
+    this.mm.shares.push({ name: '', satak: '' });
+    this.mmRenderShares();
+  },
+  mmDelShare(i) {
+    this.mm.shares.splice(i, 1);
+    this.mmRenderShares();
+  },
+  mmSetShare(i, field, v) {
+    if (!this.mm.shares[i]) return;
+    this.mm.shares[i][field] = field === 'satak' ? toEn(String(v)) : v;
+    this.mmSharePill();
+  },
+
+  mmSharePill() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    const total = plot && k.ftPerPx > 0 ? MapMeasure.measure(plot, k.ftPerPx).satak : 0;
+    const asked = k.shares.reduce((a, b) => a + (Number(b.satak) || 0), 0);
+    const el = document.getElementById('mm-share-pill');
+    if (!el) return;
+    el.textContent = toBn(asked.toFixed(2)) + ' / ' + toBn(total.toFixed(2)) + ' শতক';
+    el.className = 'fz-pill' + (asked > total + 0.01 ? ' bad' : asked > 0 ? ' ok' : '');
+  },
+
+  mmRenderShares() {
+    const box = document.getElementById('mm-shares');
+    if (!box) return;
+    box.innerHTML = this.mm.shares.map((sh, i) =>
+      '<div class="mm-share">' +
+        '<span class="mm-share-n">' + toBn(i + 1) + '</span>' +
+        '<input class="mm-share-name" placeholder="শরিক ' + toBn(i + 1) + ' এর নাম"' +
+          ' value="' + (sh.name || '') + '"' +
+          ' oninput="AppController.mmSetShare(' + i + ',\'name\',this.value)">' +
+        '<span class="fz-input-wrap mm-share-amt"><input inputmode="decimal" placeholder="০"' +
+          ' value="' + (sh.satak || '') + '"' +
+          ' oninput="AppController.mmSetShare(' + i + ',\'satak\',this.value)">' +
+          '<span class="mm-share-u">শতক</span></span>' +
+        '<button type="button" class="fz-btn-del" onclick="AppController.mmDelShare(' + i + ')">' +
+          '<i class="bi bi-x-lg"></i></button>' +
+      '</div>').join('');
+    this.mmSharePill();
+  },
+
+  mmDivPreview() { /* বাহু বদলালে কিছু করার নেই — ভাগ করলে দেখা যাবে */ },
+
+  mmDoDivide() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
+    if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    const side = Number((document.getElementById('mm-div-side') || {}).value || 0);
+    const people = k.shares
+      .map((x, i) => ({ name: (x.name || '').trim() || ('শরিক ' + toBn(i + 1)),
+                        satak: Number(x.satak) || 0 }))
+      .filter(x => x.satak > 0);
+    if (!people.length) { alert('অন্তত একজন শরিকের অংশ দিন'); return; }
+
+    try {
+      const res = MapMeasure.divideByArea(plot.points, side, people, k.ftPerPx);
+      k.division = res;
+      MeasureCanvas.setDivision(res);
+      this.mmShowDivResult(MapMeasure.divisionReport(res,
+        plot.dag ? 'দাগ ' + plot.dag : plot.name));
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+
+  mmStartManualCut() {
+    const k = this.mm;
+    const plot = this.mmSelPlot();
+    if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
+    if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    const bar = document.getElementById('mm-draw-bar');
+    const hint = document.getElementById('mm-draw-hint');
+    const fin = document.getElementById('mm-finish');
+    if (bar) bar.style.display = '';
+    if (fin) fin.style.display = 'none';
+    if (hint) hint.innerHTML = '<b>ম্যানুয়াল ভাগ —</b> প্লটের এক পাশ থেকে অন্য পাশে '
+      + 'দুটি ক্লিক করে রেখা টানুন';
+    MeasureCanvas.startCalibrate(
+      (p1, p2) => this.mmFinishManualCut(plot, p1, p2),
+      n => { if (hint) hint.innerHTML = '<b>ম্যানুয়াল ভাগ —</b> আর '
+        + toBn(2 - n) + 'টি ক্লিক'; }
+    );
+  },
+
+  mmFinishManualCut(plot, p1, p2) {
+    const k = this.mm;
+    const bar = document.getElementById('mm-draw-bar');
+    const fin = document.getElementById('mm-finish');
+    if (bar) bar.style.display = 'none';
+    if (fin) fin.style.display = '';
+    this.mmTool('select');
+    try {
+      const c = MapMeasure.sliceByLine(plot.points, p1, p2);
+      const f = k.ftPerPx, S = MapMeasure.SQFT_PER_SATAK;
+      const base = plot.dag ? 'দাগ ' + plot.dag : plot.name;
+      const res = {
+        parts: [
+          { name: base + '-ক', polygon: c.a, areaPx: c.areaA, satak: c.areaA * f * f / S },
+          { name: base + '-খ', polygon: c.b, areaPx: c.areaB, satak: c.areaB * f * f / S }
+        ],
+        leftover: null,
+        totalSatak: MapMeasure.areaPx(plot.points) * f * f / S,
+        askedSatak: 0
+      };
+      k.division = res;
+      MeasureCanvas.setDivision(res);
+      this.mmShowDivResult(MapMeasure.divisionReport(res, base));
+    } catch (e) {
+      alert(e.message);
+    }
+  },
+
+  mmClearDivision() {
+    this.mm.division = null;
+    MeasureCanvas.setDivision(null);
+    const r = document.getElementById('mm-div-result');
+    if (r) r.style.display = 'none';
+  },
+
+  mmShowDivResult(rep) {
+    const box = document.getElementById('mm-div-result');
+    if (!box) return;
+    box.style.display = '';
+    box.innerHTML =
+      '<div class="mm-div-title"><i class="bi bi-file-earmark-text"></i> ' +
+        'জমি ভাগ-বন্টন রিপোর্ট' + (rep.plotName ? ' — ' + rep.plotName : '') + '</div>' +
+      '<table class="mm-div-table"><thead><tr>' +
+        '<th>ক্রম</th><th>শরিক</th><th>জমি</th><th>শতাংশ</th></tr></thead><tbody>' +
+      rep.rows.map((r, i) =>
+        '<tr' + (r.name === 'অবশিষ্ট' ? ' class="left"' : '') + '>' +
+          '<td><span class="mm-div-dot" style="background:' + this.mmDivColor(i) + '"></span>' +
+            toBn(r.serial) + '</td>' +
+          '<td>' + r.name + '</td>' +
+          '<td class="num">' + toBn(r.satak.toFixed(2)) + ' শতক</td>' +
+          '<td class="num">' + toBn(r.percent.toFixed(2)) + '%</td>' +
+        '</tr>').join('') +
+      '</tbody><tfoot><tr>' +
+        '<td colspan="2">সর্বমোট</td>' +
+        '<td class="num">' + toBn(rep.sumSatak.toFixed(2)) + ' শতক</td>' +
+        '<td class="num">১০০.০০%</td>' +
+      '</tr></tfoot></table>' +
+      (rep.exact
+        ? '<p class="mm-div-ok"><i class="bi bi-check-circle"></i> যোগফল মূল প্লটের সাথে হুবহু মিলেছে।</p>'
+        : '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> যোগফল মিলছে না — আবার দেখুন।</p>') +
+      '<button type="button" class="btn btn-outline btn-sm" onclick="AppController.mmCopyReport()">' +
+        '<i class="bi bi-clipboard"></i> রিপোর্ট কপি করুন</button>';
+    this.mm.lastReport = rep;
+  },
+
+  mmDivColor(i) {
+    const C = ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#14b8a6'];
+    return C[i % C.length];
+  },
+
+  mmCopyReport() {
+    const rep = this.mm.lastReport;
+    if (!rep) return;
+    const L = ['জমি ভাগ-বন্টন রিপোর্ট' + (rep.plotName ? ' — ' + rep.plotName : ''),
+               'মোট জমি: ' + toBn(rep.totalSatak.toFixed(2)) + ' শতক', '', 'শরিকদের বিবরণ:'];
+    rep.rows.forEach(r => L.push('  ' + toBn(r.serial) + '. ' + r.name + ' — '
+      + toBn(r.satak.toFixed(2)) + ' শতক (' + toBn(r.percent.toFixed(2)) + '%)'));
+    L.push('', 'সর্বমোট: ' + toBn(rep.sumSatak.toFixed(2)) + ' শতক');
+    const txt = L.join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(
+      () => this.showToast && this.showToast('রিপোর্ট কপি হয়েছে'), () => {});
   },
 
   /* ---- অগ্রগতি ---- */
