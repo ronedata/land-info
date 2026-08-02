@@ -361,9 +361,259 @@ const AppController = {
         modalIcon.className = 'bi bi-map text-primary';
         this.initMouzaMap();
         break;
+
+      case 'kmz-export':
+        modalTitle.innerText = 'গুগল আর্থে মৌজা ম্যাপ (KMZ)';
+        modalIcon.className = 'bi bi-globe-americas text-primary';
+        this.initKmz();
+        break;
     }
 
     modal.classList.add('active');
+  },
+
+
+  /* ------------------------------------------------------------------------
+     KMZ এক্সপোর্ট — মৌজা ম্যাপ → Google Earth
+     গণিত KmzExport এ, আঁকা KmzMap/KmzImage এ। এখানে কেবল সংযোগ।
+     ------------------------------------------------------------------------ */
+
+  kmz: { img: null, imgBytes: null, imgName: '', pairs: [], pending: null, opacity: 0.78, result: null },
+
+  initKmz() {
+    const k = this.kmz;
+    const ci = document.getElementById('kmz-canvas-img');
+    const cm = document.getElementById('kmz-canvas-map');
+    if (!ci || !cm) return;
+
+    // মোবাইলে ক্যানভাস প্যানেলের প্রস্থে বসাই
+    [ci, cm].forEach(c => {
+      const w = Math.max(260, Math.min(560, c.parentElement.clientWidth - 2));
+      if (w && Math.abs(c.width - w) > 4) { c.width = w; c.height = Math.round(w * 0.72); }
+    });
+
+    if (!ci._kmzInit) {
+      ci._kmzInit = true;
+      KmzImage.init(ci, { onPick: pt => this.kmzPickImage(pt) });
+    } else { KmzImage.state.canvas = ci; KmzImage.draw(); }
+
+    if (!cm._kmzInit) {
+      cm._kmzInit = true;
+      KmzMap.init(cm, { onPick: g => this.kmzPickMap(g) });
+    } else { KmzMap.state.canvas = cm; KmzMap.draw(); }
+
+    this.kmzRender();
+  },
+
+  kmzLoadFile(input) {
+    const f = input && input.files && input.files[0];
+    if (!f) return;
+    const k = this.kmz;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const buf = new Uint8Array(ev.target.result);
+      const blob = new Blob([buf], { type: f.type || 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        k.img = img; k.imgBytes = buf; k.imgName = f.name;
+        k.pairs = []; k.pending = null;
+        KmzImage.setImage(img);
+        const pill = document.getElementById('kmz-img-pill');
+        if (pill) { pill.textContent = toBn(img.width) + '×' + toBn(img.height); pill.className = 'fz-pill ok'; }
+        const info = document.getElementById('kmz-img-info');
+        if (info) info.textContent = 'চাকা ঘুরিয়ে জুম · টেনে সরান · ক্লিক করে বিন্দু বসান';
+        URL.revokeObjectURL(url);
+        this.kmzRender();
+      };
+      img.onerror = () => {
+        this.showToast && this.showToast('ছবিটি পড়া গেল না');
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    };
+    reader.readAsArrayBuffer(f);
+  },
+
+  kmzFitImage() { if (this.kmz.img) KmzImage.fit(); },
+  kmzZoom(d) { KmzMap.zoomBy(d); },
+
+  kmzGoto() {
+    const el = document.getElementById('kmz-goto');
+    if (!el) return;
+    const raw = toEn(String(el.value || '')).replace(/[^0-9.,\-\s]/g, '');
+    const m = raw.split(/[,\s]+/).filter(Boolean).map(Number);
+    if (m.length < 2 || !isFinite(m[0]) || !isFinite(m[1])) {
+      this.kmzStatus('অক্ষাংশ ও দ্রাঘিমাংশ দুটোই দিন — যেমন ২৩.৭৮০৬, ৯০.৪০৭৪', true);
+      return;
+    }
+    KmzMap.setCenter(m[0], m[1], 17);
+    this.kmzStatus('ওই জায়গায় নেওয়া হলো।');
+  },
+
+  kmzPickImage(pt) {
+    const k = this.kmz;
+    if (!k.img) return;
+    k.pending = { px: pt.x, py: pt.y };
+    this.kmzStatus('এবার স্যাটেলাইটে ঠিক একই জায়গাটি ক্লিক করুন।');
+    this.kmzRender();
+  },
+
+  kmzPickMap(g) {
+    const k = this.kmz;
+    if (!k.pending) {
+      this.kmzStatus('আগে বাঁ পাশে ছবিতে বিন্দুটি ক্লিক করুন।', true);
+      return;
+    }
+    k.pairs.push({ px: k.pending.px, py: k.pending.py, lat: g.lat, lng: g.lng });
+    k.pending = null;
+    this.kmzStatus('জোড়া যোগ হলো।');
+    this.kmzRender();
+  },
+
+  kmzDelPair(i) {
+    this.kmz.pairs.splice(i, 1);
+    this.kmzRender();
+  },
+
+  kmzOpacity(v) {
+    this.kmz.opacity = Number(v) / 100;
+    const el = document.getElementById('kmz-op-val');
+    if (el) el.textContent = toBn(v) + '%';
+  },
+
+  kmzReset() {
+    const k = this.kmz;
+    k.pairs = []; k.pending = null;
+    this.kmzStatus('সব বিন্দু মুছে ফেলা হলো।');
+    this.kmzRender();
+  },
+
+  kmzStatus(msg, warn) {
+    const el = document.getElementById('kmz-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'kmz-status' + (warn ? ' warn' : '');
+  },
+
+  kmzRender() {
+    const k = this.kmz;
+
+    // চিহ্ন
+    const imgMarks = k.pairs.map((p, i) => ({ x: p.px, y: p.py, n: toBn(i + 1) }));
+    if (k.pending) imgMarks.push({ x: k.pending.px, y: k.pending.py, n: '?' });
+    if (KmzImage.state) KmzImage.setMarkers(imgMarks);
+    if (KmzMap.state) KmzMap.setMarkers(k.pairs.map((p, i) => ({ lat: p.lat, lng: p.lng, n: toBn(i + 1) })));
+
+    const pill = document.getElementById('kmz-pt-pill');
+    if (pill) {
+      pill.textContent = toBn(k.pairs.length) + 'টি জোড়া';
+      pill.className = 'fz-pill' + (k.pairs.length >= 2 ? ' ok' : '');
+    }
+
+    // বিন্দুর তালিকা
+    const list = document.getElementById('kmz-points');
+    if (list) {
+      list.innerHTML = k.pairs.length === 0 ? '' :
+        '<div class="kmz-pts">' + k.pairs.map((p, i) =>
+          '<div class="kmz-pt">' +
+            '<span class="kmz-pt-n">' + toBn(i + 1) + '</span>' +
+            '<span class="kmz-pt-b">পিক্সেল ' + toBn(Math.round(p.px)) + ', ' + toBn(Math.round(p.py)) + '</span>' +
+            '<span class="kmz-pt-b">' + toBn(p.lat.toFixed(6)) + ', ' + toBn(p.lng.toFixed(6)) + '</span>' +
+            '<span class="kmz-pt-e" id="kmz-err-' + i + '">—</span>' +
+            '<button type="button" class="fz-btn-del" title="মুছুন" onclick="AppController.kmzDelPair(' + i + ')">' +
+              '<i class="bi bi-x-lg"></i></button>' +
+          '</div>').join('') + '</div>';
+    }
+
+    // ফলাফল
+    const res = document.getElementById('kmz-result');
+    const dl = document.getElementById('kmz-dl');
+    k.result = null;
+    if (!res) return;
+
+    if (!k.img) {
+      res.className = 'kmz-empty';
+      res.textContent = 'আগে ম্যাপের ছবি দিন।';
+      if (dl) dl.disabled = true;
+      return;
+    }
+    if (k.pairs.length < 2) {
+      res.className = 'kmz-empty';
+      res.textContent = 'অন্তত ২টি জোড়া বিন্দু দিলে এখানে ফলাফল দেখাবে।';
+      if (dl) dl.disabled = true;
+      return;
+    }
+
+    let t;
+    try {
+      t = KmzExport.solveTransform(k.pairs);
+    } catch (e) {
+      res.className = 'kmz-empty bad';
+      res.textContent = e.message;
+      if (dl) dl.disabled = true;
+      return;
+    }
+
+    k.result = t;
+    const q = KmzExport.quality(t.rmse);
+    const modeTxt = t.mode === 'affine' ? 'অ্যাফাইন (তির্যকতাও ধরে)' : 'সিমিলারিটি (স্কেল ও ঘূর্ণন)';
+
+    res.className = 'kmz-ok';
+    res.innerHTML =
+      '<div class="fz-stats">' +
+        '<div class="fz-stat"><span class="v kmz-q-' + q.level + '">' + q.label + '</span><span class="l">ক্যালিব্রেশন</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.rmse.toFixed(2)) + ' মি</span><span class="l">গড় ত্রুটি (RMSE)</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.maxError.toFixed(2)) + ' মি</span><span class="l">সর্বোচ্চ ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.scale.toFixed(3)) + '</span><span class="l">মিটার / পিক্সেল</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.rotationDeg.toFixed(2)) + '°</span><span class="l">ঘূর্ণন</span></div>' +
+        '<div class="fz-stat"><span class="v" style="font-size:0.9rem">' + modeTxt + '</span><span class="l">পদ্ধতি</span></div>' +
+      '</div>' +
+      (k.pairs.length === 2
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-info-circle"></i>' +
+          '<span>২টি বিন্দুতে <b>তির্যকতা (skew) ঠিক হয় না</b>। স্ক্যান বাঁকা থাকলে ' +
+          '<b>আরও ১–২টি</b> বিন্দু দিন — তখন অ্যাফাইন পদ্ধতি চলবে ও ত্রুটি কমবে।</span></div>'
+        : '');
+
+    // প্রতিটি বিন্দুর অবশিষ্ট ত্রুটি
+    t.residuals.forEach(r => {
+      const el = document.getElementById('kmz-err-' + r.index);
+      if (el) {
+        el.textContent = toBn(r.meters.toFixed(2)) + ' মি';
+        el.className = 'kmz-pt-e ' + (r.meters < 5 ? 'good' : r.meters < 20 ? 'mid' : 'bad');
+      }
+    });
+
+    if (dl) dl.disabled = false;
+  },
+
+  kmzDownload() {
+    const k = this.kmz;
+    if (!k.img || !k.result) return;
+    let out;
+    try {
+      out = KmzExport.build({
+        imageBytes: k.imgBytes,
+        imageName: k.imgName,
+        width: k.img.width,
+        height: k.img.height,
+        name: (document.getElementById('kmz-name') || {}).value || 'মৌজা ম্যাপ',
+        opacity: k.opacity,
+        points: k.pairs
+      });
+    } catch (e) {
+      this.kmzStatus('KMZ বানানো গেল না: ' + e.message, true);
+      return;
+    }
+    const blob = new Blob([out.bytes], { type: 'application/vnd.google-earth.kmz' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const base = ((document.getElementById('kmz-name') || {}).value || 'mouza-map')
+      .replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+    a.href = url; a.download = base + '.kmz';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    this.kmzStatus('KMZ নামানো হলো — Google Earth এ খুলুন।');
   },
 
   closeModal() {

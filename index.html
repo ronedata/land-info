@@ -258,6 +258,19 @@
         <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
       </div>
 
+      <!-- কার্ড: গুগল আর্থে মৌজা ম্যাপ (KMZ) — কাজ চলমান -->
+      <div class="tool-card" data-category="map" data-title="গুগল আর্থ KMZ এক্সপোর্ট মৌজা ম্যাপ স্যাটেলাইট ক্যালিব্রেশন google earth kmz overlay নিয়ন্ত্রণ বিন্দু" onclick="AppController.openToolModal('kmz-export')">
+        <span class="tool-badge badge-wip">কাজ চলছে</span>
+        <div>
+          <div class="tool-icon-wrapper" style="background:#dcfce7;color:#15803d">
+            <i class="bi bi-globe-americas"></i>
+          </div>
+          <h3 class="tool-title">গুগল আর্থে মৌজা ম্যাপ (KMZ)</h3>
+          <p class="tool-desc">মৌজা ম্যাপের ছবিকে স্যাটেলাইট ছবির সাথে মিলিয়ে KMZ ফাইল বানান — Google Earth এ খুললে জমি ঠিক জায়গায় বসবে।</p>
+        </div>
+        <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
+      </div>
+
       <!-- Card: খতিয়ান বিশ্লেষণ (পর্চার হিসাব) -->
       <div class="tool-card" data-category="khotian" data-title="খতিয়ান বিশ্লেষণ পর্চার হিসাব পর্চা গণনা দাগভিত্তিক বণ্টন khotian bisleshon porcha hisab তফসিল" onclick="AppController.openToolModal('khotian-porcha')">
         <span class="tool-badge badge-featured">নতুন</span>
@@ -464,6 +477,128 @@
 
       <!-- Modal Body -->
       <div class="modal-body" id="modal-dynamic-body">
+
+        <!-- VIEW: গুগল আর্থে মৌজা ম্যাপ (KMZ) -->
+        <div id="view-kmz-export" class="tool-view-content" style="display:none">
+
+          <div class="fz-warn">
+            <i class="bi bi-cone-striped"></i>
+            <span><b>এই টুলের কাজ চলছে।</b> এখন ছবি (JPG/PNG) দিয়ে KMZ বানানো যায়।
+            <b>PDF ম্যাপ ও আর্কাইভ থেকে সরাসরি বেছে নেওয়া</b> এখনো যোগ করা হয়নি।</span>
+          </div>
+
+          <!-- ধাপ ১ — ছবি -->
+          <div class="fz-panel">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num">১</span>
+              <h3>মৌজা ম্যাপের ছবি দিন</h3>
+              <span class="fz-pill" id="kmz-img-pill">ছবি নেই</span>
+            </div>
+            <div class="fz-panel-body">
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-image"></i> ছবি বাছুন (JPG / PNG)</span></div>
+                <input type="file" id="kmz-file" accept="image/jpeg,image/png"
+                       class="kmz-file" onchange="AppController.kmzLoadFile(this)">
+              </div>
+              <p class="kmz-hint">
+                স্ক্যান করা মৌজা ম্যাপ, অথবা <b>সারাদেশের মৌজা ম্যাপ</b> টুল থেকে নামানো ফাইল দিন।
+              </p>
+            </div>
+          </div>
+
+          <!-- ধাপ ২ — নিয়ন্ত্রণ বিন্দু -->
+          <div class="fz-panel">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num">২</span>
+              <h3>নিয়ন্ত্রণ বিন্দু মেলান</h3>
+              <span class="fz-pill" id="kmz-pt-pill">০টি জোড়া</span>
+            </div>
+            <div class="fz-panel-body">
+              <p class="kmz-hint">
+                দুই পাশে <b>একই জায়গা</b> ক্লিক করুন — যেমন রাস্তার মোড়, পুকুরের কোণা, ব্রিজ।
+                <b>অন্তত ২টি</b> জোড়া লাগবে; <b>৩–৪টি</b> দিলে বাঁকা স্ক্যানও ঠিক বসে।
+              </p>
+
+              <div class="kmz-panes">
+                <div class="kmz-pane">
+                  <div class="kmz-pane-head">
+                    <span><i class="bi bi-file-earmark-image"></i> মৌজা ম্যাপ</span>
+                    <button type="button" class="kmz-mini" onclick="AppController.kmzFitImage()">ফিট</button>
+                  </div>
+                  <canvas id="kmz-canvas-img" width="520" height="380"></canvas>
+                  <div class="kmz-pane-foot" id="kmz-img-info">ছবি দিন · চাকা ঘুরিয়ে জুম · টেনে সরান</div>
+                </div>
+
+                <div class="kmz-pane">
+                  <div class="kmz-pane-head">
+                    <span><i class="bi bi-globe"></i> স্যাটেলাইট</span>
+                    <span class="kmz-zoomer">
+                      <button type="button" class="kmz-mini" onclick="AppController.kmzZoom(-1)">−</button>
+                      <button type="button" class="kmz-mini" onclick="AppController.kmzZoom(1)">+</button>
+                    </span>
+                  </div>
+                  <canvas id="kmz-canvas-map" width="520" height="380"></canvas>
+                  <div class="kmz-pane-foot">
+                    <input type="text" id="kmz-goto" class="kmz-goto"
+                           placeholder="অক্ষাংশ, দ্রাঘিমাংশ — যেমন ২৩.৭৮০৬, ৯০.৪০৭৪">
+                    <button type="button" class="kmz-mini" onclick="AppController.kmzGoto()">যান</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kmz-status" id="kmz-status">
+                ছবিতে একটি বিন্দু ক্লিক করুন, তারপর স্যাটেলাইটে ঠিক সেই জায়গাটি ক্লিক করুন।
+              </div>
+
+              <div id="kmz-points"></div>
+            </div>
+          </div>
+
+          <!-- ধাপ ৩ — ফলাফল -->
+          <div class="fz-panel">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num">৩</span>
+              <h3>ক্যালিব্রেশন ও ডাউনলোড</h3>
+            </div>
+            <div class="fz-panel-body">
+              <div id="kmz-result" class="kmz-empty">
+                অন্তত ২টি জোড়া বিন্দু দিলে এখানে ফলাফল দেখাবে।
+              </div>
+
+              <div class="fz-field" style="margin-top:12px">
+                <div class="fz-field-label"><span><i class="bi bi-tag"></i> ম্যাপের নাম (Google Earth এ দেখাবে)</span></div>
+                <div class="fz-input-wrap">
+                  <input type="text" id="kmz-name" placeholder="যেমন: ভাগ্যকুল মৌজা — আরএস">
+                </div>
+              </div>
+
+              <div class="fz-field">
+                <div class="fz-field-label">
+                  <span><i class="bi bi-droplet-half"></i> স্বচ্ছতা</span>
+                  <span id="kmz-op-val" class="kmz-op-val">৭৮%</span>
+                </div>
+                <input type="range" id="kmz-opacity" min="20" max="100" value="78"
+                       class="kmz-range" oninput="AppController.kmzOpacity(this.value)">
+              </div>
+
+              <div class="kmz-actions">
+                <button type="button" class="btn btn-primary" id="kmz-dl"
+                        onclick="AppController.kmzDownload()" disabled>
+                  <i class="bi bi-download"></i> KMZ ডাউনলোড
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.kmzReset()">
+                  <i class="bi bi-arrow-counterclockwise"></i> সব মুছুন
+                </button>
+              </div>
+
+              <p class="kmz-hint" style="margin-top:10px">
+                নামানো ফাইলটি <b>Google Earth</b> এ খুললেই মৌজা ম্যাপটি স্যাটেলাইট ছবির উপর বসবে।
+                স্যাটেলাইট ছবি © Esri, Maxar, Earthstar Geographics।
+              </p>
+            </div>
+          </div>
+
+        </div>
 
         <!-- VIEW: ফরায়েজ — মুসলিম উত্তরাধিকার -->
         <div id="view-farayeiz" class="tool-view-content" style="display:none">
@@ -2809,6 +2944,8 @@
   <script src="js/mouza-map.js"></script>
   <script src="js/mouza-sources.js"></script>
   <script src="js/mouza-value.js"></script>
+  <script src="js/kmz-export.js"></script>
+  <script src="js/kmz-ui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

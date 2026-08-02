@@ -1686,3 +1686,200 @@
   .mm-act > * { flex: 1; justify-content: center; }
   .mm-hits { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   KMZ এক্সপোর্ট টুল (গুগল আর্থে মৌজা ম্যাপ)
+   ========================================================================== */
+
+.kmz-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin: 8px 0 0;
+}
+
+.kmz-file {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.86rem;
+}
+
+/* দুই প্যানেল — মোবাইলে উপরে-নিচে, ৯০০px+ এ পাশাপাশি */
+.kmz-panes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (min-width: 900px) {
+  .kmz-panes { grid-template-columns: 1fr 1fr; }
+}
+
+.kmz-pane {
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
+  /* রং স্পষ্ট করে দিতে হবে — নইলে ডার্ক মোডে গাঢ় পটভূমির উপর গাঢ় লেখা পড়ে */
+  color: var(--text-main);
+}
+
+.kmz-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+.kmz-pane-head > span { min-width: 0; }
+.kmz-pane-head i { color: var(--primary); }
+
+.kmz-pane canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: none;          /* টাচে প্যান নিজেরাই সামলাই */
+  background: #0b1220;
+}
+
+.kmz-pane-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.kmz-mini {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kmz-mini:hover { border-color: var(--primary); color: var(--primary); }
+.kmz-zoomer { display: inline-flex; gap: 5px; }
+
+.kmz-goto {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.78rem;
+}
+
+.kmz-status {
+  margin-top: 11px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(79, 70, 229, 0.09);
+  border: 1px solid var(--primary);
+  font-size: 0.83rem;
+  line-height: 1.6;
+  color: var(--text-main);
+}
+.kmz-status.warn {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: var(--accent);
+}
+
+/* নিয়ন্ত্রণ বিন্দুর তালিকা */
+.kmz-pts { display: flex; flex-direction: column; gap: 6px; margin-top: 11px; }
+
+.kmz-pt {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  font-size: 0.79rem;
+}
+@media (min-width: 700px) {
+  .kmz-pt { grid-template-columns: 30px 1fr 1fr 78px auto; }
+}
+
+.kmz-pt-n {
+  display: grid;
+  place-items: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.76rem;
+}
+.kmz-pt-b { min-width: 0; color: var(--text-muted); overflow-wrap: anywhere; }
+.kmz-pt-e { min-width: 0; font-weight: 700; text-align: right; }
+.kmz-pt-e.good { color: var(--secondary); }
+.kmz-pt-e.mid  { color: var(--accent); }
+.kmz-pt-e.bad  { color: var(--danger); }
+
+/* ফলাফল */
+.kmz-empty {
+  padding: 16px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.kmz-empty.bad { border-color: var(--danger); color: var(--danger); }
+
+.kmz-q-great { color: var(--secondary); }
+.kmz-q-good  { color: var(--secondary); }
+.kmz-q-ok    { color: var(--accent); }
+.kmz-q-bad   { color: var(--danger); }
+
+.kmz-op-val { font-weight: 700; color: var(--primary); }
+
+.kmz-range {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  accent-color: var(--primary);
+}
+
+.kmz-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 14px;
+}
+.kmz-actions .btn { flex: 1 1 190px; min-width: 0; justify-content: center; }
+
+@media (max-width: 599px) {
+  .kmz-actions .btn { flex: 1 1 100%; }
+}
