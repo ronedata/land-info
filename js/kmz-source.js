@@ -97,7 +97,10 @@ const KmzSource = {
     return {
       img, bytes: outBytes,
       width: canvas.width, height: canvas.height,
-      pageCount, page: pageNo
+      pageCount, page: pageNo,
+      // ★ রেন্ডার স্কেল ফেরত দেওয়া জরুরি — এটি থেকেই PDF এর DPI বেরোয়
+      //   (MapMeasure.dpiForPdf: DPI = ৭২ × স্কেল)
+      pdfScale: scale
     };
   },
 

@@ -258,6 +258,19 @@
         <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
       </div>
 
+      <!-- কার্ড: মৌজা ম্যাপে জমি পরিমাপ — কাজ চলমান -->
+      <div class="tool-card" data-category="measure" data-title="মৌজা ম্যাপে জমি পরিমাপ ভাগবণ্টন নকশা থেকে জমি মাপা স্কেল ক্যালিব্রেশন দাগ শতক basics measure" onclick="AppController.openToolModal('map-measure')">
+        <span class="tool-badge badge-wip">কাজ চলছে</span>
+        <div>
+          <div class="tool-icon-wrapper" style="background:#fef3c7;color:#b45309">
+            <i class="bi bi-rulers"></i>
+          </div>
+          <h3 class="tool-title">মৌজা ম্যাপে জমি পরিমাপ</h3>
+          <p class="tool-desc">নকশার স্কেল ঠিক করে সরাসরি ম্যাপের উপর দাগ এঁকে জমির পরিমাণ বের করুন — প্রতিটি বাহুর মাপসহ।</p>
+        </div>
+        <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
+      </div>
+
       <!-- কার্ড: গুগল আর্থে মৌজা ম্যাপ (KMZ) — কাজ চলমান -->
       <div class="tool-card" data-category="map" data-title="গুগল আর্থ KMZ এক্সপোর্ট মৌজা ম্যাপ স্যাটেলাইট ক্যালিব্রেশন google earth kmz overlay নিয়ন্ত্রণ বিন্দু" onclick="AppController.openToolModal('kmz-export')">
         <span class="tool-badge badge-wip">কাজ চলছে</span>
@@ -477,6 +490,159 @@
 
       <!-- Modal Body -->
       <div class="modal-body" id="modal-dynamic-body">
+
+        <!-- VIEW: মৌজা ম্যাপে জমি পরিমাপ -->
+        <div id="view-map-measure" class="tool-view-content mm-wrap" style="display:none">
+
+          <div class="fz-warn">
+            <i class="bi bi-cone-striped"></i>
+            <span><b>এই টুলের কাজ চলছে।</b> এখন স্কেল ঠিক করে প্লট আঁকা ও জমির
+            পরিমাণ বের করা যায়। <b>ভাগবণ্টন, লাইন, বৃত্ত, টেক্সট ও রপ্তানি</b> পরে যোগ হবে।</span>
+          </div>
+
+          <div class="mm-stage" id="mm-stage">
+            <canvas id="mm-canvas"></canvas>
+
+            <!-- শুরুর কার্ড -->
+            <div class="mm-intro" id="mm-intro">
+              <div class="mm-intro-ic"><i class="bi bi-map"></i></div>
+              <h4>মৌজা ম্যাপ নিন</h4>
+              <p>আর্কাইভ থেকে বেছে নিন, অথবা নিজের ছবি/PDF আপলোড করুন।</p>
+              <div class="mm-intro-btns">
+                <button type="button" class="btn btn-primary" onclick="AppController.mmPick('archive')">
+                  <i class="bi bi-collection"></i> আর্কাইভ থেকে
+                </button>
+                <button type="button" class="btn btn-outline" onclick="AppController.mmPick('file')">
+                  <i class="bi bi-upload"></i> আপলোড
+                </button>
+              </div>
+              <input type="file" id="mm-file" accept="image/jpeg,image/png,application/pdf"
+                     style="display:none" onchange="AppController.mmLoadFile(this)">
+            </div>
+
+            <!-- স্কেলের অবস্থা -->
+            <div class="mm-scale-pill" id="mm-scale-pill" style="display:none"
+                 onclick="AppController.mmScaleDialog(true)">
+              <i class="bi bi-rulers"></i><span id="mm-scale-txt">স্কেল ঠিক করুন</span>
+            </div>
+
+            <!-- বাঁ পাশের নিয়ন্ত্রণ -->
+            <div class="mm-left" id="mm-left" style="display:none">
+              <button type="button" class="mm-cbtn" title="বড়" onclick="AppController.mmZoom(1)"><i class="bi bi-plus-lg"></i></button>
+              <button type="button" class="mm-cbtn" title="ছোট" onclick="AppController.mmZoom(-1)"><i class="bi bi-dash-lg"></i></button>
+              <button type="button" class="mm-cbtn" title="পুরোটা" onclick="AppController.mmFit()"><i class="bi bi-arrows-fullscreen"></i></button>
+              <button type="button" class="mm-cbtn danger" title="সব মুছুন" onclick="AppController.mmClear()"><i class="bi bi-trash3"></i></button>
+            </div>
+
+            <!-- ডান পাশের টুলবার -->
+            <div class="mm-tools" id="mm-tools" style="display:none">
+              <button type="button" class="mm-tool" data-tool="map" title="ম্যাপ নিন"
+                      onclick="AppController.mmPick('menu')"><i class="bi bi-image"></i><span>ম্যাপ</span></button>
+              <button type="button" class="mm-tool" data-tool="draw" title="প্লট আঁকুন"
+                      onclick="AppController.mmTool('draw')"><i class="bi bi-pentagon"></i><span>আঁকুন</span></button>
+              <button type="button" class="mm-tool" data-tool="point" title="পয়েন্ট এডিট"
+                      onclick="AppController.mmTool('point')"><i class="bi bi-bounding-box-circles"></i><span>পয়েন্ট</span></button>
+              <button type="button" class="mm-tool active" data-tool="pan" title="সরান"
+                      onclick="AppController.mmTool('pan')"><i class="bi bi-hand-index"></i><span>প্যান</span></button>
+              <button type="button" class="mm-tool" data-tool="select" title="নির্বাচন"
+                      onclick="AppController.mmTool('select')"><i class="bi bi-cursor"></i><span>নির্বাচন</span></button>
+            </div>
+
+            <!-- আঁকার সময় নিচের বার -->
+            <div class="mm-draw-bar" id="mm-draw-bar" style="display:none">
+              <span id="mm-draw-hint">ম্যাপে ক্লিক করে পয়েন্ট বসান</span>
+              <button type="button" class="kmz-mini" onclick="AppController.mmUndoPoint()">শেষ পয়েন্ট মুছুন</button>
+              <button type="button" class="kmz-mini" onclick="AppController.mmCancelDraft()">বাতিল</button>
+              <button type="button" class="btn btn-primary btn-sm" id="mm-finish"
+                      onclick="AppController.mmFinish()" disabled>
+                <i class="bi bi-check-lg"></i> প্লট সম্পন্ন
+              </button>
+            </div>
+
+            <!-- নিচে-বাঁয়ে তিন টাইল -->
+            <div class="mm-tiles" id="mm-tiles" style="display:none">
+              <div class="mm-tile"><b id="mm-t-cur">০ শতক</b><span>বর্তমান প্লট</span></div>
+              <div class="mm-tile"><b id="mm-t-tot">০ শতক</b><span>মোট এলাকা</span></div>
+              <div class="mm-tile"><b id="mm-t-cnt">০টি</b><span>সম্পন্ন প্লট</span></div>
+            </div>
+          </div>
+
+          <!-- প্লট তালিকা -->
+          <div class="mm-list-wrap" id="mm-list-wrap" style="display:none">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num"><i class="bi bi-list-ul"></i></span>
+              <h3>প্লটের তালিকা</h3>
+              <span class="fz-pill" id="mm-list-pill">০টি</span>
+            </div>
+            <div id="mm-list" class="mm-list">কোনো প্লট নেই</div>
+          </div>
+
+          <!-- অগ্রগতি -->
+          <div id="mm-prog" class="kmz-prog" style="display:none">
+            <div class="kmz-prog-bar"><span id="mm-prog-fill"></span></div>
+            <div class="kmz-prog-txt" id="mm-prog-txt">…</div>
+          </div>
+
+          <!-- আর্কাইভ বাছাই -->
+          <div id="mm-arch" class="kmz-arch" style="display:none">
+            <div class="fz-assets kmz-arch-grid">
+              <div class="fz-field"><div class="fz-field-label"><span>বিভাগ</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-div" onchange="AppController.mmArchDiv()"><option>লোড হচ্ছে…</option></select></div></div>
+              <div class="fz-field"><div class="fz-field-label"><span>জেলা</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-dist" onchange="AppController.mmArchDist()" disabled><option>—</option></select></div></div>
+              <div class="fz-field"><div class="fz-field-label"><span>উপজেলা</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-upa" onchange="AppController.mmArchUpa()" disabled><option>—</option></select></div></div>
+              <div class="fz-field"><div class="fz-field-label"><span>জরিপ</span></div>
+                <div class="fz-input-wrap fz-select-wrap"><select id="mm-srv" onchange="AppController.mmArchSrv()" disabled><option>—</option></select></div></div>
+            </div>
+            <div class="fz-field"><div class="fz-field-label"><span><i class="bi bi-search"></i> ফাইল খুঁজুন</span></div>
+              <div class="fz-input-wrap"><input type="text" id="mm-fsearch" placeholder="ম্যাপের নাম" oninput="AppController.mmArchFilter()" disabled></div></div>
+            <div id="mm-arch-list" class="kmz-arch-list">উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।</div>
+          </div>
+
+          <!-- স্কেল ডায়ালগ -->
+          <div class="mm-modal" id="mm-scale-modal" style="display:none">
+            <div class="mm-modal-box">
+              <div class="mm-modal-head"><i class="bi bi-rulers"></i> স্কেল সেটিংস</div>
+
+              <div class="mm-method">
+                <h5>পদ্ধতি ১ — মৌজার স্কেল</h5>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>ম্যাপের স্কেল</span></div>
+                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-mapscale"></select></div>
+                </div>
+                <div class="fz-field">
+                  <div class="fz-field-label">
+                    <span>স্ক্যান DPI</span>
+                    <span class="mm-badge" id="mm-dpi-badge" style="display:none"></span>
+                  </div>
+                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-dpi"></select></div>
+                </div>
+                <p class="kmz-hint" id="mm-dpi-note">
+                  PDF হলে DPI নিজে থেকেই বেরিয়ে আসে — বাছার দরকার নেই।
+                </p>
+                <div class="mm-modal-btns">
+                  <button type="button" class="btn btn-outline" onclick="AppController.mmScaleDialog(false)">বাতিল</button>
+                  <button type="button" class="btn btn-primary" onclick="AppController.mmApplyMapScale()">সেভ করুন</button>
+                </div>
+              </div>
+
+              <div class="mm-method alt">
+                <h5>পদ্ধতি ২ — ম্যাপ থেকে মাপুন <span>(সর্বোচ্চ নিখুঁত)</span></h5>
+                <p class="kmz-hint">নকশায় আঁকা স্কেল-দণ্ডের দুই প্রান্তে ক্লিক করুন,
+                   তারপর ওই দূরত্ব কত ফুট তা লিখুন।</p>
+                <div class="fz-field">
+                  <div class="fz-field-label"><span>দণ্ডের দৈর্ঘ্য</span></div>
+                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-barlen"></select></div>
+                </div>
+                <button type="button" class="btn btn-purple" onclick="AppController.mmStartCalibrate()">
+                  <i class="bi bi-pencil"></i> ম্যাপ থেকে ক্যালিব্রেট করুন
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
 
         <!-- VIEW: গুগল আর্থে মৌজা ম্যাপ (KMZ) — ধাপে ধাপে -->
         <div id="view-kmz-export" class="tool-view-content kmz-wrap" style="display:none">
@@ -3015,6 +3181,8 @@
   <script src="js/kmz-ui.js"></script>
   <script src="js/kmz-source.js"></script>
   <script src="js/kmz-fx.js"></script>
+  <script src="js/map-measure.js"></script>
+  <script src="js/map-measure-ui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

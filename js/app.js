@@ -367,6 +367,12 @@ const AppController = {
         modalIcon.className = 'bi bi-globe-americas text-primary';
         this.initKmz();
         break;
+
+      case 'map-measure':
+        modalTitle.innerText = 'মৌজা ম্যাপে জমি পরিমাপ';
+        modalIcon.className = 'bi bi-rulers text-primary';
+        this.initMeasure();
+        break;
     }
 
     modal.classList.add('active');
@@ -1071,6 +1077,461 @@ const AppController = {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     this.kmzStatus('KMZ নামানো হলো — Google Earth এ খুলুন।');
+  },
+
+
+  /* ------------------------------------------------------------------------
+     মৌজা ম্যাপে জমি পরিমাপ — গণিত MapMeasure এ, আঁকা MeasureCanvas এ
+     ------------------------------------------------------------------------ */
+
+  mm: { img: null, imgName: '', isPdf: false, pdfScale: 0,
+        ftPerPx: 0, scaleFrom: '', calibrating: null,
+        tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [] },
+
+  initMeasure() {
+    const c = document.getElementById('mm-canvas');
+    if (!c) return;
+    this.mmSizeCanvas();
+    if (!c._mmInit) {
+      c._mmInit = true;
+      MeasureCanvas.init(c, {
+        onChange: () => this.mmRefresh(),
+        onSelect: () => this.mmRefresh()
+      });
+    } else {
+      MeasureCanvas.state.canvas = c;
+      MeasureCanvas.draw();
+    }
+    this.mmFillScaleOptions();
+    this.mmRefresh();
+  },
+
+  mmSizeCanvas() {
+    const c = document.getElementById('mm-canvas');
+    const st = document.getElementById('mm-stage');
+    if (!c || !st) return;
+    const r = st.getBoundingClientRect();
+    const w = Math.max(280, Math.round(r.width));
+    const h = Math.max(320, Math.round(r.height));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  },
+
+  /* ---- স্কেলের ড্রপডাউন ---- */
+
+  mmFillScaleOptions() {
+    const ms = document.getElementById('mm-mapscale');
+    if (ms && !ms.options.length) {
+      ms.innerHTML = MapMeasure.MAP_SCALES.map((x, i) =>
+        '<option value="' + i + '">' + x.label + '</option>').join('');
+    }
+    const dp = document.getElementById('mm-dpi');
+    if (dp && !dp.options.length) {
+      dp.innerHTML = MapMeasure.DPI_OPTIONS.map(x =>
+        '<option value="' + x.dpi + '">' + x.label + '</option>').join('');
+    }
+    const bl = document.getElementById('mm-barlen');
+    if (bl && !bl.options.length) {
+      bl.innerHTML = MapMeasure.COMMON_SCALES.map(x =>
+        '<option value="' + x.ft + '">' + x.label + '</option>').join('') +
+        '<option value="custom">অন্য দৈর্ঘ্য (নিজে লিখব)</option>';
+    }
+  },
+
+  mmScaleDialog(show) {
+    const m = document.getElementById('mm-scale-modal');
+    if (!m) return;
+    m.style.display = show ? '' : 'none';
+    if (show) this.mmSyncDpiState();
+  },
+
+  /** PDF হলে DPI বন্ধ — কারণ রেন্ডার স্কেল থেকেই বেরিয়ে আসে */
+  mmSyncDpiState() {
+    const k = this.mm;
+    const dp = document.getElementById('mm-dpi');
+    const badge = document.getElementById('mm-dpi-badge');
+    const note = document.getElementById('mm-dpi-note');
+    if (!dp) return;
+    if (k.isPdf && k.pdfScale > 0) {
+      const dpi = MapMeasure.dpiForPdf(k.pdfScale);
+      dp.disabled = true;
+      if (badge) {
+        badge.style.display = '';
+        badge.textContent = 'PDF-এর জন্য বন্ধ';
+        badge.className = 'mm-badge off';
+      }
+      if (note) note.textContent = 'PDF থেকে DPI বেরিয়ে এসেছে: '
+        + toBn(dpi.toFixed(1)) + ' — বাছার দরকার নেই।';
+    } else {
+      dp.disabled = false;
+      if (badge) badge.style.display = 'none';
+      if (note) note.textContent = 'ছবির DPI জানা না থাকলে ৩০০ ধরে নিন — '
+        + 'নিখুঁত মাপ চাইলে পদ্ধতি ২ ব্যবহার করুন।';
+    }
+  },
+
+  mmApplyMapScale() {
+    const k = this.mm;
+    const i = Number((document.getElementById('mm-mapscale') || {}).value || 0);
+    const sc = MapMeasure.MAP_SCALES[i];
+    if (!sc) return;
+    let dpi;
+    if (k.isPdf && k.pdfScale > 0) {
+      dpi = MapMeasure.dpiForPdf(k.pdfScale);
+    } else {
+      dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
+    }
+    try {
+      const r = MapMeasure.fromMapScale(1, sc.ftPerInch, dpi);
+      k.ftPerPx = r.ftPerPx;
+      k.scaleFrom = sc.label + ' · ' + toBn(dpi.toFixed(0)) + ' DPI';
+      MeasureCanvas.setScale(k.ftPerPx);
+      this.mmScaleDialog(false);
+      this.mmRefresh();
+    } catch (e) { alert(e.message); }
+  },
+
+  /* ---- পদ্ধতি ২ — ম্যাপ থেকে ক্যালিব্রেট ---- */
+
+  mmStartCalibrate() {
+    const k = this.mm;
+    if (!k.img) { alert('আগে একটি ম্যাপ নিন'); return; }
+    let ft = (document.getElementById('mm-barlen') || {}).value;
+    if (ft === 'custom') {
+      const v = prompt('স্কেল-দণ্ডটি বাস্তবে কত ফুট?', '৬৬০');
+      if (v == null) return;
+      ft = Number(toEn(String(v)));
+      if (!(ft > 0)) { alert('সঠিক দূরত্ব দিন!'); return; }
+    }
+    k.calibrating = { feet: Number(ft) };
+    this.mmScaleDialog(false);
+    this.mmCalibHint(0);
+    MeasureCanvas.startCalibrate(
+      (p1, p2) => this.mmFinishCalibrate(p1, p2),
+      n => this.mmCalibHint(n)
+    );
+  },
+
+  mmCalibHint(done) {
+    const k = this.mm;
+    const bar = document.getElementById('mm-draw-bar');
+    const hint = document.getElementById('mm-draw-hint');
+    const fin = document.getElementById('mm-finish');
+    if (!bar || !hint || !k.calibrating) return;
+    bar.style.display = '';
+    if (fin) fin.style.display = 'none';
+    hint.innerHTML = '<b>স্কেল ক্যালিব্রেশন —</b> দণ্ডটি ' + toBn(k.calibrating.feet)
+      + ' ফুট। ' + (done === 0 ? '<b>প্রথম</b>' : '<b>দ্বিতীয়</b>')
+      + ' প্রান্তে ক্লিক করুন (' + toBn(done) + '/২)';
+  },
+
+  mmFinishCalibrate(p1, p2) {
+    const k = this.mm;
+    const bar = document.getElementById('mm-draw-bar');
+    const fin = document.getElementById('mm-finish');
+    if (fin) fin.style.display = '';
+    const feet = k.calibrating ? k.calibrating.feet : 0;
+    try {
+      const r = MapMeasure.calibrate(p1, p2, feet);
+      k.ftPerPx = r.ftPerPx;
+      k.scaleFrom = 'ম্যাপ থেকে মাপা (' + toBn(feet) + ' ফুট = '
+        + toBn(Math.round(r.pxLength)) + ' পিক্সেল)';
+      k.calibrating = null;
+      MeasureCanvas.setScale(k.ftPerPx);
+      if (bar) bar.style.display = 'none';
+      this.mmTool('pan');
+      this.mmRefresh();
+    } catch (e) {
+      k.calibrating = null;
+      if (bar) bar.style.display = 'none';
+      alert(e.message + ' — আবার চেষ্টা করুন।');
+      this.mmRefresh();
+    }
+  },
+
+  /* ---- টুল ---- */
+
+  mmTool(t) {
+    if (this.mm.calibrating) return;
+    MeasureCanvas.setTool(t);
+    document.querySelectorAll('#mm-tools .mm-tool').forEach(b =>
+      b.classList.toggle('active', b.dataset.tool === t));
+    const bar = document.getElementById('mm-draw-bar');
+    if (bar) bar.style.display = t === 'draw' ? '' : 'none';
+    this.mmRefresh();
+  },
+
+  mmZoom(d) { MeasureCanvas.zoom(d); },
+  mmFit() { MeasureCanvas.fit(); },
+
+  mmUndoPoint() { MeasureCanvas.undoDraftPoint(); },
+  mmCancelDraft() { MeasureCanvas.cancelDraft(); },
+
+  mmFinish() {
+    const r = MeasureCanvas.closePlot();
+    if (!r.ok) { alert(r.msg); return; }
+    this.mmRefresh();
+  },
+
+  mmClear() {
+    if (!MeasureCanvas.state.plots.length && !MeasureCanvas.state.draft.length) return;
+    if (!confirm('সব প্লট ও পয়েন্ট মুছে দেবেন?')) return;
+    MeasureCanvas.clearAll();
+    this.mmRefresh();
+  },
+
+  mmDeletePlot(i) {
+    MeasureCanvas.deletePlot(i);
+    this.mmRefresh();
+  },
+
+  mmSetDag(i, v) {
+    const p = MeasureCanvas.state.plots[i];
+    if (p) { p.dag = String(v || '').trim(); MeasureCanvas.draw(); }
+  },
+
+  /* ---- হালনাগাদ ---- */
+
+  mmRefresh() {
+    const k = this.mm;
+    const has = !!k.img;
+    ['mm-left', 'mm-tools', 'mm-tiles', 'mm-scale-pill', 'mm-list-wrap'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = has ? '' : 'none';
+    });
+    const intro = document.getElementById('mm-intro');
+    if (intro) intro.style.display = has ? 'none' : '';
+    if (!has) return;
+
+    // স্কেলের অবস্থা
+    const txt = document.getElementById('mm-scale-txt');
+    const pill = document.getElementById('mm-scale-pill');
+    if (txt) {
+      txt.textContent = k.ftPerPx > 0
+        ? '১ পিক্সেল = ' + toBn(k.ftPerPx.toFixed(4)) + ' ফুট'
+        : 'স্কেল ঠিক করুন — ক্লিক করুন';
+    }
+    if (pill) pill.className = 'mm-scale-pill' + (k.ftPerPx > 0 ? ' ok' : ' warn');
+
+    // টাইল
+    const st = MeasureCanvas.stats();
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    set('mm-t-cur', k.ftPerPx > 0 ? toBn(st.current.satak.toFixed(2)) + ' শতক' : '— শতক');
+    set('mm-t-tot', k.ftPerPx > 0 ? toBn(st.totals.satak.toFixed(2)) + ' শতক' : '— শতক');
+    set('mm-t-cnt', toBn(st.totals.count) + 'টি');
+
+    // আঁকার বার
+    const fin = document.getElementById('mm-finish');
+    if (fin && !k.calibrating) {
+      fin.style.display = '';
+      fin.disabled = MeasureCanvas.state.draft.length < 3;
+    }
+    const hint = document.getElementById('mm-draw-hint');
+    if (hint && !k.calibrating) {
+      const n = MeasureCanvas.state.draft.length;
+      hint.textContent = n === 0 ? 'ম্যাপে ক্লিক করে পয়েন্ট বসান'
+        : n < 3 ? toBn(n) + 'টি পয়েন্ট — অন্তত ৩টি দরকার'
+        : toBn(n) + 'টি পয়েন্ট — প্রথম পয়েন্টে ক্লিক করলেও প্লট বন্ধ হবে';
+    }
+
+    this.mmRenderList();
+  },
+
+  mmRenderList() {
+    const box = document.getElementById('mm-list');
+    const pill = document.getElementById('mm-list-pill');
+    if (!box) return;
+    const k = this.mm;
+    const plots = MeasureCanvas.state.plots;
+    if (pill) pill.textContent = toBn(plots.length) + 'টি';
+    if (!plots.length) { box.className = 'mm-list'; box.textContent = 'কোনো প্লট নেই'; return; }
+
+    box.className = 'mm-list has';
+    box.innerHTML = plots.map((p, i) => {
+      const m = MapMeasure.measure(p, k.ftPerPx);
+      const sel = i === MeasureCanvas.state.selected;
+      return '<div class="mm-row' + (sel ? ' sel' : '') + '">' +
+        '<span class="mm-row-n">' + toBn(i + 1) + '</span>' +
+        '<input class="mm-row-dag" value="' + (p.dag || '') + '" placeholder="দাগ নং"' +
+          ' oninput="AppController.mmSetDag(' + i + ', this.value)">' +
+        '<span class="mm-row-a">' +
+          (k.ftPerPx > 0 ? toBn(m.satak.toFixed(2)) + ' শতক' : '—') + '</span>' +
+        '<span class="mm-row-k">' +
+          (k.ftPerPx > 0 ? toBn(m.katha.toFixed(2)) + ' কাঠা' : '') + '</span>' +
+        '<button type="button" class="fz-btn-del" title="মুছুন"' +
+          ' onclick="AppController.mmDeletePlot(' + i + ')"><i class="bi bi-x-lg"></i></button>' +
+      '</div>';
+    }).join('') +
+    (k.ftPerPx > 0 ? '<div class="mm-row total"><span></span><span>মোট</span>' +
+      '<span class="mm-row-a">' + toBn(MeasureCanvas.stats().totals.satak.toFixed(2)) +
+      ' শতক</span><span class="mm-row-k">' +
+      toBn(MeasureCanvas.stats().totals.katha.toFixed(2)) + ' কাঠা</span><span></span></div>' : '');
+  },
+
+  /* ---- অগ্রগতি ---- */
+
+  mmProg(pct, msg) {
+    const box = document.getElementById('mm-prog');
+    const fill = document.getElementById('mm-prog-fill');
+    const txt = document.getElementById('mm-prog-txt');
+    if (!box) return;
+    if (pct == null) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    if (txt) txt.textContent = msg || '';
+  },
+
+  /* ---- ম্যাপ আনা ---- */
+
+  mmPick(kind) {
+    if (kind === 'file' || kind === 'menu') {
+      if (kind === 'menu') {
+        const a = document.getElementById('mm-arch');
+        if (a && a.style.display !== 'none') { a.style.display = 'none'; return; }
+      }
+      if (kind === 'file') { const f = document.getElementById('mm-file'); if (f) f.click(); return; }
+    }
+    const a = document.getElementById('mm-arch');
+    if (a) a.style.display = a.style.display === 'none' ? '' : 'none';
+    if (!this.mm.treeLoaded) this.mmArchInit();
+  },
+
+  mmUseImage(r, name, isPdf, pdfScale) {
+    const k = this.mm;
+    k.img = r.img; k.imgName = name || 'map.jpg';
+    k.isPdf = !!isPdf; k.pdfScale = pdfScale || 0;
+    k.ftPerPx = 0; k.scaleFrom = ''; k.calibrating = null;
+    MeasureCanvas.setImage(r.img);
+    MeasureCanvas.setScale(0);
+    const a = document.getElementById('mm-arch');
+    if (a) a.style.display = 'none';
+    this.mmRefresh();
+    this.mmScaleDialog(true);
+  },
+
+  mmLoadFile(input) {
+    const f = input && input.files && input.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const buf = new Uint8Array(ev.target.result);
+      this.mmProg(5, 'ফাইল পড়া হচ্ছে…');
+      try {
+        const isPdf = KmzSource.looksLikePdf(buf) || f.type === 'application/pdf';
+        const r = await KmzSource.toImage(buf, f.type, {
+          onStage: (pc, m) => this.mmProg(pc, m)
+        });
+        this.mmProg(null);
+        // PDF হলে রেন্ডার স্কেল বের করি (DPI এর জন্য)
+        let pdfScale = 0;
+        if (isPdf && r.width) pdfScale = r.pdfScale || 0;
+        this.mmUseImage(r, f.name, isPdf, pdfScale);
+      } catch (e) {
+        this.mmProg(null);
+        alert(e.message);
+      }
+    };
+    reader.readAsArrayBuffer(f);
+  },
+
+  /* ---- আর্কাইভ ---- */
+
+  async mmArchInit() {
+    const sel = document.getElementById('mm-div');
+    try {
+      this.mmProg(20, 'আর্কাইভের সূচি আসছে…');
+      this.mm.tree = await KmzSource.tree();
+      this.mm.treeLoaded = true;
+      this.mmProg(null);
+      if (sel) sel.innerHTML = '<option value="">— বিভাগ বাছুন —</option>' +
+        this.mm.tree.divisions.map((d, i) => '<option value="' + i + '">' + d.name + '</option>').join('');
+    } catch (e) {
+      this.mmProg(null);
+      if (sel) sel.innerHTML = '<option value="">— আনা যায়নি —</option>';
+      alert(this.kmzNetHint('আর্কাইভের সূচি', e));
+    }
+  },
+
+  _mmFill(id, items, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !items || !items.length;
+    el.innerHTML = '<option value="">— ' + label + ' —</option>' +
+      (items || []).map((x, i) => '<option value="' + i + '">' + x.name +
+        (x.count ? ' (' + toBn(x.count) + ')' : '') + '</option>').join('');
+  },
+
+  mmArchDiv() {
+    const k = this.mm, i = document.getElementById('mm-div').value;
+    k.arch = { div: i === '' ? null : k.tree.divisions[i] };
+    this._mmFill('mm-dist', k.arch.div ? k.arch.div.districts : [], 'জেলা বাছুন');
+    this._mmFill('mm-upa', [], 'উপজেলা'); this._mmFill('mm-srv', [], 'জরিপ');
+    this.mmArchList([]);
+  },
+  mmArchDist() {
+    const k = this.mm, i = document.getElementById('mm-dist').value;
+    k.arch.dist = i === '' ? null : k.arch.div.districts[i];
+    this._mmFill('mm-upa', k.arch.dist ? k.arch.dist.upazilas : [], 'উপজেলা বাছুন');
+    this._mmFill('mm-srv', [], 'জরিপ'); this.mmArchList([]);
+  },
+  mmArchUpa() {
+    const k = this.mm, i = document.getElementById('mm-upa').value;
+    k.arch.upa = i === '' ? null : k.arch.dist.upazilas[i];
+    this._mmFill('mm-srv', k.arch.upa ? k.arch.upa.surveys : [], 'জরিপ বাছুন');
+    this.mmArchList([]);
+  },
+  async mmArchSrv() {
+    const k = this.mm, i = document.getElementById('mm-srv').value;
+    k.arch.srv = i === '' ? null : k.arch.upa.surveys[i];
+    const se = document.getElementById('mm-fsearch');
+    if (!k.arch.srv) { this.mmArchList([]); if (se) se.disabled = true; return; }
+    try {
+      this.mmProg(30, 'ফাইলের তালিকা আসছে…');
+      k.archFiles = await KmzSource.filesOf(k.arch.srv.id);
+      this.mmProg(null);
+      if (se) { se.disabled = false; se.value = ''; }
+      this.mmArchList(k.archFiles);
+    } catch (e) {
+      this.mmProg(null); this.mmArchList([]);
+      alert(this.kmzNetHint('ফাইলের তালিকা', e));
+    }
+  },
+  mmArchFilter() {
+    const q = (document.getElementById('mm-fsearch') || {}).value || '';
+    this.mmArchList(MouzaMap.filterFiles(this.mm.archFiles || [], q));
+  },
+  mmArchList(files) {
+    const box = document.getElementById('mm-arch-list');
+    if (!box) return;
+    const list = files || [];
+    if (!list.length) {
+      box.className = 'kmz-arch-list';
+      box.textContent = this.mm.arch && this.mm.arch.srv
+        ? 'এই জরিপে কোনো ফাইল মেলেনি।' : 'উপরে বিভাগ থেকে জরিপ পর্যন্ত বেছে নিন।';
+      return;
+    }
+    const shown = list.slice(0, 150);
+    box.className = 'kmz-arch-list has';
+    box.innerHTML = shown.map((f, i) => {
+      const bad = !MouzaMap.canProxy(f) || String(f.mimeType) === 'image/tiff';
+      const kind = MouzaMap.fileKind(f.mimeType);
+      return '<button type="button" class="kmz-af' + (bad ? ' bad' : '') + '"' +
+        (bad ? ' disabled' : '') + ' onclick="AppController.mmPickArchive(' + i + ')">' +
+        '<i class="bi ' + kind.icon + '"></i><span class="kmz-af-n">' + f.name + '</span>' +
+        '<span class="kmz-af-s">' + MouzaMap.formatSize(f.size) + '</span></button>';
+    }).join('');
+    this.mm.archShown = shown;
+  },
+  async mmPickArchive(i) {
+    const f = (this.mm.archShown || [])[i];
+    if (!f) return;
+    try {
+      this.mmProg(3, 'ফাইল নামানো হচ্ছে…');
+      const r = await KmzSource.fromArchive(f, (pc, m) => this.mmProg(pc, m));
+      this.mmProg(null);
+      this.mmUseImage(r, r.name || f.name, !!r.wasPdf, r.pdfScale || 0);
+    } catch (e) {
+      this.mmProg(null); alert(e.message);
+    }
   },
 
   closeModal() {
