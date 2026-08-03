@@ -2587,6 +2587,34 @@
 }
 .mm-share-u { flex-shrink: 0; color: var(--text-muted); font-size: 0.76rem; }
 
+/* "সমান ভাগে" — হিসাব করা অংশ, লেখা যায় না */
+.mm-share-eq {
+  display: grid; place-items: center;
+  min-height: 40px; padding: 6px 10px;
+  border: 1px dashed var(--border-color); border-radius: var(--radius-sm);
+  background: var(--bg-subtle, transparent);
+  color: var(--text-muted); font-size: 0.85rem; font-weight: 600;
+  white-space: nowrap;
+}
+
+/* বাহুর লেবেলের একক — প্যানেলের হেডে ছোট ড্রপডাউন */
+.mm-unit-pick {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border: 1px solid var(--border-color);
+  border-radius: 999px; background: var(--bg-input);
+  color: var(--text-muted); cursor: pointer;
+}
+.mm-unit-pick i { font-size: 0.8rem; }
+.mm-unit-pick select {
+  border: none; background: transparent; outline: none; cursor: pointer;
+  max-width: 130px;
+  font-family: inherit; font-size: 0.78rem; font-weight: 600;
+  color: var(--text-main);
+}
+
+/* ছোট সেগমেন্ট — একই সারিতে তিনটি বোতাম ধরানোর জন্য */
+.fz-seg-sm .fz-seg-btn { flex: 1 1 90px; padding: 7px 10px; font-size: 0.82rem; }
+
 .mm-div-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
 .mm-div-actions .btn { flex: 1 1 170px; justify-content: center; }
 

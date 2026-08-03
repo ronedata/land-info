@@ -1087,7 +1087,7 @@ const AppController = {
   mm: { img: null, imgName: '', isPdf: false, pdfScale: 0,
         ftPerPx: 0, scaleFrom: '', calibrating: null,
         tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
-        divMode: 'prop', shares: [], division: null, cutLine: null },
+        divMode: 'prop', shareMode: 'satak', shares: [], division: null, cutLine: null },
 
   initMeasure() {
     const c = document.getElementById('mm-canvas');
@@ -1104,7 +1104,22 @@ const AppController = {
       MeasureCanvas.draw();
     }
     this.mmFillScaleOptions();
+    this.mmFillLabelUnits();
     this.mmRefresh();
+  },
+
+  /** বাহুর লেবেলের একক — ফিট'ইঞ্চি · ফিট · লিংক · চেইন · মিটার */
+  mmFillLabelUnits() {
+    const sel = document.getElementById('mm-label-unit');
+    if (!sel) return;
+    sel.innerHTML = MapMeasure.LABEL_UNITS
+      .map(u => '<option value="' + u.id + '">' + u.label + '</option>').join('');
+    sel.value = MeasureCanvas.state ? MeasureCanvas.state.labelUnit : 'ftin';
+  },
+
+  mmLabelUnit(u) {
+    MeasureCanvas.setLabelUnit(u);
+    this.mmDivRefresh();          // বাহুর তালিকাও একই এককে
   },
 
   mmSizeCanvas() {
@@ -1335,6 +1350,10 @@ const AppController = {
     }
 
     this.mmRenderList();
+
+    // ভাগবণ্টন খোলা থাকলে প্লট বদলালে বাহুর তালিকাও বদলাতে হবে
+    const dw = document.getElementById('mm-div-wrap');
+    if (dw && dw.style.display !== 'none') this.mmDivRefresh();
   },
 
   mmRenderList() {
@@ -1383,7 +1402,7 @@ const AppController = {
       b.classList.toggle('active', b.dataset.tool === 'divide'));
     const w = document.getElementById('mm-div-wrap');
     if (w) w.style.display = '';
-    if (!k.shares.length) { k.shares = [{ name: '', satak: '' }, { name: '', satak: '' }]; }
+    if (!k.shares.length) { k.shares = [{ name: '', value: '' }, { name: '', value: '' }]; }
     this.mmDivRefresh();
   },
 
@@ -1417,21 +1436,45 @@ const AppController = {
       pill.className = 'fz-pill' + (plot ? ' ok' : '');
     }
 
-    // বাহুর তালিকা
+    // কাটার রেখা — উপরে ৪ দিক, নিচে প্লটের বাহুগুলো
     const sel = document.getElementById('mm-div-side');
     if (sel && plot) {
       const cur = sel.value;
+      const unit = MeasureCanvas.state ? MeasureCanvas.state.labelUnit : 'ftin';
       const opts = MapMeasure.sideOptions(plot.points, k.ftPerPx);
-      sel.innerHTML = opts.map(o => '<option value="' + o.index + '">' + o.label +
-        (k.ftPerPx > 0 ? ' · ' + MapMeasure.formatFtIn(o.feet) : '') + '</option>').join('');
-      if (cur && cur < opts.length) sel.value = cur;
+      sel.innerHTML =
+        '<optgroup label="নির্দিষ্ট দিকে">' +
+          MapMeasure.DIRECTIONS.map(d =>
+            '<option value="' + d.id + '">' + d.label + '</option>').join('') +
+        '</optgroup>' +
+        '<optgroup label="বাহুর সমান্তরালে">' +
+          opts.map(o => '<option value="' + o.index + '">' + o.label +
+            (k.ftPerPx > 0 ? ' · ' + MapMeasure.formatLength(o.feet, unit) : '') +
+            '</option>').join('') +
+        '</optgroup>';
+      // আগের বাছাই ধরে রাখা — দিক হলে সবসময়, বাহু হলে যদি এখনো থাকে
+      if (cur && (isNaN(Number(cur)) || Number(cur) < opts.length)) sel.value = cur;
     }
 
+    this.mmShareMode(k.shareMode, true);
+  },
+
+  /** অংশ দেওয়ার ধরন — % · শতক · সমান ভাগে */
+  mmShareMode(m, keep) {
+    const k = this.mm;
+    k.shareMode = m;
+    [['pct', 'mm-sm-pct'], ['satak', 'mm-sm-satak'], ['equal', 'mm-sm-equal']]
+      .forEach(([id, el]) => {
+        const b = document.getElementById(el);
+        if (b) b.classList.toggle('active', m === id);
+      });
+    // ধরন বদলালে আগের সংখ্যাগুলো আর অর্থবহ থাকে না
+    if (!keep) k.shares.forEach(s => { s.value = ''; });
     this.mmRenderShares();
   },
 
   mmAddShare() {
-    this.mm.shares.push({ name: '', satak: '' });
+    this.mm.shares.push({ name: '', value: '' });
     this.mmRenderShares();
   },
   mmDelShare(i) {
@@ -1440,17 +1483,44 @@ const AppController = {
   },
   mmSetShare(i, field, v) {
     if (!this.mm.shares[i]) return;
-    this.mm.shares[i][field] = field === 'satak' ? toEn(String(v)) : v;
+    this.mm.shares[i][field] = field === 'value' ? toEn(String(v)) : v;
     this.mmSharePill();
   },
 
-  mmSharePill() {
+  /** এই মুহূর্তে শরিকদের অংশ শতকে — না পারলে null */
+  mmShareSatak() {
     const k = this.mm;
     const plot = this.mmSelPlot();
     const total = plot && k.ftPerPx > 0 ? MapMeasure.measure(plot, k.ftPerPx).satak : 0;
-    const asked = k.shares.reduce((a, b) => a + (Number(b.satak) || 0), 0);
+    if (!(total > 0)) return null;
+    const list = k.shareMode === 'equal'
+      ? k.shares
+      : k.shares.filter(x => Number(x.value) > 0);
+    if (!list.length) return null;
+    try {
+      return { total, parts: MapMeasure.sharesToSatak(k.shareMode, list.map((x, i) => ({
+        name: (x.name || '').trim() || ('শরিক ' + toBn(i + 1)),
+        value: Number(x.value) || 0
+      })), total) };
+    } catch (e) {
+      return { total, error: e.message };
+    }
+  },
+
+  mmSharePill() {
     const el = document.getElementById('mm-share-pill');
     if (!el) return;
+    const k = this.mm;
+    const r = this.mmShareSatak();
+    const total = r ? r.total
+      : (this.mmSelPlot() && k.ftPerPx > 0
+          ? MapMeasure.measure(this.mmSelPlot(), k.ftPerPx).satak : 0);
+    if (r && r.error) {
+      el.textContent = r.error;
+      el.className = 'fz-pill bad';
+      return;
+    }
+    const asked = r ? r.parts.reduce((a, b) => a + b.satak, 0) : 0;
     el.textContent = toBn(asked.toFixed(2)) + ' / ' + toBn(total.toFixed(2)) + ' শতক';
     el.className = 'fz-pill' + (asked > total + 0.01 ? ' bad' : asked > 0 ? ' ok' : '');
   },
@@ -1458,16 +1528,25 @@ const AppController = {
   mmRenderShares() {
     const box = document.getElementById('mm-shares');
     if (!box) return;
+    // কেউ ঘরে লিখতে থাকলে DOM ভাঙা যাবে না — ফোকাস হারিয়ে যেত
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT' && box.contains(ae)) { this.mmSharePill(); return; }
+    const mode = this.mm.shareMode;
+    const unit = mode === 'pct' ? '%' : 'শতক';
+    const r = mode === 'equal' ? this.mmShareSatak() : null;
     box.innerHTML = this.mm.shares.map((sh, i) =>
       '<div class="mm-share">' +
         '<span class="mm-share-n">' + toBn(i + 1) + '</span>' +
         '<input class="mm-share-name" placeholder="শরিক ' + toBn(i + 1) + ' এর নাম"' +
           ' value="' + (sh.name || '') + '"' +
           ' oninput="AppController.mmSetShare(' + i + ',\'name\',this.value)">' +
-        '<span class="fz-input-wrap mm-share-amt"><input inputmode="decimal" placeholder="০"' +
-          ' value="' + (sh.satak || '') + '"' +
-          ' oninput="AppController.mmSetShare(' + i + ',\'satak\',this.value)">' +
-          '<span class="mm-share-u">শতক</span></span>' +
+        (mode === 'equal'
+          ? '<span class="mm-share-amt mm-share-eq">' +
+              (r && r.parts[i] ? toBn(r.parts[i].satak.toFixed(2)) + ' শতক' : '—') + '</span>'
+          : '<span class="fz-input-wrap mm-share-amt"><input inputmode="decimal" placeholder="০"' +
+              ' value="' + (sh.value || '') + '"' +
+              ' oninput="AppController.mmSetShare(' + i + ',\'value\',this.value)">' +
+              '<span class="mm-share-u">' + unit + '</span></span>') +
         '<button type="button" class="fz-btn-del" onclick="AppController.mmDelShare(' + i + ')">' +
           '<i class="bi bi-x-lg"></i></button>' +
       '</div>').join('');
@@ -1481,11 +1560,14 @@ const AppController = {
     const plot = this.mmSelPlot();
     if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
     if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
-    const side = Number((document.getElementById('mm-div-side') || {}).value || 0);
-    const people = k.shares
-      .map((x, i) => ({ name: (x.name || '').trim() || ('শরিক ' + toBn(i + 1)),
-                        satak: Number(x.satak) || 0 }))
-      .filter(x => x.satak > 0);
+    // দিক হলে স্ট্রিং (w2e…), বাহু হলে সূচক — divideByArea দুটোই নেয়
+    const raw = String((document.getElementById('mm-div-side') || {}).value || '0');
+    const side = /^\d+$/.test(raw) ? Number(raw) : raw;
+
+    const r = this.mmShareSatak();
+    if (!r) { alert('অন্তত একজন শরিকের অংশ দিন'); return; }
+    if (r.error) { alert(r.error); return; }
+    const people = r.parts.filter(x => x.satak > 0);
     if (!people.length) { alert('অন্তত একজন শরিকের অংশ দিন'); return; }
 
     try {

@@ -34,6 +34,7 @@ const MeasureCanvas = {
       drag: null,
       calib: null,            // {pts:[], cb}
       division: null,         // ভাগবণ্টনের ফল — আলাদা রঙে আঁকা হয়
+      labelUnit: 'ftin',      // বাহুর লেবেল কোন এককে — MapMeasure.LABEL_UNITS
       onChange: o.onChange || null,
       onSelect: o.onSelect || null
     };
@@ -452,7 +453,15 @@ const MeasureCanvas = {
     }
   },
 
-  /** বাহুর মাপ — ওদের মতো ৬০'১" ধাঁচে */
+  /** বাহুর লেবেলের একক বদলানো — ftin · ft · link · chain · meter */
+  setLabelUnit(u) {
+    const ok = MapMeasure.LABEL_UNITS.some(x => x.id === u);
+    this.state.labelUnit = ok ? u : 'ftin';
+    this.draw();
+    return this.state.labelUnit;
+  },
+
+  /** বাহুর মাপ — ডিফল্ট ৬০'১" ধাঁচে, একক বদলানো যায় */
   _edgeLabels(pts, cps, closed) {
     const s = this.state, ctx = s.ctx;
     const n = closed === false ? pts.length - 1 : pts.length;
@@ -464,7 +473,7 @@ const MeasureCanvas = {
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       if (len < 34) continue;                      // ছোট বাহুতে লেবেল বসে না
       const ft = MapMeasure.dist(pts[i], pts[(i + 1) % pts.length]) * s.ftPerPx;
-      const txt = MapMeasure.formatFtIn(ft);
+      const txt = MapMeasure.formatLength(ft, s.labelUnit);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const w = ctx.measureText(txt).width + 8;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';

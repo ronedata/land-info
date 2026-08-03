@@ -575,6 +575,10 @@
               <span class="fz-badge-num"><i class="bi bi-list-ul"></i></span>
               <h3>প্লটের তালিকা</h3>
               <span class="fz-pill" id="mm-list-pill">০টি</span>
+              <label class="mm-unit-pick" title="বাহুর মাপ কোন এককে দেখাবে">
+                <i class="bi bi-rulers"></i>
+                <select id="mm-label-unit" onchange="AppController.mmLabelUnit(this.value)"></select>
+              </label>
             </div>
             <div id="mm-list" class="mm-list">কোনো প্লট নেই</div>
           </div>
@@ -597,9 +601,25 @@
             <!-- আনুপাতিক -->
             <div id="mm-div-prop">
               <div class="fz-field">
-                <div class="fz-field-label"><span><i class="bi bi-signpost-split"></i> কোন বাহু বরাবর কাটবেন</span></div>
+                <div class="fz-field-label"><span><i class="bi bi-signpost-split"></i> কাটার রেখা কোন বরাবর যাবে</span></div>
                 <div class="fz-input-wrap fz-select-wrap">
                   <select id="mm-div-side" onchange="AppController.mmDivPreview()"></select>
+                </div>
+                <p class="kmz-hint" style="margin:6px 0 0">
+                  বাহু বাছলে বন্টনের রেখা <b>সেই বাহুর সমান্তরালে</b> যাবে;
+                  দিক বাছলে ভাগ সেই দিক থেকে শুরু হবে।
+                </p>
+              </div>
+
+              <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-sliders"></i> শরিকের অংশ কীভাবে দেবেন</span></div>
+                <div class="fz-seg fz-seg-sm">
+                  <button type="button" class="fz-seg-btn" id="mm-sm-pct"
+                          onclick="AppController.mmShareMode('pct')">% দিয়ে</button>
+                  <button type="button" class="fz-seg-btn active" id="mm-sm-satak"
+                          onclick="AppController.mmShareMode('satak')">শতক দিয়ে</button>
+                  <button type="button" class="fz-seg-btn" id="mm-sm-equal"
+                          onclick="AppController.mmShareMode('equal')">সমান ভাগে</button>
                 </div>
               </div>
 

@@ -607,6 +607,29 @@ head('ভাগের দিক ও অংশের ধরন');
   throws('ক্ষেত্রফল ছাড়া ত্রুটি', () => M.sharesToSatak('equal', [{}], 0), 'ক্ষেত্রফল');
 }
 
+/* ═══════════ ২১. ক্যানভাসে একক বদলানো ═══════════ */
+head('ক্যানভাসে বাহুর লেবেলের একক');
+{
+  // MeasureCanvas ব্রাউজারের জিনিস — এখানে কেবল একক বাছাইয়ের যুক্তিটুকু
+  global.MapMeasure = M;
+  const MC = require('../js/map-measure-ui.js');
+  let drawn = 0;
+  const realDraw = MC.draw;
+  MC.draw = () => { drawn++; };
+  MC.state = { labelUnit: 'ftin' };
+
+  ok('ডিফল্ট ftin', MC.state.labelUnit === 'ftin');
+  ok('link বাছাই চলে', MC.setLabelUnit('link') === 'link');
+  ok('একক সংরক্ষিত', MC.state.labelUnit === 'link');
+  ok('বদলালে আবার আঁকে', drawn === 1, 'draw ' + drawn + ' বার');
+  ok('meter চলে', MC.setLabelUnit('meter') === 'meter');
+  ok('আজেবাজে একক → ftin', MC.setLabelUnit('গরু') === 'ftin');
+  ok('পাঁচটাই গ্রহণযোগ্য',
+     M.LABEL_UNITS.every(u => MC.setLabelUnit(u.id) === u.id));
+  MC.draw = realDraw;
+  MC.state = null;
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');
