@@ -2544,7 +2544,9 @@
   background: var(--bg-card); color: var(--text-muted);
   font-size: 0.68rem; font-weight: 600;
 }
-.mm-badge.off { background: #fee2e2; color: #b91c1c; }
+.mm-badge.off  { background: #fee2e2; color: #b91c1c; }
+.mm-badge.auto { background: #dcfce7; color: #15803d; }
+.mm-badge.warn { background: #fef3c7; color: #b45309; }
 
 /* ── ভাগবণ্টন ── */
 

@@ -726,6 +726,40 @@ head('ভাগ কয় টুকরোয় পড়লো');
   ok('বর্গে সব এক টুকরো', r2.parts.every(x => x.pieces === 1) && r2.split === 0);
 }
 
+/* ═══════════ ২৩. স্কেলটা আদৌ বিশ্বাসযোগ্য? ═══════════ */
+head('স্কেলের যুক্তিযাচাই');
+{
+  // বাস্তব সংমিশ্রণ: ১৬–৮০ ইঞ্চ/মাইল × ১৫০–৬০০ DPI
+  [[16, 150], [16, 300], [16, 600], [80, 150], [80, 600], [32, 300], [64, 400]]
+    .forEach(([ipm, dpi]) => {
+      const ftPerPx = (5280 / ipm) / dpi;
+      const v = M.scaleSanity(ftPerPx, dpi);
+      ok(ipm + '"/মাইল @' + dpi + 'DPI স্বাভাবিক', v.ok,
+         ftPerPx.toFixed(3) + ' ফুট/px');
+    });
+
+  // ★ স্ক্রিনশটে যা দেখা গেল — বাহু ৯০১ ফুট, যা অসম্ভব
+  // PDF এর পাতা পিক্সেল-পয়েন্ট হলে DPI নেমে যায় ~২৩
+  const bad = M.scaleSanity((5280 / 16) / 23, 23);
+  ok('★ DPI ২৩ হলে সন্দেহ করে', !bad.ok, bad.msg.slice(0, 46));
+  ok('  কত গুণ বেশি বলে দেয়', /গুণ/.test(bad.msg), bad.msg.slice(20, 80));
+
+  const tooSmall = M.scaleSanity(0.001, 5000);
+  ok('অস্বাভাবিক ছোটও ধরে', !tooSmall.ok, tooSmall.msg.slice(0, 40));
+
+  ok('স্কেল না থাকলে none', M.scaleSanity(0).level === 'none');
+  ok('সীমার কাছাকাছি ঠিক আছে',
+     M.scaleSanity(M.SANE_FT_PER_PX.max - 0.01).ok
+     && M.scaleSanity(M.SANE_FT_PER_PX.min + 0.001).ok);
+  ok('সীমার বাইরে ধরা পড়ে',
+     !M.scaleSanity(M.SANE_FT_PER_PX.max + 0.5).ok
+     && !M.scaleSanity(M.SANE_FT_PER_PX.min / 2).ok);
+
+  // স্ক্রিনশট ১ এর মাপ স্বাভাবিক ছিল কি না
+  ok('১ পিক্সেল = ১.১ ফুট স্বাভাবিক', M.scaleSanity(1.1, 300).ok);
+  ok('১ পিক্সেল = ১৪.৪ ফুট অস্বাভাবিক', !M.scaleSanity(14.4, 23).ok);
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');

@@ -1181,14 +1181,41 @@ const AppController = {
     if (!dp) return;
     if (k.isPdf && k.pdfScale > 0) {
       const dpi = MapMeasure.dpiForPdf(k.pdfScale);
-      dp.disabled = true;
+      // ★ আগে এখানে ড্রপডাউন **বন্ধ** করে দেওয়া হতো — ধরে নেওয়া হতো PDF এর
+      //   পাতার মাপ মানেই আসল কাগজের মাপ। স্ক্যান করা নকশায় তা প্রায়ই নয়
+      //   (পাতার মাপ = ছবির পিক্সেল সংখ্যা)। তখন বেরোনো DPI অর্থহীন, অথচ
+      //   ইউজার বদলাতেও পারতেন না — সব মাপ নীরবে ভুল হতো।
+      const trusty = dpi >= 100 && dpi <= 900;
+      dp.disabled = false;
+      if (!dp._mmSet) {
+        // বেরোনো মানটাও তালিকায় থাকুক
+        if (![].some.call(dp.options, o => Math.abs(Number(o.value) - dpi) < 0.5)) {
+          const op = document.createElement('option');
+          op.value = String(Math.round(dpi));
+          op.textContent = 'PDF থেকে পাওয়া — ' + toBn(dpi.toFixed(0)) + ' DPI';
+          dp.insertBefore(op, dp.firstChild);
+        }
+        dp.value = String(Math.round(dpi));
+        dp._mmSet = true;
+      }
       if (badge) {
         badge.style.display = '';
-        badge.textContent = 'PDF-এর জন্য বন্ধ';
-        badge.className = 'mm-badge off';
+        badge.textContent = trusty ? '✓ PDF থেকে পাওয়া' : '⚠ সন্দেহজনক';
+        badge.className = 'mm-badge ' + (trusty ? 'auto' : 'warn');
       }
-      if (note) note.textContent = 'PDF থেকে DPI বেরিয়ে এসেছে: '
-        + toBn(dpi.toFixed(1)) + ' — বাছার দরকার নেই।';
+      if (note) {
+        const pg = k.pageIn
+          ? ' পাতার মাপ ' + toBn(k.pageIn.w.toFixed(1)) + '×'
+            + toBn(k.pageIn.h.toFixed(1)) + ' ইঞ্চি।'
+          : '';
+        note.innerHTML = trusty
+          ? 'PDF থেকে DPI পাওয়া গেছে <b>' + toBn(dpi.toFixed(0)) + '</b>।' + pg
+            + ' মিল না হলে বদলে নিন।'
+          : '<b>সাবধান —</b> PDF থেকে DPI এল <b>' + toBn(dpi.toFixed(0)) + '</b>, যা '
+            + 'স্ক্যান করা নকশার জন্য অস্বাভাবিক।' + pg
+            + ' এই PDF-এ পাতার মাপ সম্ভবত আসল কাগজের মাপ নয়। '
+            + '<b>পদ্ধতি ২</b> (ম্যাপ থেকে মেপে নেওয়া) ব্যবহার করুন।';
+      }
     } else {
       dp.disabled = false;
       if (badge) badge.style.display = 'none';
@@ -1202,14 +1229,13 @@ const AppController = {
     const i = Number((document.getElementById('mm-mapscale') || {}).value || 0);
     const sc = MapMeasure.MAP_SCALES[i];
     if (!sc) return;
-    let dpi;
-    if (k.isPdf && k.pdfScale > 0) {
-      dpi = MapMeasure.dpiForPdf(k.pdfScale);
-    } else {
-      dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
-    }
+    // ★ PDF হলেও ইউজারের বাছাইই চলবে — PDF এর পাতার মাপ সবসময়
+    //   আসল কাগজের মাপ নয়
+    const dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
     try {
       const r = MapMeasure.fromMapScale(1, sc.ftPerInch, dpi);
+      const sane = MapMeasure.scaleSanity(r.ftPerPx, dpi);
+      if (!sane.ok && !confirm(sane.msg + '\n\nতবু এই স্কেলই বসাবেন?')) return;
       k.ftPerPx = r.ftPerPx;
       k.scaleFrom = sc.label + ' · ' + toBn(dpi.toFixed(0)) + ' DPI';
       MeasureCanvas.setScale(k.ftPerPx);
@@ -1819,6 +1845,9 @@ const AppController = {
     const k = this.mm;
     k.img = r.img; k.imgName = name || 'map.jpg';
     k.isPdf = !!isPdf; k.pdfScale = pdfScale || 0;
+    k.pageIn = r.pageIn || null;
+    const dpEl = document.getElementById('mm-dpi');
+    if (dpEl) dpEl._mmSet = false;      // নতুন ফাইলে আবার বসবে
     k.ftPerPx = 0; k.scaleFrom = ''; k.calibrating = null;
     MeasureCanvas.setImage(r.img);
     MeasureCanvas.setScale(0);
@@ -1838,6 +1867,7 @@ const AppController = {
       try {
         const isPdf = KmzSource.looksLikePdf(buf) || f.type === 'application/pdf';
         const r = await KmzSource.toImage(buf, f.type, {
+          needBytes: false,                       // মাপে JPEG লাগে না
           onStage: (pc, m) => this.mmProg(pc, m)
         });
         this.mmProg(null);
@@ -1946,7 +1976,8 @@ const AppController = {
     if (!f) return;
     try {
       this.mmProg(3, 'ফাইল নামানো হচ্ছে…');
-      const r = await KmzSource.fromArchive(f, (pc, m) => this.mmProg(pc, m));
+      const r = await KmzSource.fromArchive(f, (pc, m) => this.mmProg(pc, m),
+                                            { needBytes: false });
       this.mmProg(null);
       this.mmUseImage(r, r.name || f.name, !!r.wasPdf, r.pdfScale || 0);
     } catch (e) {

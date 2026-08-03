@@ -424,6 +424,44 @@ const MapMeasure = {
     return out;
   },
 
+  /**
+   * ★ বেরিয়ে আসা স্কেলটা আদৌ বিশ্বাসযোগ্য?
+   *
+   * PDF থেকে DPI বের করা হয় `৭২ × রেন্ডার স্কেল` দিয়ে — কিন্তু সেটা ঠিক
+   * তখনই, যখন PDF এর পাতার মাপ **আসল কাগজের মাপ**। স্ক্যান করা নকশা
+   * ছবি→PDF করলে পাতার মাপ প্রায়ই ছবির পিক্সেল সংখ্যা হয়ে যায়; তখন
+   * বেরোনো DPI অর্থহীন আর সব মাপ ওই অনুপাতে ভুল হয় — নীরবে।
+   *
+   * তাই ফলটা যাচাই করি: বাংলাদেশের মৌজা নকশা ১৬–৮০ ইঞ্চি = ১ মাইল, আর
+   * স্ক্যান হয় ১৫০–৬০০ DPI তে। তাতে ১ পিক্সেল দাঁড়ায় ০.১১–২.২০ ফুট।
+   * এর বাইরে গেলে ধরে নেওয়া যায় DPI ভুল।
+   *
+   * @returns {{ok:boolean, level:string, msg:string, ftPerPx:number}}
+   */
+  SANE_FT_PER_PX: { min: 0.08, max: 3.0 },
+
+  scaleSanity(ftPerPx, dpi) {
+    const f = Number(ftPerPx) || 0;
+    const S = this.SANE_FT_PER_PX;
+    if (!(f > 0)) {
+      return { ok: false, level: 'none', ftPerPx: f, msg: 'স্কেল এখনো ঠিক করা হয়নি' };
+    }
+    if (f >= S.min && f <= S.max) {
+      return { ok: true, level: 'ok', ftPerPx: f,
+        msg: '১ পিক্সেল = ' + f.toFixed(3) + ' ফুট — স্বাভাবিক' };
+    }
+    const big = f > S.max;
+    const off = big ? f / S.max : S.min / f;
+    return {
+      ok: false, level: 'bad', ftPerPx: f,
+      msg: '১ পিক্সেল = ' + f.toFixed(3) + ' ফুট — মৌজা নকশায় এটি '
+        + (big ? 'অস্বাভাবিক বড়' : 'অস্বাভাবিক ছোট') + '। মাপ প্রায় '
+        + (off >= 2 ? Math.round(off) + ' গুণ' : 'অনেকটা')
+        + (big ? ' বেশি' : ' কম') + ' আসবে।'
+        + (dpi ? ' ধরা DPI ' + Math.round(dpi) + '.' : '')
+    };
+  },
+
   /* ---------------- বহুভুজ সত্যি বৈধ তো? ---------------- */
 
   /**
