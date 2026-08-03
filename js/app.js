@@ -1140,7 +1140,11 @@ const AppController = {
     const r = c.getBoundingClientRect();
     const w = Math.max(280, Math.round(r.width || st.clientWidth));
     const h = Math.max(320, Math.round(r.height || st.clientHeight));
-    if (MeasureCanvas.state) MeasureCanvas.resize(w, h);
+    const s = MeasureCanvas.state;
+    // মাপ না বদলালে কিছুই করব না — ResizeObserver থেকে ডাকা হয়, তাই
+    // অকারণে draw() করলে "loop completed with undelivered notifications"
+    if (s && s.viewW === w && s.viewH === h) return;
+    if (s) MeasureCanvas.resize(w, h);
     else { c.width = w; c.height = h; }
   },
 
@@ -1179,6 +1183,9 @@ const AppController = {
     const badge = document.getElementById('mm-dpi-badge');
     const note = document.getElementById('mm-dpi-note');
     if (!dp) return;
+    const save = document.getElementById('mm-scale-save');
+    if (save) { save.disabled = false; save.textContent = 'সেভ করুন'; }
+
     if (k.isPdf && k.pdfScale > 0) {
       const dpi = MapMeasure.dpiForPdf(k.pdfScale);
       // ★ আগে এখানে ড্রপডাউন **বন্ধ** করে দেওয়া হতো — ধরে নেওয়া হতো PDF এর
@@ -1186,26 +1193,34 @@ const AppController = {
       //   (পাতার মাপ = ছবির পিক্সেল সংখ্যা)। তখন বেরোনো DPI অর্থহীন, অথচ
       //   ইউজার বদলাতেও পারতেন না — সব মাপ নীরবে ভুল হতো।
       const trusty = dpi >= 100 && dpi <= 900;
-      dp.disabled = false;
+      /* ★★ PDF এ DPI হাতে বাছা যাবে না — এবং এটা খেয়ালের বশে নয়।
+         আমরা PDF নিজেরাই আঁকি, তাই ছবির পিক্সেল ঘনত্ব আমাদের রেন্ডার
+         স্কেলের উপর নির্ভর করে। "৩০০ DPI" কথাটার তখন কোনো স্থির অর্থ
+         থাকে না — রেন্ডার বড় করলেই একই জমি বড় মাপা হয়।
+         বাস্তবে ঘটেছিল: রেন্ডার ১.৪০× বড় করার পর হাতে বসানো ৩০০ DPI
+         দিয়ে মাপ ১.৪০× লম্বা, ক্ষেত্রফল ১.৯৭× বেশি আসছিল।
+         একমাত্র স্থির মান `৭২ × রেন্ডার স্কেল` — এতে ফল কেবল PDF এর
+         পাতার মাপের উপর নির্ভর করে, আমাদের রেজুলেশনে বদলায় না। */
+      dp.disabled = true;
       if (!dp._mmSet) {
-        // বেরোনো মানটাও তালিকায় থাকুক
         if (![].some.call(dp.options, o => Math.abs(Number(o.value) - dpi) < 0.5)) {
           const op = document.createElement('option');
           op.value = String(Math.round(dpi));
-          op.textContent = 'PDF থেকে পাওয়া — ' + toBn(dpi.toFixed(0)) + ' DPI'
-            + (trusty ? '' : ' (সন্দেহজনক)');
+          op.textContent = 'PDF থেকে পাওয়া — ' + toBn(dpi.toFixed(0)) + ' DPI';
           dp.insertBefore(op, dp.firstChild);
         }
-        // ★ বিশ্বাসযোগ্য হলেই বসাই। অবিশ্বাস্য মান বসিয়ে দিলে ইউজার
-        //   "স্কেল বসান" চাপলেই সতর্কবার্তা পেতেন, আর বাতিল করলে স্কেলই
-        //   বসত না — টুলটা অচল মনে হতো। তালিকায় থাকল, কিন্তু বাছা নয়।
-        dp.value = trusty ? String(Math.round(dpi)) : '300';
+        dp.value = String(Math.round(dpi));
         dp._mmSet = true;
       }
       if (badge) {
         badge.style.display = '';
-        badge.textContent = trusty ? '✓ PDF থেকে পাওয়া' : '⚠ সন্দেহজনক';
+        badge.textContent = trusty ? '✓ PDF থেকে পাওয়া' : '⚠ কাজে লাগবে না';
         badge.className = 'mm-badge ' + (trusty ? 'auto' : 'warn');
+      }
+      // পাতার মাপ পিক্সেল-পয়েন্ট হলে পদ্ধতি ১ দিয়ে কিছুতেই ঠিক হবে না
+      if (!trusty && save) {
+        save.disabled = true;
+        save.textContent = 'এই PDF এ সম্ভব নয়';
       }
       if (note) {
         const pg = k.pageIn
@@ -1213,13 +1228,15 @@ const AppController = {
             + toBn(k.pageIn.h.toFixed(1)) + ' ইঞ্চি।'
           : '';
         note.innerHTML = trusty
-          ? 'PDF থেকে DPI পাওয়া গেছে <b>' + toBn(dpi.toFixed(0)) + '</b>।' + pg
-            + ' মিল না হলে বদলে নিন।'
-          : '<b>সাবধান —</b> PDF থেকে DPI এল <b>' + toBn(dpi.toFixed(0)) + '</b>, যা '
-            + 'স্ক্যান করা নকশার জন্য অস্বাভাবিক।' + pg
-            + ' এই PDF-এ পাতার মাপ সম্ভবত আসল কাগজের মাপ নয়, তাই '
-            + '<b>৩০০ DPI</b> ধরে রাখা হলো। নিখুঁত মাপ চাইলে নিচের '
-            + '<b>পদ্ধতি ২</b> — ম্যাপের স্কেল-দণ্ড ধরে মেপে নিন।';
+          ? 'PDF থেকে DPI বেরিয়ে এসেছে <b>' + toBn(dpi.toFixed(0)) + '</b>।' + pg
+            + ' এটি PDF নিজেই বলে দেয়, তাই হাতে বাছার দরকার নেই।'
+          : '<b>এই PDF দিয়ে পদ্ধতি ১ চলবে না।</b> পাতার মাপ '
+            + (k.pageIn ? '<b>' + toBn(k.pageIn.w.toFixed(0)) + '×'
+                + toBn(k.pageIn.h.toFixed(0)) + ' ইঞ্চি</b> — ' : '')
+            + 'অর্থাৎ ছবির পিক্সেল সংখ্যাকেই পাতার মাপ ধরে PDF বানানো হয়েছে, '
+            + 'আসল কাগজের মাপ এতে নেই। কাগজের মাপ না জানলে DPI বের করার '
+            + 'কোনো উপায় নেই — অনুমান করলে মাপ নীরবে ভুল হবে। '
+            + 'নিচের <b>পদ্ধতি ২</b> ব্যবহার করুন, ওটাই এখানে সঠিক পথ।';
       }
     } else {
       dp.disabled = false;
@@ -1234,9 +1251,23 @@ const AppController = {
     const i = Number((document.getElementById('mm-mapscale') || {}).value || 0);
     const sc = MapMeasure.MAP_SCALES[i];
     if (!sc) return;
-    // ★ PDF হলেও ইউজারের বাছাইই চলবে — PDF এর পাতার মাপ সবসময়
-    //   আসল কাগজের মাপ নয়
-    const dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
+    /* ★ PDF হলে সবসময় বেরোনো DPI — ড্রপডাউনের মান নয়।
+       আমরা PDF নিজেরাই আঁকি, তাই হাতে বসানো DPI আমাদের রেন্ডার
+       রেজুলেশনের সাথে অর্থ বদলায়; `৭২ × রেন্ডার স্কেল` নিলে ফল কেবল
+       PDF এর পাতার মাপের উপর নির্ভর করে, আমরা কত বড় আঁকলাম তাতে নয়। */
+    let dpi;
+    if (k.isPdf && k.pdfScale > 0) {
+      dpi = MapMeasure.dpiForPdf(k.pdfScale);
+      if (!(dpi >= 100 && dpi <= 900)) {
+        alert('এই PDF এ পাতার মাপ আসল কাগজের মাপ নয়, তাই DPI বের করা '
+          + 'যাচ্ছে না (এল ' + toBn(dpi.toFixed(0)) + ')।\n\n'
+          + 'অনুমান করলে মাপ নীরবে ভুল হবে। নিচের পদ্ধতি ২ — '
+          + '"ম্যাপ থেকে মাপুন" ব্যবহার করুন।');
+        return;
+      }
+    } else {
+      dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
+    }
     try {
       const r = MapMeasure.fromMapScale(1, sc.ftPerInch, dpi);
       const sane = MapMeasure.scaleSanity(r.ftPerPx, dpi);
