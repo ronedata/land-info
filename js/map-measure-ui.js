@@ -443,10 +443,21 @@ const MeasureCanvas = {
   /** চলতি আঁকা শেষ করে প্লট বানানো */
   closePlot() {
     const s = this.state;
-    if (s.draft.length < 3) return { ok: false, msg: 'একটি প্লটে কমপক্ষে ৩টি পয়েন্ট দরকার' };
+    // ডবল-ট্যাপে একই জায়গায় দুবার বসা বিন্দু আগে ঝেড়ে ফেলি
+    const pts = MapMeasure.cleanPoints(s.draft, 0.5 / Math.max(s.scale, 1e-6));
+    if (pts.length < 3) return { ok: false, msg: 'একটি প্লটে কমপক্ষে ৩টি পয়েন্ট দরকার' };
+    // ★ নিজেকে কেটে গেলে ক্ষেত্রফল নীরবে ভুল হয় — আগেই আটকাই
+    const bad = MapMeasure.selfIntersects(pts);
+    if (bad) {
+      const bn = v => (typeof toBn === 'function' ? toBn(v) : String(v));
+      return { ok: false, selfCross: bad,
+        msg: 'প্লটের ' + bn(bad.i + 1) + ' নং আর ' + bn(bad.j + 1)
+           + ' নং বাহু একে অপরকে কেটেছে। এমন হলে ক্ষেত্রফল ভুল আসে — '
+           + 'কোণাগুলো একই দিকে ঘুরে (ঘড়ির কাঁটার দিকে বা উল্টো) বসান।' };
+    }
     const id = s.plots.length + 1;
     s.plots.push({ id, dag: '', name: 'প্লট ' + (typeof toBn === 'function' ? toBn(id) : id),
-                   points: s.draft.slice(), closed: true });
+                   points: pts, closed: true });
     s.draft = [];
     s.selected = s.plots.length - 1;
     this.draw(); this._changed();
@@ -530,6 +541,22 @@ const MeasureCanvas = {
     if (s.calib) this._drawCalib();
     if (s.picked) this._drawPicked();
     if (s.lens) this._drawLens();
+  },
+
+  /**
+   * ★ প্লটটি নিজেকে কেটেছে? — ফল ক্যাশে রাখা হয়
+   *
+   * প্রতি ফ্রেমে O(n²) চালানোর দরকার নেই; বিন্দু বদলালে তবেই আবার কষে।
+   */
+  plotBroken(plot) {
+    if (!plot || !plot.points || plot.points.length < 4) return null;
+    const key = plot.points.length + ':' +
+      plot.points.map(p => p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(';');
+    if (plot._xKey !== key) {
+      plot._xKey = key;
+      plot._xBad = MapMeasure.selfIntersects(plot.points);
+    }
+    return plot._xBad;
   },
 
   /** পয়েন্ট টুলে বাছাই করা শীর্ষবিন্দু — মোছা যায় বোঝাতে */
@@ -681,21 +708,43 @@ const MeasureCanvas = {
     if (pts.length < 2) return;
     const cps = pts.map(p => this.toCanvas(p.x, p.y));
 
+    // ★ কোণা টেনে সরালেও প্লট নিজেকে কেটে ফেলতে পারে — তখন লাল
+    const bad = this.plotBroken(plot);
+
     ctx.beginPath();
     cps.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
     ctx.closePath();
-    ctx.fillStyle = isSel ? 'rgba(59,130,246,0.30)' : 'rgba(59,130,246,0.18)';
+    ctx.fillStyle = bad ? 'rgba(239,68,68,0.22)'
+      : (isSel ? 'rgba(59,130,246,0.30)' : 'rgba(59,130,246,0.18)');
     ctx.fill();
-    ctx.strokeStyle = isSel ? '#1d4ed8' : '#3b82f6';
+    ctx.strokeStyle = bad ? '#dc2626' : (isSel ? '#1d4ed8' : '#3b82f6');
     ctx.lineWidth = isSel ? 3 : 2;
+    if (bad) ctx.setLineDash([7, 5]);
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // শীর্ষবিন্দু
     cps.forEach(q => {
       ctx.beginPath(); ctx.arc(q.x, q.y, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = '#fff'; ctx.fill();
-      ctx.strokeStyle = '#1d4ed8'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = bad ? '#dc2626' : '#1d4ed8'; ctx.lineWidth = 2; ctx.stroke();
     });
+
+    if (bad) {
+      const cen = MapMeasure.centroid(pts);
+      const q = this.toCanvas(cen.x, cen.y);
+      ctx.font = '700 12px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const t = '⚠ বাহু কাটাকাটি — মাপ ভুল';
+      const w = ctx.measureText(t).width + 14;
+      ctx.fillStyle = 'rgba(254,242,242,0.96)';
+      ctx.fillRect(q.x - w / 2, q.y - 11, w, 22);
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(q.x - w / 2, q.y - 11, w, 22);
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillText(t, q.x, q.y);
+      return;                       // ভুল মাপ দেখানোর চেয়ে না দেখানো ভালো
+    }
 
     if (s.ftPerPx > 0) {
       this._edgeLabels(pts, cps);
@@ -812,10 +861,13 @@ const MeasureCanvas = {
     const s = this.state;
     const cur = s.draft.length >= 3 ? { points: s.draft }
               : (s.selected >= 0 ? s.plots[s.selected] : s.plots[s.plots.length - 1]);
+    // নিজেকে কাটা প্লটের মাপ মোটে বিশ্বাসযোগ্য নয় — মোট থেকেও বাদ
+    const good = s.plots.filter(p => !this.plotBroken(p));
     return {
       current: cur ? MapMeasure.measure(cur, s.ftPerPx) : MapMeasure.units(0),
-      totals: MapMeasure.totals(s.plots, s.ftPerPx),
-      drafting: s.draft.length
+      totals: MapMeasure.totals(good, s.ftPerPx),
+      drafting: s.draft.length,
+      broken: s.plots.length - good.length
     };
   }
 };

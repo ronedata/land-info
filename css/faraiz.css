@@ -2600,6 +2600,23 @@
   white-space: nowrap;
 }
 
+/* নিজেকে কাটা প্লট — তালিকায় লাল সতর্কতা */
+.mm-row.bad { background: #fef2f2; }
+.mm-row-a.warn {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: #b91c1c; font-weight: 700; white-space: nowrap;
+}
+.mm-row.bad .mm-row-k { color: #b91c1c; opacity: 0.75; font-size: 0.76rem; }
+
+/* ভাগের অংশ এক টুকরোয় পড়েনি */
+.mm-div-split {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-inline-start: 6px; padding: 1px 7px;
+  border-radius: 999px; background: #fef3c7;
+  color: #b45309; font-size: 0.72rem; font-weight: 700;
+  white-space: nowrap;
+}
+
 /* এই জুমে ১ পিক্সেল কত ফুট — স্কেল পিলের ঠিক নিচে */
 .mm-prec {
   position: absolute;

@@ -630,6 +630,102 @@ head('ক্যানভাসে বাহুর লেবেলের এক�
   MC.state = null;
 }
 
+/* ═══════════ ২২. বহুভুজ বৈধ তো? ═══════════ */
+head('নিজেকে কাটা বহুভুজ ধরা');
+{
+  const sq = [{x:0,y:0},{x:400,y:0},{x:400,y:300},{x:0,y:300}];
+  ok('সঠিক বর্গ ঠিকই আছে', M.selfIntersects(sq) === null);
+
+  // ২য় ও ৩য় কোণা উল্টে গেলে — ফিতার মতো বাঁকা
+  const bow = [{x:0,y:0},{x:400,y:0},{x:0,y:300},{x:400,y:300}];
+  const b = M.selfIntersects(bow);
+  ok('উল্টালে ধরা পড়ে', b !== null, b ? 'বাহু ' + b.i + ' × ' + b.j : '');
+  near('★ এবং ক্ষেত্রফল শূন্য দেখায়', M.areaPx(bow), 0, 1e-9);
+  near('  (সঠিক ক্রমে হতো)', M.areaPx(sq), 120000, 1e-9);
+
+  // অবতল কিন্তু বৈধ — ভুল করে ধরা যাবে না
+  const arrow = [{x:0,y:0},{x:400,y:0},{x:400,y:300},{x:200,y:150},{x:0,y:300}];
+  ok('অবতল তীর বৈধ', M.selfIntersects(arrow) === null);
+  near('  ক্ষেত্রফল সঠিক', M.areaPx(arrow), 90000, 1e-9);
+
+  const U = [{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:70,y:100},
+             {x:70,y:30},{x:30,y:30},{x:30,y:100},{x:0,y:100}];
+  ok('U আকার বৈধ', M.selfIntersects(U) === null);
+
+  const star = [{x:50,y:0},{x:61,y:35},{x:98,y:35},{x:68,y:57},{x:79,y:91},
+                {x:50,y:70},{x:21,y:91},{x:32,y:57},{x:2,y:35},{x:39,y:35}];
+  ok('তারার মতো বৈধ', M.selfIntersects(star) === null);
+
+  ok('ত্রিভুজ কখনো কাটে না',
+     M.selfIntersects([{x:0,y:0},{x:100,y:0},{x:50,y:80}]) === null);
+  ok('৩ এর কম বিন্দুতে null',
+     M.selfIntersects([{x:0,y:0},{x:1,y:1}]) === null);
+}
+
+head('পরপর একই বিন্দু ঝেড়ে ফেলা');
+{
+  const dup = [{x:0,y:0},{x:100,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100}];
+  const c = M.cleanPoints(dup, 0.5);
+  ok('৫ → ৪ বিন্দু', c.length === 4, c.length + 'টি');
+  near('ক্ষেত্রফল বদলায়নি', M.areaPx(c), M.areaPx(dup), 1e-9);
+  ok('পরিষ্কারের পর আর কাটাকাটি নেই', M.selfIntersects(c) === null);
+
+  const loop = [{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:0}];
+  ok('শেষ বিন্দু = প্রথম হলে বাদ', M.cleanPoints(loop, 0.5).length === 3);
+  ok('সব এক জায়গায় হলে ১টি',
+     M.cleanPoints([{x:5,y:5},{x:5,y:5},{x:5,y:5}], 0.5).length === 1);
+  ok('ফাঁকা তালিকা', M.cleanPoints([], 0.5).length === 0);
+}
+
+head('ভাগ কয় টুকরোয় পড়লো');
+{
+  const F = 2.2;
+  const sq = [{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100}];
+  ok('সাধারণ বর্গ = ১', M.countPieces(sq) === 1);
+  ok('ত্রিভুজ = ১', M.countPieces([{x:0,y:0},{x:100,y:0},{x:50,y:80}]) === 1);
+
+  // ★ এগুলোতে মিথ্যা সতর্কতা দিলে চলবে না — সব এক টুকরো
+  const U = [{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:70,y:100},
+             {x:70,y:30},{x:30,y:30},{x:30,y:100},{x:0,y:100}];
+  ok('U আকার = ১ (পাটাতনে জোড়া)', M.countPieces(U) === 1, M.countPieces(U) + '');
+  const H = [{x:0,y:0},{x:30,y:0},{x:30,y:40},{x:70,y:40},{x:70,y:0},{x:100,y:0},
+             {x:100,y:100},{x:70,y:100},{x:70,y:60},{x:30,y:60},{x:30,y:100},{x:0,y:100}];
+  ok('H আকার = ১', M.countPieces(H) === 1, M.countPieces(H) + '');
+  const PL = [{x:30,y:0},{x:70,y:0},{x:70,y:30},{x:100,y:30},{x:100,y:70},{x:70,y:70},
+              {x:70,y:100},{x:30,y:100},{x:30,y:70},{x:0,y:70},{x:0,y:30},{x:30,y:30}];
+  ok('প্লাস চিহ্ন = ১', M.countPieces(PL) === 1, M.countPieces(PL) + '');
+
+  // সত্যিকার ভাগ হয়ে যাওয়া
+  const legs = [{x:100,y:60},{x:100,y:100},{x:70,y:100},{x:70,y:60},
+                {x:30,y:60},{x:30,y:100},{x:0,y:100},{x:0,y:60}];
+  ok('দুই পা = ২', M.countPieces(legs) === 2, M.countPieces(legs) + '');
+  const bars = [{x:0,y:0},{x:100,y:0},{x:100,y:20},{x:0,y:20},
+                {x:0,y:50},{x:100,y:50},{x:100,y:70},{x:0,y:70}];
+  ok('উপর-নিচ দুই বার = ২', M.countPieces(bars) === 2, M.countPieces(bars) + '');
+  const three = [{x:0,y:0},{x:20,y:0},{x:20,y:100},{x:0,y:100},{x:40,y:100},{x:40,y:0},
+                 {x:60,y:0},{x:60,y:100},{x:80,y:100},{x:80,y:0},{x:100,y:0},{x:100,y:100}];
+  ok('তিন স্তম্ভ = ৩', M.countPieces(three) === 3, M.countPieces(three) + '');
+
+  // ★ আসল ভাগবণ্টনে
+  const tot = M.areaPx(U) * F * F / 435.6;
+  const r = M.divideByArea(U, 's2n', [{ name: 'ক', satak: tot * 0.25 }], F);
+  ok('★ পায়ের দিক থেকে কাটলে অংশ ২ টুকরোয়',
+     r.parts[0].pieces === 2, r.parts[0].pieces + ' টুকরো');
+  ok('  অবশিষ্ট তবু এক টুকরো', r.leftover.pieces === 1, r.leftover.pieces + '');
+  ok('  res.split = ১', r.split === 1, 'split=' + r.split);
+  near('  ক্ষেত্রফল তবু ঠিক', r.parts[0].satak, tot * 0.25, 1e-6);
+  ok('  রিপোর্টে pieces যায়', M.divisionReport(r, 'দাগ ১').rows[0].pieces === 2);
+
+  // ★ অন্য দিকে কাটলে সমস্যা নেই — মিথ্যা সতর্কতা নয়
+  ['n2s', 'w2e', 'e2w'].forEach(d => {
+    const x = M.divideByArea(U, d, [{ name: 'ক', satak: tot * 0.25 }], F);
+    ok('  ' + d + ' তে সব এক টুকরো', x.split === 0, 'split=' + x.split);
+  });
+
+  const r2 = M.divideByArea(sq, 'w2e', [{ name: 'ক', satak: 5 }, { name: 'খ', satak: 5 }], F);
+  ok('বর্গে সব এক টুকরো', r2.parts.every(x => x.pieces === 1) && r2.split === 0);
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');

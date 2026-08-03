@@ -424,6 +424,151 @@ const MapMeasure = {
     return out;
   },
 
+  /* ---------------- বহুভুজ সত্যি বৈধ তো? ---------------- */
+
+  /**
+   * পরপর একই জায়গায় পড়া বিন্দু বাদ দেওয়া
+   * ডবল-ট্যাপে দুবার বসলে শূন্য দৈর্ঘ্যের বাহু তৈরি হয় — ক্ষেত্রফল ঠিক
+   * থাকলেও বাহুর তালিকায় "০'০"" আসে আর স্ব-ছেদের পরীক্ষাও গোলায়।
+   */
+  cleanPoints(pts, minDist) {
+    if (!Array.isArray(pts)) return [];
+    const d = minDist > 0 ? minDist : 1e-6;
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const last = out[out.length - 1];
+      if (last && Math.hypot(pts[i].x - last.x, pts[i].y - last.y) <= d) continue;
+      out.push(pts[i]);
+    }
+    // শেষ ও প্রথম বিন্দুও এক হতে পারে
+    while (out.length > 1) {
+      const a = out[0], b = out[out.length - 1];
+      if (Math.hypot(a.x - b.x, a.y - b.y) <= d) out.pop();
+      else break;
+    }
+    return out;
+  },
+
+  /**
+   * ★ নিজেকে কেটে যাওয়া বহুভুজ ধরা
+   *
+   * এটা কেন দরকার — কোণা ভুল ক্রমে বসলে শোয়েলেস সূত্র এক টুকরো
+   * যোগ করে আর আরেক টুকরো বিয়োগ করে — উত্তর ভুল হয়, অথচ
+   * বিশ্বাসযোগ্য দেখায়। মেপে দেখা: ৪০০×৩০০ px প্লটে একটি কোণা
+   * ভেতরে টানলে ১৩৩৩.৩৩ শতকের বদলে ১০০০.০০ দেখায় — ২৫% ভুল।
+   * পুরো উল্টে গেলে ০.০০।
+   *
+   * @returns {{i:number, j:number}|null} যে দুই বাহু কাটাকাটি করেছে
+   */
+  selfIntersects(pts) {
+    if (!Array.isArray(pts) || pts.length < 4) return null;
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      for (let j = i + 1; j < n; j++) {
+        // পাশাপাশি বাহু প্রান্তে মিলবেই — তাদের বাদ
+        if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue;
+        if (this._segCross(a, b, pts[j], pts[(j + 1) % n])) return { i, j };
+      }
+    }
+    return null;
+  },
+
+  /** দুই রেখাখণ্ড কাটাকাটি করে? (স্পর্শ ও মিশে যাওয়াও ধরা) */
+  _segCross(a, b, c, d) {
+    const cr = (o, u, v) => (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x);
+    const d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
+    // স্পষ্ট ক্রস — দুই পাশে দুই চিহ্ন
+    if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))
+        && d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0) return true;
+    // সমরেখ হয়ে ওপরে পড়া (ডুপ্লিকেট বিন্দু এখানে ধরা পড়ে)
+    const sz = Math.max(Math.hypot(b.x - a.x, b.y - a.y),
+                        Math.hypot(d.x - c.x, d.y - c.y), 1);
+    const E = 1e-9 * sz * sz;
+    const on = (u, v, q) =>
+      Math.min(u.x, v.x) - 1e-9 <= q.x && q.x <= Math.max(u.x, v.x) + 1e-9 &&
+      Math.min(u.y, v.y) - 1e-9 <= q.y && q.y <= Math.max(u.y, v.y) + 1e-9;
+    if (Math.abs(d1) <= E && on(a, b, c)) return true;
+    if (Math.abs(d2) <= E && on(a, b, d)) return true;
+    if (Math.abs(d3) <= E && on(c, d, a)) return true;
+    if (Math.abs(d4) <= E && on(c, d, b)) return true;
+    return false;
+  },
+
+  /**
+   * ★ একটি ভাগ কয় আলাদা টুকরোয় পড়লো
+   *
+   * অবতল (U বা L আকারের) প্লট সমান্তরাল রেখায় কাটলে একজন শরিকের
+   * অংশ দুই জায়গায় ছিটেফোটা পড়তে পারে — ক্ষেত্রফল ঠিক, কিন্তু বাস্তবে
+   * এক টুকরো জমি নয়। বন্টননামায় এটা জানানো দরকার।
+   *
+   * পদ্ধতি — স্ক্যানলাইন সুইপ:
+   *   ১. শীর্ষবিন্দুগুলোর y ধরে স্লাইস বানাই (বদল কেবল শীর্ষেই ঘটে)
+   *   ২. প্রতি স্লাইসে বহুভুজটি কয়টা পট্টিতে কাটে বের করি
+   *   ৩. পাশাপাশি স্লাইসের পট্টি মিললে একসাথে জোড়া লাগাই (union-find)
+   *   ৪. কতগুলো দল রইল = কত টুকরো
+   *
+   * মাঝের একটি রেখা দেখলে চলত না — U এর দুই পা মাঝে আলাদা দেখালেও
+   * নিচের পাটাতনে জোড়া থাকতে পারে। সেই ভুল এখানে হয় না।
+   *
+   * @returns {number} কতটি আলাদা টুকরো (ন্যূনতম ১)
+   */
+  countPieces(poly) {
+    if (!Array.isArray(poly) || poly.length < 3) return 0;
+    const n = poly.length;
+
+    // শীর্ষের y গুলোই ঘটনা — এর মাঝে গঠন বদলায় না
+    const ys = poly.map(q => q.y).slice().sort((a, b) => a - b);
+    const uniq = [];
+    for (let i = 0; i < ys.length; i++) {
+      if (!uniq.length || Math.abs(ys[i] - uniq[uniq.length - 1]) > 1e-9) uniq.push(ys[i]);
+    }
+    if (uniq.length < 2) return 1;
+
+    /** y রেখায় বহুভুজ কাটলে যে পট্টিগুলো পাওয়া যায় */
+    const spansAt = y => {
+      const xs = [];
+      for (let i = 0; i < n; i++) {
+        const a = poly[i], b = poly[(i + 1) % n];
+        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+          xs.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
+        }
+      }
+      xs.sort((p1, p2) => p1 - p2);
+      const out = [];
+      for (let i = 0; i + 1 < xs.length; i += 2) {
+        if (xs[i + 1] - xs[i] > 1e-9) out.push([xs[i], xs[i + 1]]);
+      }
+      return out;
+    };
+
+    const find = (par, i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+    const par = [];
+    let prev = [], prevIds = [];
+
+    for (let k = 0; k + 1 < uniq.length; k++) {
+      const spans = spansAt((uniq[k] + uniq[k + 1]) / 2);
+      const ids = spans.map(() => { par.push(par.length); return par.length - 1; });
+      // আগের স্লাইসের সাথে ওভারল্যাপ থাকলে এক দল
+      for (let i = 0; i < spans.length; i++) {
+        for (let j = 0; j < prev.length; j++) {
+          const lo = Math.max(spans[i][0], prev[j][0]);
+          const hi = Math.min(spans[i][1], prev[j][1]);
+          if (hi - lo > 1e-9) {
+            const a = find(par, ids[i]), b = find(par, prevIds[j]);
+            if (a !== b) par[a] = b;
+          }
+        }
+      }
+      prev = spans; prevIds = ids;
+    }
+
+    if (!par.length) return 1;
+    const roots = {};
+    for (let i = 0; i < par.length; i++) roots[find(par, i)] = 1;
+    return Math.max(1, Object.keys(roots).length);
+  },
+
   /**
    * বিন্দুটি বহুভুজের ভেতরে? (ray casting)
    * প্লটে ট্যাপ করে বাছাই করার জন্য দরকার।
@@ -593,7 +738,12 @@ const MapMeasure = {
           satak: (leftPx * f * f) / this.SQFT_PER_SATAK }
       : null;
 
-    return { parts, leftover, totalSatak, askedSatak: asked, angle };
+    // ★ অবতল প্লটে কারো অংশ দুই টুকরোয় পড়তে পারে — জানানো দরকার
+    parts.forEach(x => { x.pieces = this.countPieces(x.polygon); });
+    if (leftover) leftover.pieces = this.countPieces(leftover.polygon);
+    const split = parts.filter(x => x.pieces > 1).length + (leftover && leftover.pieces > 1 ? 1 : 0);
+
+    return { parts, leftover, totalSatak, askedSatak: asked, angle, split };
   },
 
   /**
@@ -604,11 +754,13 @@ const MapMeasure = {
       serial: i + 1,
       name: p.name || ('শরিক ' + (i + 1)),
       satak: p.satak,
+      pieces: p.pieces || 1,
       percent: res.totalSatak > 0 ? (p.satak / res.totalSatak) * 100 : 0
     }));
     if (res.leftover) {
       rows.push({ serial: rows.length + 1, name: 'অবশিষ্ট',
                   satak: res.leftover.satak,
+                  pieces: res.leftover.pieces || 1,
                   percent: res.totalSatak > 0 ? (res.leftover.satak / res.totalSatak) * 100 : 0 });
     }
     const sum = rows.reduce((a, b) => a + b.satak, 0);

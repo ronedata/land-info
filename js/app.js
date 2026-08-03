@@ -1340,6 +1340,16 @@ const AppController = {
     this.mmRefresh();
   },
 
+  /** নিজেকে কাটা প্লট দিয়ে ভাগ করা বা মাপ নেওয়া নিরাপদ নয় */
+  mmGuardBroken(plot) {
+    const bad = plot && MeasureCanvas.plotBroken(plot);
+    if (!bad) return false;
+    alert('এই প্লটের ' + toBn(bad.i + 1) + ' নং আর ' + toBn(bad.j + 1)
+      + ' নং বাহু একে অপরকে কেটেছে, তাই ক্ষেত্রফলই ভুল আসছে।\n\n'
+      + 'পয়েন্ট টুল দিয়ে কোণাটি ঠিক জায়গায় সরান, তারপর আবার চেষ্টা করুন।');
+    return true;
+  },
+
   mmClear() {
     if (!MeasureCanvas.state.plots.length && !MeasureCanvas.state.draft.length) return;
     if (!confirm('সব প্লট ও পয়েন্ট মুছে দেবেন?')) return;
@@ -1444,14 +1454,21 @@ const AppController = {
     box.innerHTML = plots.map((p, i) => {
       const m = MapMeasure.measure(p, k.ftPerPx);
       const sel = i === MeasureCanvas.state.selected;
-      return '<div class="mm-row' + (sel ? ' sel' : '') + '">' +
+      // নিজেকে কাটা প্লটের সংখ্যা দেখানোই বিপজ্জনক — বদলে সতর্কতা
+      const bad = MeasureCanvas.plotBroken(p);
+      return '<div class="mm-row' + (sel ? ' sel' : '') + (bad ? ' bad' : '') + '">' +
         '<span class="mm-row-n">' + toBn(i + 1) + '</span>' +
         '<input class="mm-row-dag" value="' + (p.dag || '') + '" placeholder="দাগ নং"' +
           ' oninput="AppController.mmSetDag(' + i + ', this.value)">' +
-        '<span class="mm-row-a">' +
-          (k.ftPerPx > 0 ? toBn(m.satak.toFixed(2)) + ' শতক' : '—') + '</span>' +
-        '<span class="mm-row-k">' +
-          (k.ftPerPx > 0 ? toBn(m.katha.toFixed(2)) + ' কাঠা' : '') + '</span>' +
+        (bad
+          ? '<span class="mm-row-a warn" title="' + toBn(bad.i + 1) + ' ও '
+              + toBn(bad.j + 1) + ' নং বাহু কাটাকাটি করছে">'
+              + '<i class="bi bi-exclamation-triangle-fill"></i> বাহু কাটাকাটি</span>'
+              + '<span class="mm-row-k">মাপ ধরা হয়নি</span>'
+          : '<span class="mm-row-a">' +
+            (k.ftPerPx > 0 ? toBn(m.satak.toFixed(2)) + ' শতক' : '—') + '</span>' +
+            '<span class="mm-row-k">' +
+            (k.ftPerPx > 0 ? toBn(m.katha.toFixed(2)) + ' কাঠা' : '') + '</span>') +
         '<button type="button" class="fz-btn-del" title="মুছুন"' +
           ' onclick="AppController.mmDeletePlot(' + i + ')"><i class="bi bi-x-lg"></i></button>' +
       '</div>';
@@ -1635,6 +1652,7 @@ const AppController = {
     const plot = this.mmSelPlot();
     if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
     if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    if (this.mmGuardBroken(plot)) return;
     // দিক হলে স্ট্রিং (w2e…), বাহু হলে সূচক — divideByArea দুটোই নেয়
     const raw = String((document.getElementById('mm-div-side') || {}).value || '0');
     const side = /^\d+$/.test(raw) ? Number(raw) : raw;
@@ -1661,6 +1679,7 @@ const AppController = {
     const plot = this.mmSelPlot();
     if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
     if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    if (this.mmGuardBroken(plot)) return;
     const bar = document.getElementById('mm-draw-bar');
     const hint = document.getElementById('mm-draw-hint');
     const fin = document.getElementById('mm-finish');
@@ -1723,7 +1742,11 @@ const AppController = {
         '<tr' + (r.name === 'অবশিষ্ট' ? ' class="left"' : '') + '>' +
           '<td><span class="mm-div-dot" style="background:' + this.mmDivColor(i) + '"></span>' +
             toBn(r.serial) + '</td>' +
-          '<td>' + r.name + '</td>' +
+          '<td>' + r.name +
+            // ★ অবতল প্লটে কারো অংশ দুই টুকরোয় পড়তে পারে
+            (r.pieces > 1 ? ' <span class="mm-div-split" title="এই অংশটি এক টুকরো নয়">'
+              + '<i class="bi bi-exclamation-triangle-fill"></i> '
+              + toBn(r.pieces) + ' টুকরো</span>' : '') + '</td>' +
           '<td class="num">' + toBn(r.satak.toFixed(2)) + ' শতক</td>' +
           '<td class="num">' + toBn(r.percent.toFixed(2)) + '%</td>' +
         '</tr>').join('') +
@@ -1735,6 +1758,12 @@ const AppController = {
       (rep.exact
         ? '<p class="mm-div-ok"><i class="bi bi-check-circle"></i> যোগফল মূল প্লটের সাথে হুবহু মিলেছে।</p>'
         : '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> যোগফল মিলছে না — আবার দেখুন।</p>') +
+      (rep.rows.some(r => r.pieces > 1)
+        ? '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> '
+          + 'প্লটটি অবতল (কোণা ভেতরের দিকে ঢোকা), তাই কারো কারো অংশ <b>এক টুকরোয় পড়েনি</b>। '
+          + 'ক্ষেত্রফল ঠিক আছে, কিন্তু জমি দু জায়গায় ছড়িয়ে থাকবে — অন্য বাহু বা '
+          + 'দিক বেছে আবার ভাগ করে দেখুন।</p>'
+        : '') +
       '<button type="button" class="btn btn-outline btn-sm" onclick="AppController.mmCopyReport()">' +
         '<i class="bi bi-clipboard"></i> রিপোর্ট কপি করুন</button>';
     this.mm.lastReport = rep;
