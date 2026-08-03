@@ -557,7 +557,7 @@
             <!-- আঁকার সময় নিচের বার -->
             <div class="mm-draw-bar" id="mm-draw-bar" style="display:none">
               <span id="mm-draw-hint">ম্যাপে ক্লিক করে পয়েন্ট বসান</span>
-              <button type="button" class="kmz-mini" onclick="AppController.mmUndoPoint()">শেষ পয়েন্ট মুছুন</button>
+              <button type="button" class="kmz-mini" id="mm-undo" onclick="AppController.mmUndoPoint()">শেষ পয়েন্ট মুছুন</button>
               <button type="button" class="kmz-mini" onclick="AppController.mmCancelDraft()">বাতিল</button>
               <button type="button" class="btn btn-primary btn-sm" id="mm-finish"
                       onclick="AppController.mmFinish()" disabled>
@@ -726,14 +726,23 @@
 
               <div class="mm-method alt">
                 <h5>পদ্ধতি ২ — ম্যাপ থেকে মাপুন <span>(সর্বোচ্চ নিখুঁত)</span></h5>
-                <p class="kmz-hint">নকশায় আঁকা স্কেল-দণ্ডের দুই প্রান্তে ক্লিক করুন,
-                   তারপর ওই দূরত্ব কত ফুট তা লিখুন।</p>
+                <p class="kmz-hint">
+                  <b>যেভাবে হয় —</b> নিচে দৈর্ঘ্যটা বেছে নিন, তারপর বোতামে চাপ দিন।
+                  এই বাক্স বন্ধ হয়ে যাবে, আর নকশার উপর <b>দুই জায়গায় ক্লিক</b>
+                  করতে বলবে। ওই দুই বিন্দুর মাঝের আসল দূরত্বই হবে বেছে নেওয়া মাপ।
+                </p>
+                <p class="kmz-hint">
+                  <b>কোন দুই বিন্দু?</b> নকশার নিচে/পাশে আঁকা <b>স্কেল-দণ্ড</b>
+                  থাকলে তার দুই প্রান্ত সবচেয়ে ভালো। না থাকলে <b>যেকোনো চেনা
+                  দূরত্ব</b> চলবে — যেমন যে দাগের মাপ আপনি খতিয়ান থেকে জানেন,
+                  তার দুই কোণা। জুম করে নিলে আরও নিখুঁত হয়।
+                </p>
                 <div class="fz-field">
-                  <div class="fz-field-label"><span>দণ্ডের দৈর্ঘ্য</span></div>
+                  <div class="fz-field-label"><span>দুই ক্লিকের মাঝের আসল দূরত্ব</span></div>
                   <div class="fz-input-wrap fz-select-wrap"><select id="mm-barlen"></select></div>
                 </div>
                 <button type="button" class="btn btn-purple" onclick="AppController.mmStartCalibrate()">
-                  <i class="bi bi-pencil"></i> ম্যাপ থেকে ক্যালিব্রেট করুন
+                  <i class="bi bi-pencil"></i> শুরু করুন — নকশায় ২টি ক্লিক
                 </button>
               </div>
             </div>

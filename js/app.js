@@ -1278,9 +1278,15 @@ const AppController = {
     if (!bar || !hint || !k.calibrating) return;
     bar.style.display = '';
     if (fin) fin.style.display = 'none';
-    hint.innerHTML = '<b>স্কেল ক্যালিব্রেশন —</b> দণ্ডটি ' + toBn(k.calibrating.feet)
-      + ' ফুট। ' + (done === 0 ? '<b>প্রথম</b>' : '<b>দ্বিতীয়</b>')
-      + ' প্রান্তে ক্লিক করুন (' + toBn(done) + '/২)';
+    // ক্যালিব্রেশনে "শেষ পয়েন্ট মুছুন" এর কোনো অর্থ নেই
+    const un = document.getElementById('mm-undo');
+    if (un) un.style.display = 'none';
+    const touch = matchMedia('(pointer: coarse)').matches;
+    hint.innerHTML = '<b>স্কেল ঠিক করা —</b> দুই ক্লিকের মাঝের দূরত্ব <b>'
+      + toBn(k.calibrating.feet) + ' ফুট</b>। '
+      + (done === 0 ? '<b>১ম</b>' : '<b>২য়</b>') + ' বিন্দুতে '
+      + (touch ? 'চাপ দিন' : 'ক্লিক করুন')
+      + ' (' + toBn(done) + '/২) · ভুল হলে বাতিল';
   },
 
   mmFinishCalibrate(p1, p2) {
@@ -1288,6 +1294,8 @@ const AppController = {
     const bar = document.getElementById('mm-draw-bar');
     const fin = document.getElementById('mm-finish');
     if (fin) fin.style.display = '';
+    const un = document.getElementById('mm-undo');
+    if (un) un.style.display = '';
     const feet = k.calibrating ? k.calibrating.feet : 0;
     try {
       const r = MapMeasure.calibrate(p1, p2, feet);
@@ -1299,6 +1307,21 @@ const AppController = {
       if (bar) bar.style.display = 'none';
       this.mmTool('pan');
       this.mmRefresh();
+
+      /* ★ ক্যালিব্রেশনের ভুল সবচেয়ে ব্যয়বহুল — একবার ভুল হলে পরের
+         প্রতিটি মাপে সেটা গুণ হয়ে বসে। দুই ক্লিক পর্দায় যত কম পিক্সেল
+         দূরে, ভুলের হার তত বেশি (১ পিক্সেল এদিক-ওদিক ÷ মোট পিক্সেল)।
+         তাই কম হলে বলে দিই, আর সংখ্যাটাও দেখাই। */
+      const spanPx = r.pxLength * (MeasureCanvas.state.scale || 1);
+      if (spanPx < 150) {
+        const err = (100 / Math.max(spanPx, 1)).toFixed(1);
+        alert('স্কেল বসেছে, কিন্তু দুই ক্লিক পর্দায় মাত্র '
+          + toBn(Math.round(spanPx)) + ' পিক্সেল দূরে ছিল।\n\n'
+          + 'এক পিক্সেল এদিক-ওদিক হলেই স্কেলে প্রায় ' + toBn(err)
+          + '% ভুল — আর সেই ভুল পরের সব মাপে গুণ হয়ে বসবে।\n\n'
+          + 'ভালো হয় যদি জুম করে (+ বোতাম বা দুই আঙুলে) আবার '
+          + 'ক্যালিব্রেট করেন — দুই বিন্দু পর্দাজুড়ে যত দূরে, তত নিখুঁত।');
+      }
     } catch (e) {
       k.calibrating = null;
       if (bar) bar.style.display = 'none';
@@ -1363,7 +1386,24 @@ const AppController = {
   },
 
   mmUndoPoint() { MeasureCanvas.undoDraftPoint(); },
-  mmCancelDraft() { MeasureCanvas.cancelDraft(); },
+  /**
+   * "বাতিল" — যা চলছিল তাই থামায়
+   * ★ আগে কেবল খসড়া মুছত। ক্যালিব্রেশন শুরু করে ফেললে বেরোনোর কোনো পথই
+   *   ছিল না (cancelCalibrate লেখা থাকলেও কোথাও বাঁধা ছিল না)।
+   */
+  mmCancelDraft() {
+    if (this.mm.calibrating) {
+      this.mm.calibrating = null;
+      MeasureCanvas.cancelCalibrate();
+      const bar = document.getElementById('mm-draw-bar');
+      if (bar) bar.style.display = 'none';
+      const un = document.getElementById('mm-undo');
+      if (un) un.style.display = '';
+      this.mmRefresh();
+      return;
+    }
+    MeasureCanvas.cancelDraft();
+  },
 
   mmFinish() {
     const r = MeasureCanvas.closePlot();
