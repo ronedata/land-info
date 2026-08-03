@@ -1962,6 +1962,9 @@
 .kmz-search-row { gap: 5px; }
 .kmz-search-row .kmz-mini { padding: 4px 9px; }
 .kmz-mini.busy { opacity: 0.6; }
+.kmz-mini.danger { border-color: #fca5a5; color: #b91c1c; }
+.kmz-mini.danger:hover:not(:disabled) { border-color: #ef4444; background: #fef2f2; color: #b91c1c; }
+.kmz-mini:disabled { opacity: 0.45; cursor: not-allowed; }
 .kmz-mini i { font-size: 0.9rem; }
 
 .kmz-geo {

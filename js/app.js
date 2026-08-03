@@ -1285,6 +1285,20 @@ const AppController = {
       b.classList.toggle('active', b.dataset.tool === t));
     const bar = document.getElementById('mm-draw-bar');
     if (bar) bar.style.display = t === 'draw' ? '' : 'none';
+    const pb = document.getElementById('mm-pt-bar');
+    if (pb) pb.style.display = t === 'point' ? '' : 'none';
+    if (t !== 'point') MeasureCanvas.state.picked = null;
+    this.mmRefresh();
+  },
+
+  /** পয়েন্ট টুলে বাছাই করা কোণা মুছে ফেলা */
+  mmDelVertex() {
+    const p = MeasureCanvas.state.picked;
+    if (!p) return;
+    if (!MeasureCanvas.deleteVertex(p.plot, p.index)) {
+      alert('একটি প্লটে অন্তত ৩টি বিন্দু থাকতেই হবে — আর মোছা যাবে না।');
+      return;
+    }
     this.mmRefresh();
   },
 
@@ -1383,9 +1397,31 @@ const AppController = {
     const hint = document.getElementById('mm-draw-hint');
     if (hint && !k.calibrating) {
       const n = MeasureCanvas.state.draft.length;
-      hint.textContent = n === 0 ? 'ম্যাপে ক্লিক করে পয়েন্ট বসান'
+      // আঙুলে নিয়ম আলাদা — এক আঙুল বিন্দু বসায়, দুই আঙুল সরায়/জুম করে
+      const touch = matchMedia('(pointer: coarse)').matches;
+      hint.textContent = n === 0
+        ? (touch ? 'আঙুল চেপে ধরুন — আতশকাচে দেখে ছাড়লেই বিন্দু · দুই আঙুলে সরান ও জুম'
+                 : 'ম্যাপে ক্লিক করে পয়েন্ট বসান · টেনে সরান, স্ক্রলে জুম')
         : n < 3 ? toBn(n) + 'টি পয়েন্ট — অন্তত ৩টি দরকার'
-        : toBn(n) + 'টি পয়েন্ট — প্রথম পয়েন্টে ক্লিক করলেও প্লট বন্ধ হবে';
+        : toBn(n) + 'টি পয়েন্ট — প্রথম পয়েন্টে ' + (touch ? 'চাপ দিলেই' : 'ক্লিক করলেও')
+          + ' প্লট বন্ধ হবে';
+    }
+
+    // পয়েন্ট এডিট — কোণা বাছা থাকলে মোছার বোতাম সচল
+    const del = document.getElementById('mm-pt-del');
+    const pth = document.getElementById('mm-pt-hint');
+    if (del) {
+      const pk = MeasureCanvas.state.picked;
+      const plot = pk ? MeasureCanvas.state.plots[pk.plot] : null;
+      del.disabled = !plot || plot.points.length <= 3;
+      if (pth) {
+        pth.textContent = !plot
+          ? 'কোণার বিন্দু ধরে টানুন · বাহুর গায়ে চাপ দিলে নতুন বিন্দু'
+          : (plot.points.length <= 3
+              ? 'ত্রিভুজে আর বিন্দু মোছা যায় না'
+              : (plot.dag ? 'দাগ ' + plot.dag : plot.name) + ' — '
+                + toBn(pk.index + 1) + ' নং কোণা বাছা হয়েছে');
+      }
     }
 
     this.mmRenderList();

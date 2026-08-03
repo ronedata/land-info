@@ -35,6 +35,10 @@ const MeasureCanvas = {
       start: null,          // যেখানে আঙুল নামল
       panning: false,       // সীমা পেরিয়ে সত্যিই টানা শুরু হয়েছে?
       gesture: false,       // ইশারাটা ক্যানভাসেই শুরু হয়েছিল তো?
+      pinch: null,          // দুই আঙুলের ইশারা — {d0, c0, scale0}
+      picked: null,         // পয়েন্ট টুলে বাছাই করা শীর্ষবিন্দু {plot, index}
+      lens: null,           // আতশকাচ — {x, y} ক্যানভাস স্থানাঙ্কে
+      touch: false,         // এই ইশারাটা আঙুলে না মাউসে
       calib: null,            // {pts:[], cb}
       division: null,         // ভাগবণ্টনের ফল — আলাদা রঙে আঁকা হয়
       labelUnit: 'ftin',      // বাহুর লেবেল কোন এককে — MapMeasure.LABEL_UNITS
@@ -175,6 +179,24 @@ const MeasureCanvas = {
    */
   TAP_SLOP: 9,
 
+  /** বাহুর গায়ে কত কাছে ক্লিক করলে নতুন বিন্দু বসবে (CSS px) */
+  EDGE_HIT: 9,
+
+  /** আতশকাচ — ব্যাসার্ধ ও কত গুণ বড় */
+  LENS_R: 62,
+  LENS_ZOOM: 3.5,
+
+  /**
+   * ★ আঙুল দিয়ে আঁকার সময় এক আঙুলে ছবি সরে না
+   *
+   * পর্দায় আঙুলের ডগা ~৪৫px চওড়া, অথচ নকশা জুম-আউটে ১px = ১২ ফুট।
+   * তাই "চেপে ধরো → আতশকাচে দেখে জায়গা ঠিক করো → ছাড়ো" — এই পথই
+   * নির্ভুল। সরানো-জুম দুই আঙুলে। মাউসে পুরনো নিয়মই থাকে।
+   */
+  _touchDraws(s) {
+    return s.touch && (s.calib || s.tool === 'draw');
+  },
+
   _bind() {
     const s = this.state, c = s.canvas;
     if (c._mcBound) return;
@@ -187,9 +209,15 @@ const MeasureCanvas = {
       s.gesture = true;
       if (s.tool === 'point') {
         const hit = this.hitVertex(p);
-        if (hit) { s.dragPt = hit; return; }
+        if (hit) {
+          s.dragPt = hit; s.picked = hit; s.lens = p;
+          this.draw();
+          if (s.onSelect) s.onSelect(s.selected);   // মোছার বোতাম সচল হবে
+          return;
+        }
       }
       s.drag = p;
+      if (this._touchDraws(s)) { s.lens = p; this.draw(); }
       if (s.tool === 'pan') { s.panning = true; c.style.cursor = 'grabbing'; }
     };
 
@@ -198,11 +226,19 @@ const MeasureCanvas = {
       if (s.dragPt) {                       // শীর্ষবিন্দু টানা
         const ip = this.toImage(p.x, p.y);
         s.plots[s.dragPt.plot].points[s.dragPt.index] = ip;
+        s.lens = p;
         this.draw(); this._changed();
         if (ev.cancelable) ev.preventDefault();
         return;
       }
       if (!s.drag) return;
+      // আঙুলে আঁকার সময় ছবি নড়বে না — কেবল আতশকাচ সরে
+      if (this._touchDraws(s)) {
+        s.lens = p; s.drag = p;
+        this.draw();
+        if (ev.cancelable) ev.preventDefault();
+        return;
+      }
       // আঁকা/নির্বাচনের টুলে সীমা পেরোনোর আগে ছবি নড়বে না
       if (!s.panning) {
         if (Math.hypot(p.x - s.start.x, p.y - s.start.y) <= this.TAP_SLOP) return;
@@ -219,14 +255,19 @@ const MeasureCanvas = {
 
     const up = ev => {
       // ইশারা ক্যানভাসের বাইরে শুরু হলে (mouseup window এ বাঁধা) কিছুই করব না
-      if (!s.gesture) { s.dragPt = null; s.drag = null; s.panning = false; return; }
+      if (!s.gesture) {
+        s.dragPt = null; s.drag = null; s.panning = false; s.lens = null;
+        return;
+      }
       const p0 = this._pos(ev);
-      const wasDrag = !s.start
-        || Math.hypot(p0.x - s.start.x, p0.y - s.start.y) > this.TAP_SLOP;
+      // আঙুলে আঁকার সময় সরানোটাই স্বাভাবিক — যেখানে ছাড়লেন সেখানেই বিন্দু
+      const wasDrag = this._touchDraws(s) ? false
+        : (!s.start || Math.hypot(p0.x - s.start.x, p0.y - s.start.y) > this.TAP_SLOP);
       const hadPt = !!s.dragPt;
       s.dragPt = null; s.drag = null; s.panning = false; s.gesture = false;
+      s.lens = null;
       if (s.tool === 'pan') c.style.cursor = 'grab';
-      if (wasDrag || hadPt) return;
+      if (wasDrag || hadPt) { this.draw(); return; }
 
       const p = p0;
 
@@ -265,29 +306,119 @@ const MeasureCanvas = {
       }
     };
 
-    c.addEventListener('mousedown', down);
+    /* ---------- দুই আঙুলের ইশারা — চিমটিতে জুম, একসাথে সরানো ---------- */
+
+    const twoPts = t => [this._pos(t[0]), this._pos(t[1])];
+    const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+    const pinchStart = e => {
+      const [a, b] = twoPts(e.touches);
+      s.pinch = { d0: Math.max(1, gap(a, b)), c0: mid(a, b), scale0: s.scale };
+      // চিমটি শুরু হলে এক আঙুলের হিসাব বাতিল — নইলে ছেড়ে দিলে বিন্দু পড়ত
+      s.gesture = false; s.drag = null; s.dragPt = null; s.panning = false;
+    };
+
+    const pinchMove = e => {
+      if (!s.pinch) return;
+      const [a, b] = twoPts(e.touches);
+      const cNow = mid(a, b);
+      // ১. আঙুলের ফাঁক যত বেড়েছে তত জুম — মাঝবিন্দু ধরে
+      const f = Math.max(1, gap(a, b)) / s.pinch.d0;
+      const want = Math.max(0.02, Math.min(60, s.pinch.scale0 * f));
+      const before = this.toImage(s.pinch.c0.x, s.pinch.c0.y);
+      s.scale = want;
+      const after = this.toCanvas(before.x, before.y);
+      s.off.x += s.pinch.c0.x - after.x;
+      s.off.y += s.pinch.c0.y - after.y;
+      // ২. মাঝবিন্দু যতটা সরেছে ছবিও ততটা
+      s.off.x += cNow.x - s.pinch.c0.x;
+      s.off.y += cNow.y - s.pinch.c0.y;
+      s.pinch.c0 = cNow;
+      this.draw();
+      if (s.onView) s.onView();
+      if (e.cancelable) e.preventDefault();
+    };
+
+    c.addEventListener('mousedown', ev => { s.touch = false; down(ev); });
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
-    c.addEventListener('touchstart', e => down(e.touches[0]), { passive: true });
-    c.addEventListener('touchmove', e => move(e.touches[0]), { passive: false });
-    c.addEventListener('touchend', e => up(e.changedTouches[0]));
-    c.addEventListener('dblclick', () => { if (s.tool === 'draw') this.closePlot(); });
+
+    c.addEventListener('touchstart', e => {
+      s.touch = true;
+      if (e.touches.length >= 2) { pinchStart(e); return; }
+      down(e.touches[0]);
+    }, { passive: true });
+
+    c.addEventListener('touchmove', e => {
+      if (e.touches.length >= 2) { pinchMove(e); return; }
+      if (s.pinch) { if (e.cancelable) e.preventDefault(); return; }  // আঙুল উঠছে
+      move(e.touches[0]);
+    }, { passive: false });
+
+    c.addEventListener('touchend', e => {
+      if (s.pinch) {
+        // সব আঙুল না ওঠা পর্যন্ত চিমটির অবস্থাই থাকুক — বিন্দু পড়বে না
+        if (e.touches.length === 0) s.pinch = null;
+        else if (e.touches.length >= 2) pinchStart(e);
+        return;
+      }
+      up(e.changedTouches[0]);
+    });
+    c.addEventListener('touchcancel', () => {
+      s.pinch = null; s.gesture = false; s.drag = null; s.dragPt = null;
+      s.panning = false; s.lens = null; this.draw();
+    });
+
+    c.addEventListener('dblclick', ev => {
+      if (s.tool === 'draw') { this.closePlot(); return; }
+      // পয়েন্ট টুলে শীর্ষবিন্দুতে ডাবল-ক্লিক = মুছে ফেলা
+      if (s.tool === 'point') {
+        const h = this.hitVertex(this._pos(ev));
+        if (h) this.deleteVertex(h.plot, h.index);
+      }
+    });
     c.addEventListener('wheel', ev => {
       ev.preventDefault();
       this.zoomAt(this._pos(ev), ev.deltaY < 0 ? 1.18 : 1 / 1.18);
     }, { passive: false });
   },
 
-  /** বাহুর উপর ক্লিক করলে সেখানে নতুন শীর্ষবিন্দু বসায় */
+  /**
+   * শীর্ষবিন্দু মুছে ফেলা — ৩ এর নিচে নামতে দেওয়া হয় না
+   * @returns {boolean} মুছতে পারলে true
+   */
+  deleteVertex(plotIndex, index) {
+    const s = this.state;
+    const p = s.plots[plotIndex];
+    if (!p || index < 0 || index >= p.points.length) return false;
+    if (p.points.length <= 3) return false;      // ত্রিভুজই সবচেয়ে ছোট প্লট
+    p.points.splice(index, 1);
+    s.picked = null;
+    this.draw(); this._changed();
+    return true;
+  },
+
+  /**
+   * বাহুর উপর ক্লিক করলে সেখানে নতুন শীর্ষবিন্দু বসায়
+   *
+   * ★ ক্রম গুরুত্বপূর্ণ — নির্বাচিত প্লট আগে, তারপর উপর থেকে নিচে।
+   *   `hitVertex` উপর থেকে খোঁজে; এখানে নিচ থেকে খুঁজলে দুই প্লট এক
+   *   জায়গায় থাকলে বিন্দু ভুল প্লটে বসত।
+   */
   _insertOnEdge(cp) {
     const s = this.state;
-    for (let pi = 0; pi < s.plots.length; pi++) {
+    const order = [];
+    if (s.selected >= 0 && s.selected < s.plots.length) order.push(s.selected);
+    for (let i = s.plots.length - 1; i >= 0; i--) if (i !== s.selected) order.push(i);
+    for (let oi = 0; oi < order.length; oi++) {
+      const pi = order[oi];
       const pts = s.plots[pi].points;
       for (let i = 0; i < pts.length; i++) {
         const a = this.toCanvas(pts[i].x, pts[i].y);
         const b = this.toCanvas(pts[(i + 1) % pts.length].x, pts[(i + 1) % pts.length].y);
         const d = this._distToSeg(cp, a, b);
-        if (d <= 7) {
+        if (d <= this.EDGE_HIT) {
           pts.splice(i + 1, 0, this.toImage(cp.x, cp.y));
           return true;
         }
@@ -397,6 +528,87 @@ const MeasureCanvas = {
     if (s.division) this._drawDivision();
     if (s.draft.length) this._drawDraft();
     if (s.calib) this._drawCalib();
+    if (s.picked) this._drawPicked();
+    if (s.lens) this._drawLens();
+  },
+
+  /** পয়েন্ট টুলে বাছাই করা শীর্ষবিন্দু — মোছা যায় বোঝাতে */
+  _drawPicked() {
+    const s = this.state, ctx = s.ctx;
+    const p = s.plots[s.picked.plot];
+    if (!p || !p.points[s.picked.index]) { s.picked = null; return; }
+    const q = this.toCanvas(p.points[s.picked.index].x, p.points[s.picked.index].y);
+    ctx.beginPath(); ctx.arc(q.x, q.y, 9, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.stroke();
+  },
+
+  /**
+   * ★ আতশকাচ — আঙুলের নিচে যা ঢাকা পড়ে তা কোণে বড় করে দেখায়
+   *
+   * কৌশল: `scale`/`off` সাময়িকভাবে বদলে দিই, তাই `toCanvas` ব্যবহার করা
+   * সব আঁকার কোড কোনো বদল ছাড়াই বড় হয়ে বসে। শেষে আগেরটা ফিরিয়ে দিই।
+   */
+  _drawLens() {
+    const s = this.state, ctx = s.ctx;
+    const R = this.LENS_R;
+    if (s.viewW < R * 2 + 40 || s.viewH < R * 2 + 40) return;
+    // আঙুল যে পাশে, আতশকাচ তার উল্টো পাশে
+    const cx = s.lens.x < s.viewW / 2 ? s.viewW - R - 14 : R + 14;
+    const cy = s.lens.y < s.viewH / 2 ? s.viewH - R - 14 : R + 14;
+
+    const ip = this.toImage(s.lens.x, s.lens.y);
+    const sc0 = s.scale, off0 = { x: s.off.x, y: s.off.y };
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+
+    s.scale = sc0 * this.LENS_ZOOM;
+    s.off.x = cx - ip.x * s.scale;
+    s.off.y = cy - ip.y * s.scale;
+    if (s.img) {
+      ctx.imageSmoothingEnabled = false;   // দাগ যেন গুলিয়ে না যায়
+      ctx.drawImage(s.img, s.off.x, s.off.y,
+                    s.img.width * s.scale, s.img.height * s.scale);
+      ctx.imageSmoothingEnabled = true;
+    }
+    this._lensOutlines();
+    s.scale = sc0; s.off = off0;
+    ctx.restore();
+
+    // বেড়া ও ঠিক মাঝখানে ক্রসহেয়ার
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(15,23,42,0.55)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - 11, cy); ctx.lineTo(cx + 11, cy);
+    ctx.moveTo(cx, cy - 11); ctx.lineTo(cx, cy + 11);
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ef4444'; ctx.stroke();
+  },
+
+  /** আতশকাচের ভেতরে কেবল রেখা — লেবেল দিলে ভিড় হয়ে যেত */
+  _lensOutlines() {
+    const s = this.state, ctx = s.ctx;
+    const line = (pts, closed, color) => {
+      if (!pts.length) return;
+      ctx.beginPath();
+      pts.forEach((q, i) => {
+        const t = this.toCanvas(q.x, q.y);
+        i ? ctx.lineTo(t.x, t.y) : ctx.moveTo(t.x, t.y);
+      });
+      if (closed) ctx.closePath();
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+      pts.forEach(q => {
+        const t = this.toCanvas(q.x, q.y);
+        ctx.beginPath(); ctx.arc(t.x, t.y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+      });
+    };
+    s.plots.forEach((p, i) => line(p.points, true,
+      i === s.selected ? '#1d4ed8' : 'rgba(29,78,216,0.55)'));
+    line(s.draft, false, '#059669');
+    if (s.calib && s.calib.pts.length) line(s.calib.pts, false, '#7c3aed');
   },
 
   /** ভাগবণ্টনের অংশগুলো — প্রতিটি আলাদা রঙে, ভেতরে নাম ও শতক */
@@ -522,25 +734,48 @@ const MeasureCanvas = {
     return this.state.labelUnit;
   },
 
-  /** বাহুর মাপ — ডিফল্ট ৬০'১" ধাঁচে, একক বদলানো যায় */
+  /** বাহুতে লেবেল বসানোর সবচেয়ে ছোট দৈর্ঘ্য (CSS px) */
+  MIN_LABEL_PX: 18,
+
+  /**
+   * বাহুর মাপ — ডিফল্ট ৬০'১" ধাঁচে, একক বদলানো যায়
+   *
+   * ★ আগে ৩৪px এর ছোট বাহুতে কিছুই দেখাত না। ফিট-জুমে ৩৫০ ফুটের বাহুও
+   *   ৩০px হয়, ফলে প্লট এঁকে ইউজার কোনো মাপই দেখতেন না। এখন জায়গা কম
+   *   হলে লেখা ছোট হয়, তাতেও না ধরলে সংক্ষিপ্ত রূপ (ইঞ্চি বাদ) বসে।
+   */
   _edgeLabels(pts, cps, closed) {
     const s = this.state, ctx = s.ctx;
     const n = closed === false ? pts.length - 1 : pts.length;
-    ctx.font = '600 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i < n; i++) {
       const a = cps[i], b = cps[(i + 1) % cps.length];
       const len = Math.hypot(b.x - a.x, b.y - a.y);
-      if (len < 34) continue;                      // ছোট বাহুতে লেবেল বসে না
+      if (len < this.MIN_LABEL_PX) continue;
       const ft = MapMeasure.dist(pts[i], pts[(i + 1) % pts.length]) * s.ftPerPx;
-      const txt = MapMeasure.formatLength(ft, s.labelUnit);
+
+      // বড় লেখা → ছোট লেখা → সংক্ষিপ্ত রূপ, যেটা আগে বাহুতে ধরে
+      let txt = '', fs = 11;
+      const full = MapMeasure.formatLength(ft, s.labelUnit);
+      const short = s.labelUnit === 'ftin'
+        ? MapMeasure.formatLength(ft, 'ft') : full;
+      const tries = [[full, 11], [full, 9.5], [short, 9.5]];
+      for (let t = 0; t < tries.length; t++) {
+        ctx.font = '600 ' + tries[t][1] + 'px sans-serif';
+        if (ctx.measureText(tries[t][0]).width + 8 <= len || t === tries.length - 1) {
+          txt = tries[t][0]; fs = tries[t][1];
+          break;
+        }
+      }
+      ctx.font = '600 ' + fs + 'px sans-serif';
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const w = ctx.measureText(txt).width + 8;
+      const h = fs + 7;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillRect(mx - w / 2, my - 9, w, 18);
+      ctx.fillRect(mx - w / 2, my - h / 2, w, h);
       ctx.strokeStyle = 'rgba(29,78,216,0.35)'; ctx.lineWidth = 1;
-      ctx.strokeRect(mx - w / 2, my - 9, w, 18);
+      ctx.strokeRect(mx - w / 2, my - h / 2, w, h);
       ctx.fillStyle = '#1e293b';
       ctx.fillText(txt, mx, my);
     }

@@ -565,6 +565,15 @@
               </button>
             </div>
 
+            <!-- পয়েন্ট এডিটের বার -->
+            <div class="mm-draw-bar" id="mm-pt-bar" style="display:none">
+              <span id="mm-pt-hint">কোণার বিন্দু ধরে টানুন · বাহুর গায়ে চাপ দিলে নতুন বিন্দু</span>
+              <button type="button" class="kmz-mini danger" id="mm-pt-del"
+                      onclick="AppController.mmDelVertex()" disabled>
+                <i class="bi bi-x-circle"></i> এই বিন্দু মুছুন
+              </button>
+            </div>
+
             <!-- নিচে-বাঁয়ে তিন টাইল -->
             <div class="mm-tiles" id="mm-tiles" style="display:none">
               <div class="mm-tile"><b id="mm-t-cur">০ শতক</b><span>বর্তমান প্লট</span></div>
