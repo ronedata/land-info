@@ -2645,3 +2645,64 @@
 }
 .mm-div-ok { color: var(--secondary); }
 .mm-div-bad { color: var(--danger); }
+
+/* ==========================================================================
+   বোতামের ভিত্তি ক্লাস
+   --------------------------------------------------------------------------
+   `.btn-primary` ও `.btn-secondary` css/style.css এ আগে থেকেই ছিল, কিন্তু
+   `.btn` (ভিত্তি) ও `.btn-outline` কখনো সংজ্ঞায়িত হয়নি — তবু index.html এ
+   ব্যবহৃত হচ্ছিল, ফলে ব্রাউজারের ডিফল্ট বোতাম দেখাত।
+   ========================================================================== */
+
+/* ⚠️ `.btn` কেবল **বিন্যাস** দেয় — রং নয়।
+   `.btn-primary` আছে css/style.css এ, আর faraiz.css পরে লোড হয়। এখানে
+   background/color দিলে সমান স্পেসিফিসিটিতে পরেরটা জিতে যেত ও primary
+   বোতামও সাদা হয়ে যেত (একবার হয়েছিল)। রং প্রতিটি ভেরিয়েন্টের নিজের। */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;                 /* টাচ টার্গেট */
+  min-width: 0;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn i { font-size: 1rem; }
+
+.btn-outline {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.btn-sm { min-height: 36px; padding: 6px 13px; font-size: 0.84rem; }
+
+/* গাঢ় বারের ভেতরে (যেমন আঁকার বার) outline বোতাম */
+.mm-draw-bar .btn-outline,
+.kmz-nav .btn-outline {
+  background: transparent;
+}
+.mm-draw-bar .btn-outline {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  border-color: transparent;
+}
+.mm-draw-bar .btn-outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}

@@ -23,8 +23,26 @@ const MapMeasure = {
   /* ---------------- ধ্রুবক ---------------- */
 
   SQFT_PER_SATAK: 435.6,          // ১ শতক = ৪৩৫.৬ বর্গফুট (স্থির)
-  FT_PER_CHAIN: 66,               // ১ চেইন = ৬৬ ফুট
-  FT_PER_MILE: 5280,
+  FT_PER_CHAIN: 66,               // ১ চেইন (গান্টার শিকল) = ৬৬ ফুট = ১০০ লিংক
+  FT_PER_MILE: 5280,              // ১৭৬০ গজ × ৩
+
+  /* ---------------- গুনিয়া / লিংক ব্যবস্থা ----------------
+     আমিনরা মৌজা নকশায় **লিংক** এককে মাপেন, ফুটে নয়।
+        ১ লিংক  = ০.৬৬ ফুট = ৭.৯২ ইঞ্চি
+        ১০০ লিংক = ১ গান্টার শিকল = ৬৬ ফুট
+        ৮০০০ লিংক = ১ মাইল
+        ★ ১০০০ বর্গ লিংক = ১ শতক   (০.৬৬² × ১০০০ = ৪৩৫.৬ বর্গফুট ✓)
+        ১,০০,০০০ বর্গ লিংক = ১ একর
+     উৎস: landregistrationbd.com — "গুনিয়া স্কেলে মৌজা ম্যাপ থেকে জমি পরিমাপ"
+     ⚠️ ওই লেখায় "৬২৮০ ফুটে ১ মাইল" ছাপার ভুল; আসলে ৫২৮০ (১৭৬০ গজ × ৩)।
+        ৫২৮০ ÷ ৮০০০ = ০.৬৬ — ওদেরই দেওয়া লিংকের মানের সাথে মেলে।
+  */
+  FT_PER_LINK: 0.66,
+  LINK_PER_MILE: 8000,
+  SQLINK_PER_SATAK: 1000,
+
+  /** গুনিয়া স্কেলে ১ ইঞ্চিতে ২৫টি বড় দাগ থাকে */
+  GUNIA_MARKS_PER_INCH: 25,
 
   /** নকশায় প্রচলিত স্কেল-দণ্ডের দৈর্ঘ্য (ফুট) — ইউজার বদলাতে পারবেন */
   COMMON_SCALES: [
@@ -38,14 +56,21 @@ const MapMeasure = {
    * মৌজা নকশার প্রচলিত স্কেল — "কত ইঞ্চিতে কত ফুট"
    * বাংলাদেশে সবচেয়ে প্রচলিত ১৬ ইঞ্চি = ১ মাইল, অর্থাৎ ইঞ্চিপ্রতি ৩৩০ ফুট।
    */
+  /**
+   * বাংলাদেশের মৌজা নকশায় প্রচলিত স্কেল — ইঞ্চি প্রতি মাইল
+   * (গুনিয়া স্কেলের আর্টিকেল অনুযায়ী ১৬ · ৩২ · ৬৪ · ৮০ — এগুলোই বাস্তবে চলে)
+   * প্রতিটির সাথে গুনিয়া স্কেলের পাঠও দেওয়া হলো, কারণ আমিনরা ওভাবেই পড়েন।
+   */
   MAP_SCALES: [
-    { ftPerInch: 5280 / 16, label: '১৬ ইঞ্চি = ১ মাইল (৩৩০ ফিট/ইঞ্চি)' },
-    { ftPerInch: 5280 / 32, label: '৩২ ইঞ্চি = ১ মাইল (১৬৫ ফিট/ইঞ্চি)' },
-    { ftPerInch: 5280 / 8,  label: '৮ ইঞ্চি = ১ মাইল (৬৬০ ফিট/ইঞ্চি)' },
-    { ftPerInch: 5280 / 4,  label: '৪ ইঞ্চি = ১ মাইল (১৩২০ ফিট/ইঞ্চি)' },
-    { ftPerInch: 400,       label: '১ ইঞ্চি = ৪০০ ফুট' },
-    { ftPerInch: 200,       label: '১ ইঞ্চি = ২০০ ফুট' }
-  ],
+    { inchPerMile: 16, label: '১৬ ইঞ্চি = ১ মাইল (৩৩০ ফুট/ইঞ্চি · ৫০০ লিংক)' },
+    { inchPerMile: 32, label: '৩২ ইঞ্চি = ১ মাইল (১৬৫ ফুট/ইঞ্চি · ২৫০ লিংক)' },
+    { inchPerMile: 64, label: '৬৪ ইঞ্চি = ১ মাইল (৮২.৫ ফুট/ইঞ্চি · ১২৫ লিংক)' },
+    { inchPerMile: 80, label: '৮০ ইঞ্চি = ১ মাইল (৬৬ ফুট/ইঞ্চি · ১০০ লিংক)' }
+  ].map(function (x) {
+    return { inchPerMile: x.inchPerMile, ftPerInch: 5280 / x.inchPerMile,
+             linkPerInch: 8000 / x.inchPerMile,
+             linkPerMark: (8000 / x.inchPerMile) / 25, label: x.label };
+  }),
 
   /** স্ক্যানের প্রচলিত DPI */
   DPI_OPTIONS: [
@@ -165,6 +190,51 @@ const MapMeasure = {
     return { ftPerPx: (f / i) / d, inchesOnMap: i, realFeet: f, dpi: d };
   },
 
+  /**
+   * নকশার স্কেল থেকে গুনিয়ার পাঠ — আমিনদের ভাষায়
+   * @param {number} inchPerMile  যেমন ১৬
+   */
+  guniaReading(inchPerMile) {
+    const n = Number(inchPerMile);
+    if (!(n > 0)) throw new Error('স্কেল শূন্যের বেশি হতে হবে');
+    const linkPerInch = this.LINK_PER_MILE / n;
+    return {
+      inchPerMile: n,
+      linkPerInch,
+      ftPerInch: this.FT_PER_MILE / n,
+      linkPerMark: linkPerInch / this.GUNIA_MARKS_PER_INCH,   // বড় এক দাগ
+      ftPerMark: (this.FT_PER_MILE / n) / this.GUNIA_MARKS_PER_INCH
+    };
+  },
+
+  /* ---------------- একক: ফুট ↔ লিংক ---------------- */
+
+  ftToLink(feet) { return (Number(feet) || 0) / this.FT_PER_LINK; },
+  linkToFt(link) { return (Number(link) || 0) * this.FT_PER_LINK; },
+
+  /** বর্গফুট → বর্গ লিংক */
+  sqftToSqlink(sqft) {
+    return (Number(sqft) || 0) / (this.FT_PER_LINK * this.FT_PER_LINK);
+  },
+
+  /** দৈর্ঘ্য লিংকে লেখা — "৩৩৩.৩ লিংক" */
+  formatLink(feet, digits) {
+    const v = this.ftToLink(feet);
+    const d = digits == null ? 1 : digits;
+    const txt = v.toFixed(d);
+    return (typeof toBn === 'function' ? toBn(txt) : txt) + ' লিংক';
+  },
+
+  /**
+   * নকশার স্কেল (ইঞ্চি প্রতি মাইল) ও DPI থেকে সরাসরি ফুট/পিক্সেল
+   * উদাহরণ: ১৬ ইঞ্চি = ১ মাইল, ৩০০ DPI → (৫২৮০/১৬)/৩০০ = ১.১
+   */
+  fromInchPerMile(inchPerMile, dpi) {
+    const n = Number(inchPerMile);
+    if (!(n > 0)) throw new Error('স্কেল শূন্যের বেশি হতে হবে');
+    return this.fromMapScale(1, this.FT_PER_MILE / n, dpi);
+  },
+
   /* ---------------- ক্ষেত্রফল ---------------- */
 
   /** শোলেস সূত্রে বহুভুজের ক্ষেত্রফল (পিক্সেল², সর্বদা ধনাত্মক) */
@@ -211,7 +281,9 @@ const MapMeasure = {
       acre: satak / 100,
       katha: s / sqftPerKatha,
       bigha: s / (sqftPerKatha * 20),
-      sqm: s * 0.09290304
+      sqm: s * 0.09290304,
+      // আমিনরা বর্গ লিংকে হিসাব করেন — ১০০০ বর্গ লিংক = ১ শতক
+      sqlink: s / (this.FT_PER_LINK * this.FT_PER_LINK)
     };
   },
 

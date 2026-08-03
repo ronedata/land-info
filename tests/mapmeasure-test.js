@@ -476,6 +476,67 @@ head('ভাগবণ্টনের রিপোর্ট');
   ok('ক্রমিক নং ঠিক', rep.rows.map(r => r.serial).join(',') === '1,2,3');
 }
 
+/* ═══════════ ১৮. গুনিয়া স্কেল ও লিংক ═══════════ */
+head('গুনিয়া স্কেল ও লিংক ব্যবস্থা');
+{
+  // উৎস: landregistrationbd.com — "গুনিয়া স্কেলে মৌজা ম্যাপ থেকে জমি পরিমাপ"
+  // ওই লেখার প্রতিটি সংখ্যা এখানে বেঁধে রাখা হলো
+  ok('১ লিংক = ০.৬৬ ফুট', M.FT_PER_LINK === 0.66);
+  ok('৮০০০ লিংক = ১ মাইল', M.LINK_PER_MILE === 8000);
+  ok('১০০০ বর্গ লিংক = ১ শতক', M.SQLINK_PER_SATAK === 1000);
+  ok('গুনিয়ায় ইঞ্চিপ্রতি ২৫ বড় দাগ', M.GUNIA_MARKS_PER_INCH === 25);
+
+  near('১ লিংক = ৭.৯২ ইঞ্চি', M.linkToFt(1) * 12, 7.92, 1e-9);
+  near('১০০ লিংক = ৬৬ ফুট (১ শিকল)', M.linkToFt(100), 66, 1e-9);
+  near('৮০০০ লিংক = ৫২৮০ ফুট (১ মাইল)', M.linkToFt(8000), 5280, 1e-9);
+  near('ফুট → লিংক উল্টো', M.ftToLink(66), 100, 1e-9);
+
+  // ★ পুরো ব্যবস্থার সঙ্গতি: ০.৬৬² × ১০০০ = ৪৩৫.৬ = ১ শতক
+  near('১০০০ বর্গ লিংক = ৪৩৫.৬ বর্গফুট',
+       1000 * M.FT_PER_LINK * M.FT_PER_LINK, M.SQFT_PER_SATAK, 1e-9);
+  near('৪৩৫.৬ বর্গফুট = ১০০০ বর্গ লিংক', M.units(435.6).sqlink, 1000, 1e-9);
+  near('৪৩৫.৬ বর্গফুট = ১ শতক', M.units(435.6).satak, 1, 1e-12);
+  near('১ একর = ১,০০,০০০ বর্গ লিংক', M.units(43560).sqlink, 100000, 1e-6);
+
+  // আর্টিকেলের সারণি — চারটি স্কেলের প্রতিটি সংখ্যা
+  const TABLE = [
+    { inch: 16, linkPerInch: 500, mark: 20, ftPerInch: 330 },
+    { inch: 32, linkPerInch: 250, mark: 10, ftPerInch: 165 },
+    { inch: 64, linkPerInch: 125, mark: 5,  ftPerInch: 82.5 },
+    { inch: 80, linkPerInch: 100, mark: 4,  ftPerInch: 66 }
+  ];
+  TABLE.forEach(t => {
+    const g = M.guniaReading(t.inch);
+    near(`${t.inch}" = ১ মাইল → ${t.linkPerInch} লিংক/ইঞ্চি`, g.linkPerInch, t.linkPerInch, 1e-9);
+    near(`${t.inch}" → বড় দাগ ${t.mark} লিংক`, g.linkPerMark, t.mark, 1e-9);
+    near(`${t.inch}" → ${t.ftPerInch} ফুট/ইঞ্চি`, g.ftPerInch, t.ftPerInch, 1e-9);
+  });
+  throws('স্কেল শূন্যে ত্রুটি', () => M.guniaReading(0), 'শূন্যের বেশি');
+
+  // MAP_SCALES এখন বাস্তব তালিকা
+  ok('৪টি স্কেল', M.MAP_SCALES.length === 4);
+  ok('ক্রম ১৬·৩২·৬৪·৮০',
+     M.MAP_SCALES.map(x => x.inchPerMile).join(',') === '16,32,64,80');
+  ok('প্রতিটিতে linkPerInch আছে', M.MAP_SCALES.every(x => x.linkPerInch > 0));
+  near('প্রথমটি ৩৩০ ফুট/ইঞ্চি', M.MAP_SCALES[0].ftPerInch, 330, 1e-9);
+
+  // fromInchPerMile — সরাসরি পথ
+  near('১৬" @ ৩০০ DPI → ১.১ ফুট/পিক্সেল',
+       M.fromInchPerMile(16, 300).ftPerPx, 1.1, 1e-12);
+  near('৮০" @ ৩০০ DPI → ০.২২', M.fromInchPerMile(80, 300).ftPerPx, 66 / 300, 1e-12);
+
+  // লিংকে লেখা
+  const bnOff = M.formatLink(66, 1);
+  ok('৬৬ ফুট = "100.0 লিংক"', bnOff === '100.0 লিংক', bnOff);
+  ok('০ ফুট = "0.0 লিংক"', M.formatLink(0, 1) === '0.0 লিংক');
+
+  // বাস্তব দৃশ্য: ২২০×১৭৬ ফুট প্লট
+  const plot = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 80 }, { x: 0, y: 80 }];
+  const u = M.units(M.sqFt(plot, 2.2));
+  near('২২০ ফুট = ৩৩৩.৩৩ লিংক', M.ftToLink(220), 220 / 0.66, 1e-9);
+  near('৮৮.৮৯ শতক = ৮৮,৮৮৮.৯ বর্গ লিংক', u.sqlink, u.satak * 1000, 1e-6);
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');
