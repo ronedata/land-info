@@ -32,15 +32,46 @@ const MeasureCanvas = {
       selected: -1,         // নির্বাচিত প্লটের সূচক
       dragPt: null,         // {plot, index} — টেনে সরানো বিন্দু
       drag: null,
+      start: null,          // যেখানে আঙুল নামল
+      panning: false,       // সীমা পেরিয়ে সত্যিই টানা শুরু হয়েছে?
+      gesture: false,       // ইশারাটা ক্যানভাসেই শুরু হয়েছিল তো?
       calib: null,            // {pts:[], cb}
       division: null,         // ভাগবণ্টনের ফল — আলাদা রঙে আঁকা হয়
       labelUnit: 'ftin',      // বাহুর লেবেল কোন এককে — MapMeasure.LABEL_UNITS
+      viewW: canvas.width,    // ★ দেখার মাপ — CSS পিক্সেলে
+      viewH: canvas.height,
+      dpr: 1,                 // ★ পর্দার ঘনত্ব — বিটম্যাপ এর গুণ বেশি
       onChange: o.onChange || null,
-      onSelect: o.onSelect || null
+      onSelect: o.onSelect || null,
+      onView: o.onView || null   // জুম/মাপ বদলালে — নির্ভুলতার বাতি হালনাগাদে
     };
     this._bind();
-    this.draw();
+    this.resize();
     return this.state;
+  },
+
+  /**
+   * ★ ক্যানভাসের মাপ ঠিক করা — সব হিসাব CSS পিক্সেলে, বিটম্যাপ dpr গুণ বড়
+   *
+   * এই দুটো এক না হলে ক্লিক আর আঁকা আলাদা জায়গায় পড়ে। আগে বিটম্যাপ
+   * বসানো হতো stage এর মাপে (বর্ডার সহ) আর CSS টানত canvas কে তার
+   * ভেতরের মাপে — ২ পিক্সেলের ফারাক। জুম-আউটে ওটাই ছিল ২০+ ফুট ভুল।
+   */
+  resize(w, h) {
+    const s = this.state;
+    if (!s) return;
+    const c = s.canvas;
+    const r = c.getBoundingClientRect();
+    const W = Math.max(1, Math.round(w || r.width || c.width));
+    const H = Math.max(1, Math.round(h || r.height || c.height));
+    const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    // মাপ বদলালে দেখার কেন্দ্রটা যেন এক জায়গাতেই থাকে
+    s.off.x += (W - s.viewW) / 2;
+    s.off.y += (H - s.viewH) / 2;
+    s.viewW = W; s.viewH = H; s.dpr = dpr;
+    const bw = Math.round(W * dpr), bh = Math.round(H * dpr);
+    if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; }
+    this.draw();
   },
 
   /* ---------------- ছবি ---------------- */
@@ -55,11 +86,11 @@ const MeasureCanvas = {
   fit() {
     const s = this.state;
     if (!s.img) { this.draw(); return; }
-    const c = s.canvas;
-    s.scale = Math.min(c.width / s.img.width, c.height / s.img.height) * 0.95;
-    s.off = { x: (c.width - s.img.width * s.scale) / 2,
-              y: (c.height - s.img.height * s.scale) / 2 };
+    s.scale = Math.min(s.viewW / s.img.width, s.viewH / s.img.height) * 0.95;
+    s.off = { x: (s.viewW - s.img.width * s.scale) / 2,
+              y: (s.viewH - s.img.height * s.scale) / 2 };
     this.draw();
+    if (s.onView) s.onView();
   },
 
   setTool(t) {
@@ -90,18 +121,26 @@ const MeasureCanvas = {
     s.off.x += anchor.x - after.x;
     s.off.y += anchor.y - after.y;
     this.draw();
+    if (s.onView) s.onView();
   },
 
   zoom(d) {
-    const c = this.state.canvas;
-    this.zoomAt({ x: c.width / 2, y: c.height / 2 }, d > 0 ? 1.35 : 1 / 1.35);
+    const s = this.state;
+    this.zoomAt({ x: s.viewW / 2, y: s.viewH / 2 }, d > 0 ? 1.35 : 1 / 1.35);
   },
 
   /* ---------------- ইভেন্ট ---------------- */
 
+  /**
+   * ★ পর্দার ক্লিক → ক্যানভাসের স্থানাঙ্ক (CSS পিক্সেলে)
+   * CSS ক্যানভাসকে টেনে-বড় করলেও যেন এক জায়গাই বোঝায়, তাই অনুপাত ধরা হয়।
+   */
   _pos(ev) {
-    const r = this.state.canvas.getBoundingClientRect();
-    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    const s = this.state;
+    const r = s.canvas.getBoundingClientRect();
+    const kx = r.width > 0 ? s.viewW / r.width : 1;
+    const ky = r.height > 0 ? s.viewH / r.height : 1;
+    return { x: (ev.clientX - r.left) * kx, y: (ev.clientY - r.top) * ky };
   },
 
   /** ক্যানভাস বিন্দুর কাছে কোনো শীর্ষবিন্দু আছে? (টেনে সরানোর জন্য) */
@@ -128,21 +167,30 @@ const MeasureCanvas = {
     return -1;
   },
 
+  /**
+   * ★ ট্যাপ বনাম টান — কত পিক্সেল সরলে "টানা" ধরব (CSS px)
+   * আঙুল স্থির রাখলেও ২-৬ px কাঁপে। আগে পথের দৈর্ঘ্য যোগ হতো, তাই ধীরে
+   * কাঁপলে যোগফল সীমা ছাড়িয়ে যেত — ট্যাপ হারিয়ে যেত আর ছবিও সরে যেত।
+   * এখন শুরুর বিন্দু থেকে **সরল দূরত্ব** দেখা হয়।
+   */
+  TAP_SLOP: 9,
+
   _bind() {
     const s = this.state, c = s.canvas;
     if (c._mcBound) return;
     c._mcBound = true;
-    let moved = 0;
 
     const down = ev => {
       const p = this._pos(ev);
-      moved = 0;
+      s.start = p;
+      s.panning = false;
+      s.gesture = true;
       if (s.tool === 'point') {
         const hit = this.hitVertex(p);
         if (hit) { s.dragPt = hit; return; }
       }
       s.drag = p;
-      if (s.tool === 'pan') c.style.cursor = 'grabbing';
+      if (s.tool === 'pan') { s.panning = true; c.style.cursor = 'grabbing'; }
     };
 
     const move = ev => {
@@ -155,9 +203,14 @@ const MeasureCanvas = {
         return;
       }
       if (!s.drag) return;
+      // আঁকা/নির্বাচনের টুলে সীমা পেরোনোর আগে ছবি নড়বে না
+      if (!s.panning) {
+        if (Math.hypot(p.x - s.start.x, p.y - s.start.y) <= this.TAP_SLOP) return;
+        s.panning = true;
+        s.drag = p;                         // এতক্ষণের কাঁপুনি বাদ
+        return;
+      }
       const dx = p.x - s.drag.x, dy = p.y - s.drag.y;
-      moved += Math.abs(dx) + Math.abs(dy);
-      // প্যান টুলে সবসময়, অন্য টুলে টেনে সরালে
       s.off.x += dx; s.off.y += dy;
       s.drag = p;
       this.draw();
@@ -165,13 +218,17 @@ const MeasureCanvas = {
     };
 
     const up = ev => {
-      const wasDrag = moved > 6;
+      // ইশারা ক্যানভাসের বাইরে শুরু হলে (mouseup window এ বাঁধা) কিছুই করব না
+      if (!s.gesture) { s.dragPt = null; s.drag = null; s.panning = false; return; }
+      const p0 = this._pos(ev);
+      const wasDrag = !s.start
+        || Math.hypot(p0.x - s.start.x, p0.y - s.start.y) > this.TAP_SLOP;
       const hadPt = !!s.dragPt;
-      s.dragPt = null; s.drag = null;
+      s.dragPt = null; s.drag = null; s.panning = false; s.gesture = false;
       if (s.tool === 'pan') c.style.cursor = 'grab';
       if (wasDrag || hadPt) return;
 
-      const p = this._pos(ev);
+      const p = p0;
 
       if (s.calib) {                        // স্কেল ক্যালিব্রেশন চলছে
         s.calib.pts.push(this.toImage(p.x, p.y));
@@ -311,19 +368,23 @@ const MeasureCanvas = {
   draw() {
     const s = this.state;
     if (!s) return;
-    const { ctx, canvas: c } = s;
-    ctx.clearRect(0, 0, c.width, c.height);
+    const ctx = s.ctx, W = s.viewW, H = s.viewH;
+
+    // ★ বিটম্যাপ dpr গুণ বড়, তাই একবারই স্কেল বসিয়ে নিই —
+    //   এর পরের সব আঁকা CSS পিক্সেলে, ক্লিকের হিসাবের সাথে হুবহু মিলবে
+    ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
 
     // পটভূমি — গ্রাফ কাগজের মতো
     ctx.fillStyle = '#eef2f7';
-    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = 'rgba(100,116,139,0.16)';
     ctx.lineWidth = 1;
-    for (let x = 0; x < c.width; x += 28) {
-      ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, c.height); ctx.stroke();
+    for (let x = 0; x < W; x += 28) {
+      ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke();
     }
-    for (let y = 0; y < c.height; y += 28) {
-      ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(c.width, y + 0.5); ctx.stroke();
+    for (let y = 0; y < H; y += 28) {
+      ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
     }
 
     if (s.img) {

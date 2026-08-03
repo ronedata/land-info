@@ -1097,8 +1097,16 @@ const AppController = {
       c._mmInit = true;
       MeasureCanvas.init(c, {
         onChange: () => this.mmRefresh(),
-        onSelect: () => this.mmRefresh()
+        onSelect: () => this.mmRefresh(),
+        onView: () => this.mmPrecision()
       });
+      // ★ জানালার মাপ বদলালে বা ফোন ঘোরালে ক্যানভাস আর ক্লিকের হিসাব
+      //   আলাদা হয়ে যেত — তখন থেকে সব ক্লিক সরে পড়ত
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => this.mmSizeCanvas()).observe(c);
+      } else {
+        window.addEventListener('resize', () => this.mmSizeCanvas());
+      }
     } else {
       MeasureCanvas.state.canvas = c;
       MeasureCanvas.draw();
@@ -1126,10 +1134,14 @@ const AppController = {
     const c = document.getElementById('mm-canvas');
     const st = document.getElementById('mm-stage');
     if (!c || !st) return;
-    const r = st.getBoundingClientRect();
-    const w = Math.max(280, Math.round(r.width));
-    const h = Math.max(320, Math.round(r.height));
-    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    // ★ canvas এর নিজের মাপ ধরতে হবে, stage এর নয় — stage এ বর্ডার আছে,
+    //   CSS ক্যানভাসকে টানে তার **ভেতরের** মাপে। আগে stage এর মাপ বসানোয়
+    //   ২ পিক্সেল ফারাক থাকত, জুম-আউটে যা ২০+ ফুট ভুল হয়ে দাঁড়াত।
+    const r = c.getBoundingClientRect();
+    const w = Math.max(280, Math.round(r.width || st.clientWidth));
+    const h = Math.max(320, Math.round(r.height || st.clientHeight));
+    if (MeasureCanvas.state) MeasureCanvas.resize(w, h);
+    else { c.width = w; c.height = h; }
   },
 
   /* ---- স্কেলের ড্রপডাউন ---- */
@@ -1276,8 +1288,34 @@ const AppController = {
     this.mmRefresh();
   },
 
-  mmZoom(d) { MeasureCanvas.zoom(d); },
-  mmFit() { MeasureCanvas.fit(); },
+  mmZoom(d) { MeasureCanvas.zoom(d); this.mmPrecision(); },
+  mmFit() { MeasureCanvas.fit(); this.mmPrecision(); },
+
+  /**
+   * ★ এই জুমে এক পর্দা-পিক্সেল কত ফুট
+   *
+   * পুরো নকশা পর্দায় ধরালে ১ পিক্সেল ১০-১২ ফুট হয়ে যায় — তখন যত ভালো
+   * করেই ক্লিক করুন, ক্ষেত্রফলে ২-৩% ভুল থাকবেই। এটা বাগ নয়, জ্যামিতি।
+   * তাই সংখ্যাটা চোখের সামনে রাখি, আর বেশি হলে জুম করতে বলি।
+   */
+  mmPrecision() {
+    const el = document.getElementById('mm-prec');
+    if (!el) return;
+    const k = this.mm;
+    const st = MeasureCanvas.state;
+    if (!k.img || !(k.ftPerPx > 0) || !st || !(st.scale > 0)) {
+      el.style.display = 'none';
+      return;
+    }
+    const ft = k.ftPerPx / st.scale;          // ১ পর্দা-পিক্সেল = কত ফুট
+    const level = ft > 3 ? 'bad' : ft > 1 ? 'warn' : 'ok';
+    el.style.display = '';
+    el.className = 'mm-prec ' + level;
+    el.innerHTML = '<i class="bi bi-' +
+      (level === 'ok' ? 'crosshair' : 'exclamation-triangle') + '"></i>' +
+      '<span>১ পিক্সেল ≈ <b>' + MapMeasure.formatLength(ft, st.labelUnit) + '</b>' +
+      (level === 'ok' ? '' : ' — জুম করে আঁকুন') + '</span>';
+  },
 
   mmUndoPoint() { MeasureCanvas.undoDraftPoint(); },
   mmCancelDraft() { MeasureCanvas.cancelDraft(); },
@@ -1327,6 +1365,7 @@ const AppController = {
         : 'স্কেল ঠিক করুন — ক্লিক করুন';
     }
     if (pill) pill.className = 'mm-scale-pill' + (k.ftPerPx > 0 ? ' ok' : ' warn');
+    this.mmPrecision();
 
     // টাইল
     const st = MeasureCanvas.stats();

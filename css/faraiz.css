@@ -2597,6 +2597,30 @@
   white-space: nowrap;
 }
 
+/* এই জুমে ১ পিক্সেল কত ফুট — স্কেল পিলের ঠিক নিচে */
+.mm-prec {
+  position: absolute;
+  top: 56px; left: 12px;
+  z-index: 4;
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 5px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.76rem; font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.mm-prec b { color: var(--text-main); }
+.mm-prec.ok   { border-color: #86efac; color: #15803d; }
+.mm-prec.ok b { color: #15803d; }
+.mm-prec.warn { border-color: #fcd34d; color: #b45309; background: rgba(255, 251, 235, 0.96); }
+.mm-prec.warn b { color: #b45309; }
+.mm-prec.bad  { border-color: #fca5a5; color: #b91c1c; background: rgba(254, 242, 242, 0.96); }
+.mm-prec.bad b { color: #b91c1c; }
+
 /* বাহুর লেবেলের একক — প্যানেলের হেডে ছোট ড্রপডাউন */
 .mm-unit-pick {
   display: inline-flex; align-items: center; gap: 5px;
