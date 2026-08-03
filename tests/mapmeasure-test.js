@@ -537,6 +537,76 @@ head('গুনিয়া স্কেল ও লিংক ব্যবস্�
   near('৮৮.৮৯ শতক = ৮৮,৮৮৮.৯ বর্গ লিংক', u.sqlink, u.satak * 1000, 1e-6);
 }
 
+/* ═══════════ ১৯. ল্যাবেলের একক ═══════════ */
+head('ল্যাবেলের একক (৫ রকম)');
+{
+  ok('৫টি একক', M.LABEL_UNITS.length === 5);
+  ok('ক্রম ftin·ft·link·chain·meter',
+     M.LABEL_UNITS.map(x => x.id).join(',') === 'ftin,ft,link,chain,meter');
+
+  // ৬৬ ফুট = ১০০ লিংক = ১ চেইন = ২০.১১৭ মিটার
+  ok('ftin → 66\'0"', M.formatLength(66, 'ftin') === '66\'0"', M.formatLength(66, 'ftin'));
+  ok('ft → 66.0\'', M.formatLength(66, 'ft') === "66.0'", M.formatLength(66, 'ft'));
+  ok('link → 100.0 লিংক', M.formatLength(66, 'link') === '100.0 লিংক', M.formatLength(66, 'link'));
+  ok('chain → 1.000 চেইন', M.formatLength(66, 'chain') === '1.000 চেইন', M.formatLength(66, 'chain'));
+  ok('meter → 20.12 মি', M.formatLength(66, 'meter') === '20.12 মি', M.formatLength(66, 'meter'));
+  ok('অজানা একক → ftin', M.formatLength(66, 'হিজিবিজি') === M.formatLength(66, 'ftin'));
+  ok('০ ফুট সব এককে চলে',
+     M.LABEL_UNITS.every(u => typeof M.formatLength(0, u.id) === 'string'));
+
+  // ১ মিটার = ৩.২৮০৮ ফুট → উল্টো যাচাই
+  near('১০০ ফুট = ৩০.৪৮ মিটার', 100 * 0.3048, 30.48, 1e-9);
+}
+
+/* ═══════════ ২০. ভাগের দিক ও অংশের ধরন ═══════════ */
+head('ভাগের দিক ও অংশের ধরন');
+{
+  ok('৪টি দিক', M.DIRECTIONS.length === 4);
+  ok('id গুলো', M.DIRECTIONS.map(d => d.id).join(',') === 'w2e,e2w,n2s,s2n');
+  ok('পশ্চিম→পূর্ব = ০°', M.directionAngle('w2e') === 0);
+  ok('উত্তর→দক্ষিণ = ৯০°', M.directionAngle('n2s') === 90);
+  throws('অজানা দিকে ত্রুটি', () => M.directionAngle('xyz'), 'চেনা গেল না');
+
+  // দিক দিয়ে ভাগ — sideIndex এর জায়গায় স্ট্রিং
+  const F = 2.2;
+  const plot = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 80 }, { x: 0, y: 80 }];
+  const total = M.areaPx(plot) * F * F / 435.6;
+  const byDir = M.divideByArea(plot, 'w2e', [{ name: 'ক', satak: 40 }], F);
+  near('দিক দিয়ে কাটা = ৪০ শতক', byDir.parts[0].satak, 40, 1e-3);
+  // পশ্চিম→পূর্ব মানে ভাগটা বাঁ দিকে
+  const xs = byDir.parts[0].polygon.map(q => q.x);
+  ok('পশ্চিম→পূর্ব → ভাগ বাঁ দিকে', Math.min(...xs) < 1 && Math.max(...xs) < 100,
+     'x ' + Math.min(...xs).toFixed(0) + '–' + Math.max(...xs).toFixed(0));
+
+  const byDir2 = M.divideByArea(plot, 'e2w', [{ name: 'ক', satak: 40 }], F);
+  const xs2 = byDir2.parts[0].polygon.map(q => q.x);
+  ok('পূর্ব→পশ্চিম → ভাগ ডান দিকে', Math.max(...xs2) > 99 && Math.min(...xs2) > 0,
+     'x ' + Math.min(...xs2).toFixed(0) + '–' + Math.max(...xs2).toFixed(0));
+
+  // অংশের তিন ধরন
+  const people = [{ name: 'ক', value: 50 }, { name: 'খ', value: 30 }, { name: 'গ', value: 20 }];
+  const pct = M.sharesToSatak('pct', people, 100);
+  near('% : ক = ৫০ শতক', pct[0].satak, 50, 1e-9);
+  near('% : গ = ২০ শতক', pct[2].satak, 20, 1e-9);
+  near('% যোগ = মোট', pct.reduce((a, b) => a + b.satak, 0), 100, 1e-9);
+
+  const sat = M.sharesToSatak('satak', [{ name: 'ক', value: 33 }], 100);
+  near('শতক : সরাসরি', sat[0].satak, 33, 1e-9);
+
+  const eq = M.sharesToSatak('equal', [{}, {}, {}], 90);
+  ok('সমান ভাগে ৩ জন', eq.length === 3);
+  near('প্রত্যেকে ৩০', eq[0].satak, 30, 1e-9);
+  near('সমান ভাগের যোগ = মোট', eq.reduce((a, b) => a + b.satak, 0), 90, 1e-9);
+  ok('নাম না দিলে "শরিক ১"', eq[0].name === 'শরিক 1' || eq[0].name === 'শরিক ১', eq[0].name);
+
+  throws('১০০% এর বেশি হলে ত্রুটি',
+    () => M.sharesToSatak('pct', [{ value: 60 }, { value: 60 }], 100), 'বেশি হতে পারে না');
+  throws('শতাংশ শূন্যে ত্রুটি',
+    () => M.sharesToSatak('pct', [{ value: 0 }], 100), 'শূন্যের বেশি');
+  throws('শরিক ছাড়া ত্রুটি', () => M.sharesToSatak('equal', [], 100), 'একজন শরিকের');
+  throws('ক্ষেত্রফল ছাড়া ত্রুটি', () => M.sharesToSatak('equal', [{}], 0), 'ক্ষেত্রফল');
+}
+
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');

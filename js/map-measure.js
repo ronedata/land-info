@@ -287,6 +287,38 @@ const MapMeasure = {
     };
   },
 
+  /* ---------------- ল্যাবেলের একক ---------------- */
+
+  /**
+   * বাহুর মাপ কোন এককে লেখা হবে
+   * (ওদের "ল্যাবেলের একক" ড্রপডাউনের সমকক্ষ)
+   */
+  LABEL_UNITS: [
+    { id: 'ftin',  label: "ফিট'ইঞ্চি\" (ডিফল্ট)" },
+    { id: 'ft',    label: 'ফিট' },
+    { id: 'link',  label: 'লিংক' },
+    { id: 'chain', label: 'চেইন' },
+    { id: 'meter', label: 'মিটার' }
+  ],
+
+  /**
+   * ফুটকে নির্বাচিত এককে লেখা
+   * @param {number} feet
+   * @param {string} unit  ftin · ft · link · chain · meter
+   */
+  formatLength(feet, unit) {
+    const f = Number(feet) || 0;
+    const bn = t => (typeof toBn === 'function' ? toBn(t) : String(t));
+    switch (unit) {
+      case 'ft':    return bn(f.toFixed(1)) + "'";
+      case 'link':  return bn(this.ftToLink(f).toFixed(1)) + ' লিংক';
+      case 'chain': return bn((f / this.FT_PER_CHAIN).toFixed(3)) + ' চেইন';
+      case 'meter': return bn((f * 0.3048).toFixed(2)) + ' মি';
+      case 'ftin':
+      default:      return this.formatFtIn(f);
+    }
+  },
+
   /* ---------------- বহুভুজ ক্লিপিং ---------------- */
 
   /**
@@ -533,7 +565,10 @@ const MapMeasure = {
         + 'প্লটে আছে ' + totalSatak.toFixed(2) + ' শতক');
     }
 
-    const angle = this.sideNormalAngle(pts, sideIndex);
+    // sideIndex সংখ্যা হলে বাহু, স্ট্রিং হলে দিক (w2e/e2w/n2s/s2n)
+    const angle = typeof sideIndex === 'string'
+      ? this.directionAngle(sideIndex)
+      : this.sideNormalAngle(pts, sideIndex);
     const parts = [];
     let remain = pts.slice();
 
@@ -585,6 +620,55 @@ const MapMeasure = {
       // যোগফল মোটের সাথে মেলে কি না — কাগজে লেখার আগে দেখা জরুরি
       exact: Math.abs(sum - res.totalSatak) < Math.max(1e-6, res.totalSatak * 1e-6)
     };
+  },
+
+  /* ---------------- ভাগের দিক ---------------- */
+
+  /**
+   * চার দিক — ওদের "বন্টনের দিক (Direction)" ড্রপডাউনের সমকক্ষ
+   * কোণ = কাটার রেখার লম্ব দিক (ছবির y নিচমুখী, তাই উত্তর = −y)
+   */
+  DIRECTIONS: [
+    { id: 'w2e', angle: 0,   label: 'পশ্চিম থেকে পূর্ব (বাঁ → ডান)' },
+    { id: 'e2w', angle: 180, label: 'পূর্ব থেকে পশ্চিম (ডান → বাঁ)' },
+    { id: 'n2s', angle: 90,  label: 'উত্তর থেকে দক্ষিণ (উপর → নিচ)' },
+    { id: 's2n', angle: 270, label: 'দক্ষিণ থেকে উত্তর (নিচ → উপর)' }
+  ],
+
+  directionAngle(id) {
+    const d = this.DIRECTIONS.filter(x => x.id === id)[0];
+    if (!d) throw new Error('দিক চেনা গেল না');
+    return d.angle;
+  },
+
+  /**
+   * শরিকদের অংশ যেভাবেই দেওয়া হোক, শতকে রূপান্তর
+   * @param {string} mode   'pct' | 'satak' | 'equal'
+   * @param {Array} people  [{name, value}]  (equal হলে value লাগে না)
+   * @param {number} totalSatak
+   */
+  sharesToSatak(mode, people, totalSatak) {
+    const T = Number(totalSatak) || 0;
+    if (!(T > 0)) throw new Error('প্লটের ক্ষেত্রফল লাগবে');
+    const list = people || [];
+    if (!list.length) throw new Error('অন্তত একজন শরিকের অংশ দিন');
+
+    if (mode === 'equal') {
+      const each = T / list.length;
+      return list.map((x, i) => ({ name: x.name || ('শরিক ' + (i + 1)), satak: each }));
+    }
+    if (mode === 'pct') {
+      const sum = list.reduce((a, b) => a + (Number(b.value) || 0), 0);
+      if (!(sum > 0)) throw new Error('শতাংশ শূন্যের বেশি হতে হবে');
+      if (sum > 100 + 1e-6) {
+        throw new Error('শতাংশের যোগ ' + sum.toFixed(2) + '% — ১০০ এর বেশি হতে পারে না');
+      }
+      return list.map((x, i) => ({ name: x.name || ('শরিক ' + (i + 1)),
+                                   satak: T * (Number(x.value) || 0) / 100 }));
+    }
+    // satak
+    return list.map((x, i) => ({ name: x.name || ('শরিক ' + (i + 1)),
+                                 satak: Number(x.value) || 0 }));
   },
 
   /* ---------------- প্লট ব্যবস্থাপনা ---------------- */
