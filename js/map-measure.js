@@ -23,8 +23,26 @@ const MapMeasure = {
   /* ---------------- ধ্রুবক ---------------- */
 
   SQFT_PER_SATAK: 435.6,          // ১ শতক = ৪৩৫.৬ বর্গফুট (স্থির)
-  FT_PER_CHAIN: 66,               // ১ চেইন = ৬৬ ফুট
-  FT_PER_MILE: 5280,
+  FT_PER_CHAIN: 66,               // ১ চেইন (গান্টার শিকল) = ৬৬ ফুট = ১০০ লিংক
+  FT_PER_MILE: 5280,              // ১৭৬০ গজ × ৩
+
+  /* ---------------- গুনিয়া / লিংক ব্যবস্থা ----------------
+     আমিনরা মৌজা নকশায় **লিংক** এককে মাপেন, ফুটে নয়।
+        ১ লিংক  = ০.৬৬ ফুট = ৭.৯২ ইঞ্চি
+        ১০০ লিংক = ১ গান্টার শিকল = ৬৬ ফুট
+        ৮০০০ লিংক = ১ মাইল
+        ★ ১০০০ বর্গ লিংক = ১ শতক   (০.৬৬² × ১০০০ = ৪৩৫.৬ বর্গফুট ✓)
+        ১,০০,০০০ বর্গ লিংক = ১ একর
+     উৎস: landregistrationbd.com — "গুনিয়া স্কেলে মৌজা ম্যাপ থেকে জমি পরিমাপ"
+     ⚠️ ওই লেখায় "৬২৮০ ফুটে ১ মাইল" ছাপার ভুল; আসলে ৫২৮০ (১৭৬০ গজ × ৩)।
+        ৫২৮০ ÷ ৮০০০ = ০.৬৬ — ওদেরই দেওয়া লিংকের মানের সাথে মেলে।
+  */
+  FT_PER_LINK: 0.66,
+  LINK_PER_MILE: 8000,
+  SQLINK_PER_SATAK: 1000,
+
+  /** গুনিয়া স্কেলে ১ ইঞ্চিতে ২৫টি বড় দাগ থাকে */
+  GUNIA_MARKS_PER_INCH: 25,
 
   /** নকশায় প্রচলিত স্কেল-দণ্ডের দৈর্ঘ্য (ফুট) — ইউজার বদলাতে পারবেন */
   COMMON_SCALES: [
@@ -38,14 +56,21 @@ const MapMeasure = {
    * মৌজা নকশার প্রচলিত স্কেল — "কত ইঞ্চিতে কত ফুট"
    * বাংলাদেশে সবচেয়ে প্রচলিত ১৬ ইঞ্চি = ১ মাইল, অর্থাৎ ইঞ্চিপ্রতি ৩৩০ ফুট।
    */
+  /**
+   * বাংলাদেশের মৌজা নকশায় প্রচলিত স্কেল — ইঞ্চি প্রতি মাইল
+   * (গুনিয়া স্কেলের আর্টিকেল অনুযায়ী ১৬ · ৩২ · ৬৪ · ৮০ — এগুলোই বাস্তবে চলে)
+   * প্রতিটির সাথে গুনিয়া স্কেলের পাঠও দেওয়া হলো, কারণ আমিনরা ওভাবেই পড়েন।
+   */
   MAP_SCALES: [
-    { ftPerInch: 5280 / 16, label: '১৬ ইঞ্চি = ১ মাইল (৩৩০ ফিট/ইঞ্চি)' },
-    { ftPerInch: 5280 / 32, label: '৩২ ইঞ্চি = ১ মাইল (১৬৫ ফিট/ইঞ্চি)' },
-    { ftPerInch: 5280 / 8,  label: '৮ ইঞ্চি = ১ মাইল (৬৬০ ফিট/ইঞ্চি)' },
-    { ftPerInch: 5280 / 4,  label: '৪ ইঞ্চি = ১ মাইল (১৩২০ ফিট/ইঞ্চি)' },
-    { ftPerInch: 400,       label: '১ ইঞ্চি = ৪০০ ফুট' },
-    { ftPerInch: 200,       label: '১ ইঞ্চি = ২০০ ফুট' }
-  ],
+    { inchPerMile: 16, label: '১৬ ইঞ্চি = ১ মাইল (৩৩০ ফুট/ইঞ্চি · ৫০০ লিংক)' },
+    { inchPerMile: 32, label: '৩২ ইঞ্চি = ১ মাইল (১৬৫ ফুট/ইঞ্চি · ২৫০ লিংক)' },
+    { inchPerMile: 64, label: '৬৪ ইঞ্চি = ১ মাইল (৮২.৫ ফুট/ইঞ্চি · ১২৫ লিংক)' },
+    { inchPerMile: 80, label: '৮০ ইঞ্চি = ১ মাইল (৬৬ ফুট/ইঞ্চি · ১০০ লিংক)' }
+  ].map(function (x) {
+    return { inchPerMile: x.inchPerMile, ftPerInch: 5280 / x.inchPerMile,
+             linkPerInch: 8000 / x.inchPerMile,
+             linkPerMark: (8000 / x.inchPerMile) / 25, label: x.label };
+  }),
 
   /** স্ক্যানের প্রচলিত DPI */
   DPI_OPTIONS: [
@@ -165,6 +190,51 @@ const MapMeasure = {
     return { ftPerPx: (f / i) / d, inchesOnMap: i, realFeet: f, dpi: d };
   },
 
+  /**
+   * নকশার স্কেল থেকে গুনিয়ার পাঠ — আমিনদের ভাষায়
+   * @param {number} inchPerMile  যেমন ১৬
+   */
+  guniaReading(inchPerMile) {
+    const n = Number(inchPerMile);
+    if (!(n > 0)) throw new Error('স্কেল শূন্যের বেশি হতে হবে');
+    const linkPerInch = this.LINK_PER_MILE / n;
+    return {
+      inchPerMile: n,
+      linkPerInch,
+      ftPerInch: this.FT_PER_MILE / n,
+      linkPerMark: linkPerInch / this.GUNIA_MARKS_PER_INCH,   // বড় এক দাগ
+      ftPerMark: (this.FT_PER_MILE / n) / this.GUNIA_MARKS_PER_INCH
+    };
+  },
+
+  /* ---------------- একক: ফুট ↔ লিংক ---------------- */
+
+  ftToLink(feet) { return (Number(feet) || 0) / this.FT_PER_LINK; },
+  linkToFt(link) { return (Number(link) || 0) * this.FT_PER_LINK; },
+
+  /** বর্গফুট → বর্গ লিংক */
+  sqftToSqlink(sqft) {
+    return (Number(sqft) || 0) / (this.FT_PER_LINK * this.FT_PER_LINK);
+  },
+
+  /** দৈর্ঘ্য লিংকে লেখা — "৩৩৩.৩ লিংক" */
+  formatLink(feet, digits) {
+    const v = this.ftToLink(feet);
+    const d = digits == null ? 1 : digits;
+    const txt = v.toFixed(d);
+    return (typeof toBn === 'function' ? toBn(txt) : txt) + ' লিংক';
+  },
+
+  /**
+   * নকশার স্কেল (ইঞ্চি প্রতি মাইল) ও DPI থেকে সরাসরি ফুট/পিক্সেল
+   * উদাহরণ: ১৬ ইঞ্চি = ১ মাইল, ৩০০ DPI → (৫২৮০/১৬)/৩০০ = ১.১
+   */
+  fromInchPerMile(inchPerMile, dpi) {
+    const n = Number(inchPerMile);
+    if (!(n > 0)) throw new Error('স্কেল শূন্যের বেশি হতে হবে');
+    return this.fromMapScale(1, this.FT_PER_MILE / n, dpi);
+  },
+
   /* ---------------- ক্ষেত্রফল ---------------- */
 
   /** শোলেস সূত্রে বহুভুজের ক্ষেত্রফল (পিক্সেল², সর্বদা ধনাত্মক) */
@@ -211,8 +281,42 @@ const MapMeasure = {
       acre: satak / 100,
       katha: s / sqftPerKatha,
       bigha: s / (sqftPerKatha * 20),
-      sqm: s * 0.09290304
+      sqm: s * 0.09290304,
+      // আমিনরা বর্গ লিংকে হিসাব করেন — ১০০০ বর্গ লিংক = ১ শতক
+      sqlink: s / (this.FT_PER_LINK * this.FT_PER_LINK)
     };
+  },
+
+  /* ---------------- ল্যাবেলের একক ---------------- */
+
+  /**
+   * বাহুর মাপ কোন এককে লেখা হবে
+   * (ওদের "ল্যাবেলের একক" ড্রপডাউনের সমকক্ষ)
+   */
+  LABEL_UNITS: [
+    { id: 'ftin',  label: "ফিট'ইঞ্চি\" (ডিফল্ট)" },
+    { id: 'ft',    label: 'ফিট' },
+    { id: 'link',  label: 'লিংক' },
+    { id: 'chain', label: 'চেইন' },
+    { id: 'meter', label: 'মিটার' }
+  ],
+
+  /**
+   * ফুটকে নির্বাচিত এককে লেখা
+   * @param {number} feet
+   * @param {string} unit  ftin · ft · link · chain · meter
+   */
+  formatLength(feet, unit) {
+    const f = Number(feet) || 0;
+    const bn = t => (typeof toBn === 'function' ? toBn(t) : String(t));
+    switch (unit) {
+      case 'ft':    return bn(f.toFixed(1)) + "'";
+      case 'link':  return bn(this.ftToLink(f).toFixed(1)) + ' লিংক';
+      case 'chain': return bn((f / this.FT_PER_CHAIN).toFixed(3)) + ' চেইন';
+      case 'meter': return bn((f * 0.3048).toFixed(2)) + ' মি';
+      case 'ftin':
+      default:      return this.formatFtIn(f);
+    }
   },
 
   /* ---------------- বহুভুজ ক্লিপিং ---------------- */
@@ -318,6 +422,189 @@ const MapMeasure = {
                  areaPx: remainArea, ratio: list[i] / sum });
     }
     return out;
+  },
+
+  /**
+   * ★ বেরিয়ে আসা স্কেলটা আদৌ বিশ্বাসযোগ্য?
+   *
+   * PDF থেকে DPI বের করা হয় `৭২ × রেন্ডার স্কেল` দিয়ে — কিন্তু সেটা ঠিক
+   * তখনই, যখন PDF এর পাতার মাপ **আসল কাগজের মাপ**। স্ক্যান করা নকশা
+   * ছবি→PDF করলে পাতার মাপ প্রায়ই ছবির পিক্সেল সংখ্যা হয়ে যায়; তখন
+   * বেরোনো DPI অর্থহীন আর সব মাপ ওই অনুপাতে ভুল হয় — নীরবে।
+   *
+   * তাই ফলটা যাচাই করি: বাংলাদেশের মৌজা নকশা ১৬–৮০ ইঞ্চি = ১ মাইল, আর
+   * স্ক্যান হয় ১৫০–৬০০ DPI তে। তাতে ১ পিক্সেল দাঁড়ায় ০.১১–২.২০ ফুট।
+   * এর বাইরে গেলে ধরে নেওয়া যায় DPI ভুল।
+   *
+   * @returns {{ok:boolean, level:string, msg:string, ftPerPx:number}}
+   */
+  SANE_FT_PER_PX: { min: 0.08, max: 3.0 },
+
+  scaleSanity(ftPerPx, dpi) {
+    const f = Number(ftPerPx) || 0;
+    const S = this.SANE_FT_PER_PX;
+    if (!(f > 0)) {
+      return { ok: false, level: 'none', ftPerPx: f, msg: 'স্কেল এখনো ঠিক করা হয়নি' };
+    }
+    if (f >= S.min && f <= S.max) {
+      return { ok: true, level: 'ok', ftPerPx: f,
+        msg: '১ পিক্সেল = ' + f.toFixed(3) + ' ফুট — স্বাভাবিক' };
+    }
+    const big = f > S.max;
+    const off = big ? f / S.max : S.min / f;
+    return {
+      ok: false, level: 'bad', ftPerPx: f,
+      msg: '১ পিক্সেল = ' + f.toFixed(3) + ' ফুট — মৌজা নকশায় এটি '
+        + (big ? 'অস্বাভাবিক বড়' : 'অস্বাভাবিক ছোট') + '। মাপ প্রায় '
+        + (off >= 2 ? Math.round(off) + ' গুণ' : 'অনেকটা')
+        + (big ? ' বেশি' : ' কম') + ' আসবে।'
+        + (dpi ? ' ধরা DPI ' + Math.round(dpi) + '.' : '')
+    };
+  },
+
+  /* ---------------- বহুভুজ সত্যি বৈধ তো? ---------------- */
+
+  /**
+   * পরপর একই জায়গায় পড়া বিন্দু বাদ দেওয়া
+   * ডবল-ট্যাপে দুবার বসলে শূন্য দৈর্ঘ্যের বাহু তৈরি হয় — ক্ষেত্রফল ঠিক
+   * থাকলেও বাহুর তালিকায় "০'০"" আসে আর স্ব-ছেদের পরীক্ষাও গোলায়।
+   */
+  cleanPoints(pts, minDist) {
+    if (!Array.isArray(pts)) return [];
+    const d = minDist > 0 ? minDist : 1e-6;
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const last = out[out.length - 1];
+      if (last && Math.hypot(pts[i].x - last.x, pts[i].y - last.y) <= d) continue;
+      out.push(pts[i]);
+    }
+    // শেষ ও প্রথম বিন্দুও এক হতে পারে
+    while (out.length > 1) {
+      const a = out[0], b = out[out.length - 1];
+      if (Math.hypot(a.x - b.x, a.y - b.y) <= d) out.pop();
+      else break;
+    }
+    return out;
+  },
+
+  /**
+   * ★ নিজেকে কেটে যাওয়া বহুভুজ ধরা
+   *
+   * এটা কেন দরকার — কোণা ভুল ক্রমে বসলে শোয়েলেস সূত্র এক টুকরো
+   * যোগ করে আর আরেক টুকরো বিয়োগ করে — উত্তর ভুল হয়, অথচ
+   * বিশ্বাসযোগ্য দেখায়। মেপে দেখা: ৪০০×৩০০ px প্লটে একটি কোণা
+   * ভেতরে টানলে ১৩৩৩.৩৩ শতকের বদলে ১০০০.০০ দেখায় — ২৫% ভুল।
+   * পুরো উল্টে গেলে ০.০০।
+   *
+   * @returns {{i:number, j:number}|null} যে দুই বাহু কাটাকাটি করেছে
+   */
+  selfIntersects(pts) {
+    if (!Array.isArray(pts) || pts.length < 4) return null;
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      for (let j = i + 1; j < n; j++) {
+        // পাশাপাশি বাহু প্রান্তে মিলবেই — তাদের বাদ
+        if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue;
+        if (this._segCross(a, b, pts[j], pts[(j + 1) % n])) return { i, j };
+      }
+    }
+    return null;
+  },
+
+  /** দুই রেখাখণ্ড কাটাকাটি করে? (স্পর্শ ও মিশে যাওয়াও ধরা) */
+  _segCross(a, b, c, d) {
+    const cr = (o, u, v) => (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x);
+    const d1 = cr(a, b, c), d2 = cr(a, b, d), d3 = cr(c, d, a), d4 = cr(c, d, b);
+    // স্পষ্ট ক্রস — দুই পাশে দুই চিহ্ন
+    if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))
+        && d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0) return true;
+    // সমরেখ হয়ে ওপরে পড়া (ডুপ্লিকেট বিন্দু এখানে ধরা পড়ে)
+    const sz = Math.max(Math.hypot(b.x - a.x, b.y - a.y),
+                        Math.hypot(d.x - c.x, d.y - c.y), 1);
+    const E = 1e-9 * sz * sz;
+    const on = (u, v, q) =>
+      Math.min(u.x, v.x) - 1e-9 <= q.x && q.x <= Math.max(u.x, v.x) + 1e-9 &&
+      Math.min(u.y, v.y) - 1e-9 <= q.y && q.y <= Math.max(u.y, v.y) + 1e-9;
+    if (Math.abs(d1) <= E && on(a, b, c)) return true;
+    if (Math.abs(d2) <= E && on(a, b, d)) return true;
+    if (Math.abs(d3) <= E && on(c, d, a)) return true;
+    if (Math.abs(d4) <= E && on(c, d, b)) return true;
+    return false;
+  },
+
+  /**
+   * ★ একটি ভাগ কয় আলাদা টুকরোয় পড়লো
+   *
+   * অবতল (U বা L আকারের) প্লট সমান্তরাল রেখায় কাটলে একজন শরিকের
+   * অংশ দুই জায়গায় ছিটেফোটা পড়তে পারে — ক্ষেত্রফল ঠিক, কিন্তু বাস্তবে
+   * এক টুকরো জমি নয়। বন্টননামায় এটা জানানো দরকার।
+   *
+   * পদ্ধতি — স্ক্যানলাইন সুইপ:
+   *   ১. শীর্ষবিন্দুগুলোর y ধরে স্লাইস বানাই (বদল কেবল শীর্ষেই ঘটে)
+   *   ২. প্রতি স্লাইসে বহুভুজটি কয়টা পট্টিতে কাটে বের করি
+   *   ৩. পাশাপাশি স্লাইসের পট্টি মিললে একসাথে জোড়া লাগাই (union-find)
+   *   ৪. কতগুলো দল রইল = কত টুকরো
+   *
+   * মাঝের একটি রেখা দেখলে চলত না — U এর দুই পা মাঝে আলাদা দেখালেও
+   * নিচের পাটাতনে জোড়া থাকতে পারে। সেই ভুল এখানে হয় না।
+   *
+   * @returns {number} কতটি আলাদা টুকরো (ন্যূনতম ১)
+   */
+  countPieces(poly) {
+    if (!Array.isArray(poly) || poly.length < 3) return 0;
+    const n = poly.length;
+
+    // শীর্ষের y গুলোই ঘটনা — এর মাঝে গঠন বদলায় না
+    const ys = poly.map(q => q.y).slice().sort((a, b) => a - b);
+    const uniq = [];
+    for (let i = 0; i < ys.length; i++) {
+      if (!uniq.length || Math.abs(ys[i] - uniq[uniq.length - 1]) > 1e-9) uniq.push(ys[i]);
+    }
+    if (uniq.length < 2) return 1;
+
+    /** y রেখায় বহুভুজ কাটলে যে পট্টিগুলো পাওয়া যায় */
+    const spansAt = y => {
+      const xs = [];
+      for (let i = 0; i < n; i++) {
+        const a = poly[i], b = poly[(i + 1) % n];
+        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+          xs.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
+        }
+      }
+      xs.sort((p1, p2) => p1 - p2);
+      const out = [];
+      for (let i = 0; i + 1 < xs.length; i += 2) {
+        if (xs[i + 1] - xs[i] > 1e-9) out.push([xs[i], xs[i + 1]]);
+      }
+      return out;
+    };
+
+    const find = (par, i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+    const par = [];
+    let prev = [], prevIds = [];
+
+    for (let k = 0; k + 1 < uniq.length; k++) {
+      const spans = spansAt((uniq[k] + uniq[k + 1]) / 2);
+      const ids = spans.map(() => { par.push(par.length); return par.length - 1; });
+      // আগের স্লাইসের সাথে ওভারল্যাপ থাকলে এক দল
+      for (let i = 0; i < spans.length; i++) {
+        for (let j = 0; j < prev.length; j++) {
+          const lo = Math.max(spans[i][0], prev[j][0]);
+          const hi = Math.min(spans[i][1], prev[j][1]);
+          if (hi - lo > 1e-9) {
+            const a = find(par, ids[i]), b = find(par, prevIds[j]);
+            if (a !== b) par[a] = b;
+          }
+        }
+      }
+      prev = spans; prevIds = ids;
+    }
+
+    if (!par.length) return 1;
+    const roots = {};
+    for (let i = 0; i < par.length; i++) roots[find(par, i)] = 1;
+    return Math.max(1, Object.keys(roots).length);
   },
 
   /**
@@ -461,7 +748,10 @@ const MapMeasure = {
         + 'প্লটে আছে ' + totalSatak.toFixed(2) + ' শতক');
     }
 
-    const angle = this.sideNormalAngle(pts, sideIndex);
+    // sideIndex সংখ্যা হলে বাহু, স্ট্রিং হলে দিক (w2e/e2w/n2s/s2n)
+    const angle = typeof sideIndex === 'string'
+      ? this.directionAngle(sideIndex)
+      : this.sideNormalAngle(pts, sideIndex);
     const parts = [];
     let remain = pts.slice();
 
@@ -486,7 +776,12 @@ const MapMeasure = {
           satak: (leftPx * f * f) / this.SQFT_PER_SATAK }
       : null;
 
-    return { parts, leftover, totalSatak, askedSatak: asked, angle };
+    // ★ অবতল প্লটে কারো অংশ দুই টুকরোয় পড়তে পারে — জানানো দরকার
+    parts.forEach(x => { x.pieces = this.countPieces(x.polygon); });
+    if (leftover) leftover.pieces = this.countPieces(leftover.polygon);
+    const split = parts.filter(x => x.pieces > 1).length + (leftover && leftover.pieces > 1 ? 1 : 0);
+
+    return { parts, leftover, totalSatak, askedSatak: asked, angle, split };
   },
 
   /**
@@ -497,11 +792,13 @@ const MapMeasure = {
       serial: i + 1,
       name: p.name || ('শরিক ' + (i + 1)),
       satak: p.satak,
+      pieces: p.pieces || 1,
       percent: res.totalSatak > 0 ? (p.satak / res.totalSatak) * 100 : 0
     }));
     if (res.leftover) {
       rows.push({ serial: rows.length + 1, name: 'অবশিষ্ট',
                   satak: res.leftover.satak,
+                  pieces: res.leftover.pieces || 1,
                   percent: res.totalSatak > 0 ? (res.leftover.satak / res.totalSatak) * 100 : 0 });
     }
     const sum = rows.reduce((a, b) => a + b.satak, 0);
@@ -513,6 +810,55 @@ const MapMeasure = {
       // যোগফল মোটের সাথে মেলে কি না — কাগজে লেখার আগে দেখা জরুরি
       exact: Math.abs(sum - res.totalSatak) < Math.max(1e-6, res.totalSatak * 1e-6)
     };
+  },
+
+  /* ---------------- ভাগের দিক ---------------- */
+
+  /**
+   * চার দিক — ওদের "বন্টনের দিক (Direction)" ড্রপডাউনের সমকক্ষ
+   * কোণ = কাটার রেখার লম্ব দিক (ছবির y নিচমুখী, তাই উত্তর = −y)
+   */
+  DIRECTIONS: [
+    { id: 'w2e', angle: 0,   label: 'পশ্চিম থেকে পূর্ব (বাঁ → ডান)' },
+    { id: 'e2w', angle: 180, label: 'পূর্ব থেকে পশ্চিম (ডান → বাঁ)' },
+    { id: 'n2s', angle: 90,  label: 'উত্তর থেকে দক্ষিণ (উপর → নিচ)' },
+    { id: 's2n', angle: 270, label: 'দক্ষিণ থেকে উত্তর (নিচ → উপর)' }
+  ],
+
+  directionAngle(id) {
+    const d = this.DIRECTIONS.filter(x => x.id === id)[0];
+    if (!d) throw new Error('দিক চেনা গেল না');
+    return d.angle;
+  },
+
+  /**
+   * শরিকদের অংশ যেভাবেই দেওয়া হোক, শতকে রূপান্তর
+   * @param {string} mode   'pct' | 'satak' | 'equal'
+   * @param {Array} people  [{name, value}]  (equal হলে value লাগে না)
+   * @param {number} totalSatak
+   */
+  sharesToSatak(mode, people, totalSatak) {
+    const T = Number(totalSatak) || 0;
+    if (!(T > 0)) throw new Error('প্লটের ক্ষেত্রফল লাগবে');
+    const list = people || [];
+    if (!list.length) throw new Error('অন্তত একজন শরিকের অংশ দিন');
+
+    if (mode === 'equal') {
+      const each = T / list.length;
+      return list.map((x, i) => ({ name: x.name || ('শরিক ' + (i + 1)), satak: each }));
+    }
+    if (mode === 'pct') {
+      const sum = list.reduce((a, b) => a + (Number(b.value) || 0), 0);
+      if (!(sum > 0)) throw new Error('শতাংশ শূন্যের বেশি হতে হবে');
+      if (sum > 100 + 1e-6) {
+        throw new Error('শতাংশের যোগ ' + sum.toFixed(2) + '% — ১০০ এর বেশি হতে পারে না');
+      }
+      return list.map((x, i) => ({ name: x.name || ('শরিক ' + (i + 1)),
+                                   satak: T * (Number(x.value) || 0) / 100 }));
+    }
+    // satak
+    return list.map((x, i) => ({ name: x.name || ('শরিক ' + (i + 1)),
+                                 satak: Number(x.value) || 0 }));
   },
 
   /* ---------------- প্লট ব্যবস্থাপনা ---------------- */

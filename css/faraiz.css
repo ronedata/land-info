@@ -1962,6 +1962,9 @@
 .kmz-search-row { gap: 5px; }
 .kmz-search-row .kmz-mini { padding: 4px 9px; }
 .kmz-mini.busy { opacity: 0.6; }
+.kmz-mini.danger { border-color: #fca5a5; color: #b91c1c; }
+.kmz-mini.danger:hover:not(:disabled) { border-color: #ef4444; background: #fef2f2; color: #b91c1c; }
+.kmz-mini:disabled { opacity: 0.45; cursor: not-allowed; }
 .kmz-mini i { font-size: 0.9rem; }
 
 .kmz-geo {
@@ -2541,7 +2544,9 @@
   background: var(--bg-card); color: var(--text-muted);
   font-size: 0.68rem; font-weight: 600;
 }
-.mm-badge.off { background: #fee2e2; color: #b91c1c; }
+.mm-badge.off  { background: #fee2e2; color: #b91c1c; }
+.mm-badge.auto { background: #dcfce7; color: #15803d; }
+.mm-badge.warn { background: #fef3c7; color: #b45309; }
 
 /* ── ভাগবণ্টন ── */
 
@@ -2586,6 +2591,75 @@
   color: var(--text-main); text-align: right;
 }
 .mm-share-u { flex-shrink: 0; color: var(--text-muted); font-size: 0.76rem; }
+
+/* "সমান ভাগে" — হিসাব করা অংশ, লেখা যায় না */
+.mm-share-eq {
+  display: grid; place-items: center;
+  min-height: 40px; padding: 6px 10px;
+  border: 1px dashed var(--border-color); border-radius: var(--radius-sm);
+  background: var(--bg-subtle, transparent);
+  color: var(--text-muted); font-size: 0.85rem; font-weight: 600;
+  white-space: nowrap;
+}
+
+/* নিজেকে কাটা প্লট — তালিকায় লাল সতর্কতা */
+.mm-row.bad { background: #fef2f2; }
+.mm-row-a.warn {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: #b91c1c; font-weight: 700; white-space: nowrap;
+}
+.mm-row.bad .mm-row-k { color: #b91c1c; opacity: 0.75; font-size: 0.76rem; }
+
+/* ভাগের অংশ এক টুকরোয় পড়েনি */
+.mm-div-split {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-inline-start: 6px; padding: 1px 7px;
+  border-radius: 999px; background: #fef3c7;
+  color: #b45309; font-size: 0.72rem; font-weight: 700;
+  white-space: nowrap;
+}
+
+/* এই জুমে ১ পিক্সেল কত ফুট — স্কেল পিলের ঠিক নিচে */
+.mm-prec {
+  position: absolute;
+  top: 56px; left: 12px;
+  z-index: 4;
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 5px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.76rem; font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.mm-prec b { color: var(--text-main); }
+.mm-prec.ok   { border-color: #86efac; color: #15803d; }
+.mm-prec.ok b { color: #15803d; }
+.mm-prec.warn { border-color: #fcd34d; color: #b45309; background: rgba(255, 251, 235, 0.96); }
+.mm-prec.warn b { color: #b45309; }
+.mm-prec.bad  { border-color: #fca5a5; color: #b91c1c; background: rgba(254, 242, 242, 0.96); }
+.mm-prec.bad b { color: #b91c1c; }
+
+/* বাহুর লেবেলের একক — প্যানেলের হেডে ছোট ড্রপডাউন */
+.mm-unit-pick {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border: 1px solid var(--border-color);
+  border-radius: 999px; background: var(--bg-input);
+  color: var(--text-muted); cursor: pointer;
+}
+.mm-unit-pick i { font-size: 0.8rem; }
+.mm-unit-pick select {
+  border: none; background: transparent; outline: none; cursor: pointer;
+  max-width: 130px;
+  font-family: inherit; font-size: 0.78rem; font-weight: 600;
+  color: var(--text-main);
+}
+
+/* ছোট সেগমেন্ট — একই সারিতে তিনটি বোতাম ধরানোর জন্য */
+.fz-seg-sm .fz-seg-btn { flex: 1 1 90px; padding: 7px 10px; font-size: 0.82rem; }
 
 .mm-div-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
 .mm-div-actions .btn { flex: 1 1 170px; justify-content: center; }
@@ -2645,3 +2719,64 @@
 }
 .mm-div-ok { color: var(--secondary); }
 .mm-div-bad { color: var(--danger); }
+
+/* ==========================================================================
+   বোতামের ভিত্তি ক্লাস
+   --------------------------------------------------------------------------
+   `.btn-primary` ও `.btn-secondary` css/style.css এ আগে থেকেই ছিল, কিন্তু
+   `.btn` (ভিত্তি) ও `.btn-outline` কখনো সংজ্ঞায়িত হয়নি — তবু index.html এ
+   ব্যবহৃত হচ্ছিল, ফলে ব্রাউজারের ডিফল্ট বোতাম দেখাত।
+   ========================================================================== */
+
+/* ⚠️ `.btn` কেবল **বিন্যাস** দেয় — রং নয়।
+   `.btn-primary` আছে css/style.css এ, আর faraiz.css পরে লোড হয়। এখানে
+   background/color দিলে সমান স্পেসিফিসিটিতে পরেরটা জিতে যেত ও primary
+   বোতামও সাদা হয়ে যেত (একবার হয়েছিল)। রং প্রতিটি ভেরিয়েন্টের নিজের। */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;                 /* টাচ টার্গেট */
+  min-width: 0;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn i { font-size: 1rem; }
+
+.btn-outline {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.btn-sm { min-height: 36px; padding: 6px 13px; font-size: 0.84rem; }
+
+/* গাঢ় বারের ভেতরে (যেমন আঁকার বার) outline বোতাম */
+.mm-draw-bar .btn-outline,
+.kmz-nav .btn-outline {
+  background: transparent;
+}
+.mm-draw-bar .btn-outline {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  border-color: transparent;
+}
+.mm-draw-bar .btn-outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}

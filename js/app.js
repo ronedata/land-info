@@ -1087,7 +1087,7 @@ const AppController = {
   mm: { img: null, imgName: '', isPdf: false, pdfScale: 0,
         ftPerPx: 0, scaleFrom: '', calibrating: null,
         tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
-        divMode: 'prop', shares: [], division: null, cutLine: null },
+        divMode: 'prop', shareMode: 'satak', shares: [], division: null, cutLine: null },
 
   initMeasure() {
     const c = document.getElementById('mm-canvas');
@@ -1097,24 +1097,51 @@ const AppController = {
       c._mmInit = true;
       MeasureCanvas.init(c, {
         onChange: () => this.mmRefresh(),
-        onSelect: () => this.mmRefresh()
+        onSelect: () => this.mmRefresh(),
+        onView: () => this.mmPrecision()
       });
+      // ★ জানালার মাপ বদলালে বা ফোন ঘোরালে ক্যানভাস আর ক্লিকের হিসাব
+      //   আলাদা হয়ে যেত — তখন থেকে সব ক্লিক সরে পড়ত
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => this.mmSizeCanvas()).observe(c);
+      } else {
+        window.addEventListener('resize', () => this.mmSizeCanvas());
+      }
     } else {
       MeasureCanvas.state.canvas = c;
       MeasureCanvas.draw();
     }
     this.mmFillScaleOptions();
+    this.mmFillLabelUnits();
     this.mmRefresh();
+  },
+
+  /** বাহুর লেবেলের একক — ফিট'ইঞ্চি · ফিট · লিংক · চেইন · মিটার */
+  mmFillLabelUnits() {
+    const sel = document.getElementById('mm-label-unit');
+    if (!sel) return;
+    sel.innerHTML = MapMeasure.LABEL_UNITS
+      .map(u => '<option value="' + u.id + '">' + u.label + '</option>').join('');
+    sel.value = MeasureCanvas.state ? MeasureCanvas.state.labelUnit : 'ftin';
+  },
+
+  mmLabelUnit(u) {
+    MeasureCanvas.setLabelUnit(u);
+    this.mmDivRefresh();          // বাহুর তালিকাও একই এককে
   },
 
   mmSizeCanvas() {
     const c = document.getElementById('mm-canvas');
     const st = document.getElementById('mm-stage');
     if (!c || !st) return;
-    const r = st.getBoundingClientRect();
-    const w = Math.max(280, Math.round(r.width));
-    const h = Math.max(320, Math.round(r.height));
-    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    // ★ canvas এর নিজের মাপ ধরতে হবে, stage এর নয় — stage এ বর্ডার আছে,
+    //   CSS ক্যানভাসকে টানে তার **ভেতরের** মাপে। আগে stage এর মাপ বসানোয়
+    //   ২ পিক্সেল ফারাক থাকত, জুম-আউটে যা ২০+ ফুট ভুল হয়ে দাঁড়াত।
+    const r = c.getBoundingClientRect();
+    const w = Math.max(280, Math.round(r.width || st.clientWidth));
+    const h = Math.max(320, Math.round(r.height || st.clientHeight));
+    if (MeasureCanvas.state) MeasureCanvas.resize(w, h);
+    else { c.width = w; c.height = h; }
   },
 
   /* ---- স্কেলের ড্রপডাউন ---- */
@@ -1154,14 +1181,46 @@ const AppController = {
     if (!dp) return;
     if (k.isPdf && k.pdfScale > 0) {
       const dpi = MapMeasure.dpiForPdf(k.pdfScale);
-      dp.disabled = true;
+      // ★ আগে এখানে ড্রপডাউন **বন্ধ** করে দেওয়া হতো — ধরে নেওয়া হতো PDF এর
+      //   পাতার মাপ মানেই আসল কাগজের মাপ। স্ক্যান করা নকশায় তা প্রায়ই নয়
+      //   (পাতার মাপ = ছবির পিক্সেল সংখ্যা)। তখন বেরোনো DPI অর্থহীন, অথচ
+      //   ইউজার বদলাতেও পারতেন না — সব মাপ নীরবে ভুল হতো।
+      const trusty = dpi >= 100 && dpi <= 900;
+      dp.disabled = false;
+      if (!dp._mmSet) {
+        // বেরোনো মানটাও তালিকায় থাকুক
+        if (![].some.call(dp.options, o => Math.abs(Number(o.value) - dpi) < 0.5)) {
+          const op = document.createElement('option');
+          op.value = String(Math.round(dpi));
+          op.textContent = 'PDF থেকে পাওয়া — ' + toBn(dpi.toFixed(0)) + ' DPI'
+            + (trusty ? '' : ' (সন্দেহজনক)');
+          dp.insertBefore(op, dp.firstChild);
+        }
+        // ★ বিশ্বাসযোগ্য হলেই বসাই। অবিশ্বাস্য মান বসিয়ে দিলে ইউজার
+        //   "স্কেল বসান" চাপলেই সতর্কবার্তা পেতেন, আর বাতিল করলে স্কেলই
+        //   বসত না — টুলটা অচল মনে হতো। তালিকায় থাকল, কিন্তু বাছা নয়।
+        dp.value = trusty ? String(Math.round(dpi)) : '300';
+        dp._mmSet = true;
+      }
       if (badge) {
         badge.style.display = '';
-        badge.textContent = 'PDF-এর জন্য বন্ধ';
-        badge.className = 'mm-badge off';
+        badge.textContent = trusty ? '✓ PDF থেকে পাওয়া' : '⚠ সন্দেহজনক';
+        badge.className = 'mm-badge ' + (trusty ? 'auto' : 'warn');
       }
-      if (note) note.textContent = 'PDF থেকে DPI বেরিয়ে এসেছে: '
-        + toBn(dpi.toFixed(1)) + ' — বাছার দরকার নেই।';
+      if (note) {
+        const pg = k.pageIn
+          ? ' পাতার মাপ ' + toBn(k.pageIn.w.toFixed(1)) + '×'
+            + toBn(k.pageIn.h.toFixed(1)) + ' ইঞ্চি।'
+          : '';
+        note.innerHTML = trusty
+          ? 'PDF থেকে DPI পাওয়া গেছে <b>' + toBn(dpi.toFixed(0)) + '</b>।' + pg
+            + ' মিল না হলে বদলে নিন।'
+          : '<b>সাবধান —</b> PDF থেকে DPI এল <b>' + toBn(dpi.toFixed(0)) + '</b>, যা '
+            + 'স্ক্যান করা নকশার জন্য অস্বাভাবিক।' + pg
+            + ' এই PDF-এ পাতার মাপ সম্ভবত আসল কাগজের মাপ নয়, তাই '
+            + '<b>৩০০ DPI</b> ধরে রাখা হলো। নিখুঁত মাপ চাইলে নিচের '
+            + '<b>পদ্ধতি ২</b> — ম্যাপের স্কেল-দণ্ড ধরে মেপে নিন।';
+      }
     } else {
       dp.disabled = false;
       if (badge) badge.style.display = 'none';
@@ -1175,14 +1234,13 @@ const AppController = {
     const i = Number((document.getElementById('mm-mapscale') || {}).value || 0);
     const sc = MapMeasure.MAP_SCALES[i];
     if (!sc) return;
-    let dpi;
-    if (k.isPdf && k.pdfScale > 0) {
-      dpi = MapMeasure.dpiForPdf(k.pdfScale);
-    } else {
-      dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
-    }
+    // ★ PDF হলেও ইউজারের বাছাইই চলবে — PDF এর পাতার মাপ সবসময়
+    //   আসল কাগজের মাপ নয়
+    const dpi = Number((document.getElementById('mm-dpi') || {}).value || 300);
     try {
       const r = MapMeasure.fromMapScale(1, sc.ftPerInch, dpi);
+      const sane = MapMeasure.scaleSanity(r.ftPerPx, dpi);
+      if (!sane.ok && !confirm(sane.msg + '\n\nতবু এই স্কেলই বসাবেন?')) return;
       k.ftPerPx = r.ftPerPx;
       k.scaleFrom = sc.label + ' · ' + toBn(dpi.toFixed(0)) + ' DPI';
       MeasureCanvas.setScale(k.ftPerPx);
@@ -1220,9 +1278,15 @@ const AppController = {
     if (!bar || !hint || !k.calibrating) return;
     bar.style.display = '';
     if (fin) fin.style.display = 'none';
-    hint.innerHTML = '<b>স্কেল ক্যালিব্রেশন —</b> দণ্ডটি ' + toBn(k.calibrating.feet)
-      + ' ফুট। ' + (done === 0 ? '<b>প্রথম</b>' : '<b>দ্বিতীয়</b>')
-      + ' প্রান্তে ক্লিক করুন (' + toBn(done) + '/২)';
+    // ক্যালিব্রেশনে "শেষ পয়েন্ট মুছুন" এর কোনো অর্থ নেই
+    const un = document.getElementById('mm-undo');
+    if (un) un.style.display = 'none';
+    const touch = matchMedia('(pointer: coarse)').matches;
+    hint.innerHTML = '<b>স্কেল ঠিক করা —</b> দুই ক্লিকের মাঝের দূরত্ব <b>'
+      + toBn(k.calibrating.feet) + ' ফুট</b>। '
+      + (done === 0 ? '<b>১ম</b>' : '<b>২য়</b>') + ' বিন্দুতে '
+      + (touch ? 'চাপ দিন' : 'ক্লিক করুন')
+      + ' (' + toBn(done) + '/২) · ভুল হলে বাতিল';
   },
 
   mmFinishCalibrate(p1, p2) {
@@ -1230,6 +1294,8 @@ const AppController = {
     const bar = document.getElementById('mm-draw-bar');
     const fin = document.getElementById('mm-finish');
     if (fin) fin.style.display = '';
+    const un = document.getElementById('mm-undo');
+    if (un) un.style.display = '';
     const feet = k.calibrating ? k.calibrating.feet : 0;
     try {
       const r = MapMeasure.calibrate(p1, p2, feet);
@@ -1241,6 +1307,21 @@ const AppController = {
       if (bar) bar.style.display = 'none';
       this.mmTool('pan');
       this.mmRefresh();
+
+      /* ★ ক্যালিব্রেশনের ভুল সবচেয়ে ব্যয়বহুল — একবার ভুল হলে পরের
+         প্রতিটি মাপে সেটা গুণ হয়ে বসে। দুই ক্লিক পর্দায় যত কম পিক্সেল
+         দূরে, ভুলের হার তত বেশি (১ পিক্সেল এদিক-ওদিক ÷ মোট পিক্সেল)।
+         তাই কম হলে বলে দিই, আর সংখ্যাটাও দেখাই। */
+      const spanPx = r.pxLength * (MeasureCanvas.state.scale || 1);
+      if (spanPx < 150) {
+        const err = (100 / Math.max(spanPx, 1)).toFixed(1);
+        alert('স্কেল বসেছে, কিন্তু দুই ক্লিক পর্দায় মাত্র '
+          + toBn(Math.round(spanPx)) + ' পিক্সেল দূরে ছিল।\n\n'
+          + 'এক পিক্সেল এদিক-ওদিক হলেই স্কেলে প্রায় ' + toBn(err)
+          + '% ভুল — আর সেই ভুল পরের সব মাপে গুণ হয়ে বসবে।\n\n'
+          + 'ভালো হয় যদি জুম করে (+ বোতাম বা দুই আঙুলে) আবার '
+          + 'ক্যালিব্রেট করেন — দুই বিন্দু পর্দাজুড়ে যত দূরে, তত নিখুঁত।');
+      }
     } catch (e) {
       k.calibrating = null;
       if (bar) bar.style.display = 'none';
@@ -1258,19 +1339,86 @@ const AppController = {
       b.classList.toggle('active', b.dataset.tool === t));
     const bar = document.getElementById('mm-draw-bar');
     if (bar) bar.style.display = t === 'draw' ? '' : 'none';
+    const pb = document.getElementById('mm-pt-bar');
+    if (pb) pb.style.display = t === 'point' ? '' : 'none';
+    if (t !== 'point') MeasureCanvas.state.picked = null;
     this.mmRefresh();
   },
 
-  mmZoom(d) { MeasureCanvas.zoom(d); },
-  mmFit() { MeasureCanvas.fit(); },
+  /** পয়েন্ট টুলে বাছাই করা কোণা মুছে ফেলা */
+  mmDelVertex() {
+    const p = MeasureCanvas.state.picked;
+    if (!p) return;
+    if (!MeasureCanvas.deleteVertex(p.plot, p.index)) {
+      alert('একটি প্লটে অন্তত ৩টি বিন্দু থাকতেই হবে — আর মোছা যাবে না।');
+      return;
+    }
+    this.mmRefresh();
+  },
+
+  mmZoom(d) { MeasureCanvas.zoom(d); this.mmPrecision(); },
+  mmFit() { MeasureCanvas.fit(); this.mmPrecision(); },
+
+  /**
+   * ★ এই জুমে এক পর্দা-পিক্সেল কত ফুট
+   *
+   * পুরো নকশা পর্দায় ধরালে ১ পিক্সেল ১০-১২ ফুট হয়ে যায় — তখন যত ভালো
+   * করেই ক্লিক করুন, ক্ষেত্রফলে ২-৩% ভুল থাকবেই। এটা বাগ নয়, জ্যামিতি।
+   * তাই সংখ্যাটা চোখের সামনে রাখি, আর বেশি হলে জুম করতে বলি।
+   */
+  mmPrecision() {
+    const el = document.getElementById('mm-prec');
+    if (!el) return;
+    const k = this.mm;
+    const st = MeasureCanvas.state;
+    if (!k.img || !(k.ftPerPx > 0) || !st || !(st.scale > 0)) {
+      el.style.display = 'none';
+      return;
+    }
+    const ft = k.ftPerPx / st.scale;          // ১ পর্দা-পিক্সেল = কত ফুট
+    const level = ft > 3 ? 'bad' : ft > 1 ? 'warn' : 'ok';
+    el.style.display = '';
+    el.className = 'mm-prec ' + level;
+    el.innerHTML = '<i class="bi bi-' +
+      (level === 'ok' ? 'crosshair' : 'exclamation-triangle') + '"></i>' +
+      '<span>১ পিক্সেল ≈ <b>' + MapMeasure.formatLength(ft, st.labelUnit) + '</b>' +
+      (level === 'ok' ? '' : ' — জুম করে আঁকুন') + '</span>';
+  },
 
   mmUndoPoint() { MeasureCanvas.undoDraftPoint(); },
-  mmCancelDraft() { MeasureCanvas.cancelDraft(); },
+  /**
+   * "বাতিল" — যা চলছিল তাই থামায়
+   * ★ আগে কেবল খসড়া মুছত। ক্যালিব্রেশন শুরু করে ফেললে বেরোনোর কোনো পথই
+   *   ছিল না (cancelCalibrate লেখা থাকলেও কোথাও বাঁধা ছিল না)।
+   */
+  mmCancelDraft() {
+    if (this.mm.calibrating) {
+      this.mm.calibrating = null;
+      MeasureCanvas.cancelCalibrate();
+      const bar = document.getElementById('mm-draw-bar');
+      if (bar) bar.style.display = 'none';
+      const un = document.getElementById('mm-undo');
+      if (un) un.style.display = '';
+      this.mmRefresh();
+      return;
+    }
+    MeasureCanvas.cancelDraft();
+  },
 
   mmFinish() {
     const r = MeasureCanvas.closePlot();
     if (!r.ok) { alert(r.msg); return; }
     this.mmRefresh();
+  },
+
+  /** নিজেকে কাটা প্লট দিয়ে ভাগ করা বা মাপ নেওয়া নিরাপদ নয় */
+  mmGuardBroken(plot) {
+    const bad = plot && MeasureCanvas.plotBroken(plot);
+    if (!bad) return false;
+    alert('এই প্লটের ' + toBn(bad.i + 1) + ' নং আর ' + toBn(bad.j + 1)
+      + ' নং বাহু একে অপরকে কেটেছে, তাই ক্ষেত্রফলই ভুল আসছে।\n\n'
+      + 'পয়েন্ট টুল দিয়ে কোণাটি ঠিক জায়গায় সরান, তারপর আবার চেষ্টা করুন।');
+    return true;
   },
 
   mmClear() {
@@ -1312,6 +1460,7 @@ const AppController = {
         : 'স্কেল ঠিক করুন — ক্লিক করুন';
     }
     if (pill) pill.className = 'mm-scale-pill' + (k.ftPerPx > 0 ? ' ok' : ' warn');
+    this.mmPrecision();
 
     // টাইল
     const st = MeasureCanvas.stats();
@@ -1329,12 +1478,38 @@ const AppController = {
     const hint = document.getElementById('mm-draw-hint');
     if (hint && !k.calibrating) {
       const n = MeasureCanvas.state.draft.length;
-      hint.textContent = n === 0 ? 'ম্যাপে ক্লিক করে পয়েন্ট বসান'
+      // আঙুলে নিয়ম আলাদা — এক আঙুল বিন্দু বসায়, দুই আঙুল সরায়/জুম করে
+      const touch = matchMedia('(pointer: coarse)').matches;
+      hint.textContent = n === 0
+        ? (touch ? 'আঙুল চেপে ধরুন — আতশকাচে দেখে ছাড়লেই বিন্দু · দুই আঙুলে সরান ও জুম'
+                 : 'ম্যাপে ক্লিক করে পয়েন্ট বসান · টেনে সরান, স্ক্রলে জুম')
         : n < 3 ? toBn(n) + 'টি পয়েন্ট — অন্তত ৩টি দরকার'
-        : toBn(n) + 'টি পয়েন্ট — প্রথম পয়েন্টে ক্লিক করলেও প্লট বন্ধ হবে';
+        : toBn(n) + 'টি পয়েন্ট — প্রথম পয়েন্টে ' + (touch ? 'চাপ দিলেই' : 'ক্লিক করলেও')
+          + ' প্লট বন্ধ হবে';
+    }
+
+    // পয়েন্ট এডিট — কোণা বাছা থাকলে মোছার বোতাম সচল
+    const del = document.getElementById('mm-pt-del');
+    const pth = document.getElementById('mm-pt-hint');
+    if (del) {
+      const pk = MeasureCanvas.state.picked;
+      const plot = pk ? MeasureCanvas.state.plots[pk.plot] : null;
+      del.disabled = !plot || plot.points.length <= 3;
+      if (pth) {
+        pth.textContent = !plot
+          ? 'কোণার বিন্দু ধরে টানুন · বাহুর গায়ে চাপ দিলে নতুন বিন্দু'
+          : (plot.points.length <= 3
+              ? 'ত্রিভুজে আর বিন্দু মোছা যায় না'
+              : (plot.dag ? 'দাগ ' + plot.dag : plot.name) + ' — '
+                + toBn(pk.index + 1) + ' নং কোণা বাছা হয়েছে');
+      }
     }
 
     this.mmRenderList();
+
+    // ভাগবণ্টন খোলা থাকলে প্লট বদলালে বাহুর তালিকাও বদলাতে হবে
+    const dw = document.getElementById('mm-div-wrap');
+    if (dw && dw.style.display !== 'none') this.mmDivRefresh();
   },
 
   mmRenderList() {
@@ -1350,14 +1525,21 @@ const AppController = {
     box.innerHTML = plots.map((p, i) => {
       const m = MapMeasure.measure(p, k.ftPerPx);
       const sel = i === MeasureCanvas.state.selected;
-      return '<div class="mm-row' + (sel ? ' sel' : '') + '">' +
+      // নিজেকে কাটা প্লটের সংখ্যা দেখানোই বিপজ্জনক — বদলে সতর্কতা
+      const bad = MeasureCanvas.plotBroken(p);
+      return '<div class="mm-row' + (sel ? ' sel' : '') + (bad ? ' bad' : '') + '">' +
         '<span class="mm-row-n">' + toBn(i + 1) + '</span>' +
         '<input class="mm-row-dag" value="' + (p.dag || '') + '" placeholder="দাগ নং"' +
           ' oninput="AppController.mmSetDag(' + i + ', this.value)">' +
-        '<span class="mm-row-a">' +
-          (k.ftPerPx > 0 ? toBn(m.satak.toFixed(2)) + ' শতক' : '—') + '</span>' +
-        '<span class="mm-row-k">' +
-          (k.ftPerPx > 0 ? toBn(m.katha.toFixed(2)) + ' কাঠা' : '') + '</span>' +
+        (bad
+          ? '<span class="mm-row-a warn" title="' + toBn(bad.i + 1) + ' ও '
+              + toBn(bad.j + 1) + ' নং বাহু কাটাকাটি করছে">'
+              + '<i class="bi bi-exclamation-triangle-fill"></i> বাহু কাটাকাটি</span>'
+              + '<span class="mm-row-k">মাপ ধরা হয়নি</span>'
+          : '<span class="mm-row-a">' +
+            (k.ftPerPx > 0 ? toBn(m.satak.toFixed(2)) + ' শতক' : '—') + '</span>' +
+            '<span class="mm-row-k">' +
+            (k.ftPerPx > 0 ? toBn(m.katha.toFixed(2)) + ' কাঠা' : '') + '</span>') +
         '<button type="button" class="fz-btn-del" title="মুছুন"' +
           ' onclick="AppController.mmDeletePlot(' + i + ')"><i class="bi bi-x-lg"></i></button>' +
       '</div>';
@@ -1383,7 +1565,7 @@ const AppController = {
       b.classList.toggle('active', b.dataset.tool === 'divide'));
     const w = document.getElementById('mm-div-wrap');
     if (w) w.style.display = '';
-    if (!k.shares.length) { k.shares = [{ name: '', satak: '' }, { name: '', satak: '' }]; }
+    if (!k.shares.length) { k.shares = [{ name: '', value: '' }, { name: '', value: '' }]; }
     this.mmDivRefresh();
   },
 
@@ -1417,21 +1599,45 @@ const AppController = {
       pill.className = 'fz-pill' + (plot ? ' ok' : '');
     }
 
-    // বাহুর তালিকা
+    // কাটার রেখা — উপরে ৪ দিক, নিচে প্লটের বাহুগুলো
     const sel = document.getElementById('mm-div-side');
     if (sel && plot) {
       const cur = sel.value;
+      const unit = MeasureCanvas.state ? MeasureCanvas.state.labelUnit : 'ftin';
       const opts = MapMeasure.sideOptions(plot.points, k.ftPerPx);
-      sel.innerHTML = opts.map(o => '<option value="' + o.index + '">' + o.label +
-        (k.ftPerPx > 0 ? ' · ' + MapMeasure.formatFtIn(o.feet) : '') + '</option>').join('');
-      if (cur && cur < opts.length) sel.value = cur;
+      sel.innerHTML =
+        '<optgroup label="নির্দিষ্ট দিকে">' +
+          MapMeasure.DIRECTIONS.map(d =>
+            '<option value="' + d.id + '">' + d.label + '</option>').join('') +
+        '</optgroup>' +
+        '<optgroup label="বাহুর সমান্তরালে">' +
+          opts.map(o => '<option value="' + o.index + '">' + o.label +
+            (k.ftPerPx > 0 ? ' · ' + MapMeasure.formatLength(o.feet, unit) : '') +
+            '</option>').join('') +
+        '</optgroup>';
+      // আগের বাছাই ধরে রাখা — দিক হলে সবসময়, বাহু হলে যদি এখনো থাকে
+      if (cur && (isNaN(Number(cur)) || Number(cur) < opts.length)) sel.value = cur;
     }
 
+    this.mmShareMode(k.shareMode, true);
+  },
+
+  /** অংশ দেওয়ার ধরন — % · শতক · সমান ভাগে */
+  mmShareMode(m, keep) {
+    const k = this.mm;
+    k.shareMode = m;
+    [['pct', 'mm-sm-pct'], ['satak', 'mm-sm-satak'], ['equal', 'mm-sm-equal']]
+      .forEach(([id, el]) => {
+        const b = document.getElementById(el);
+        if (b) b.classList.toggle('active', m === id);
+      });
+    // ধরন বদলালে আগের সংখ্যাগুলো আর অর্থবহ থাকে না
+    if (!keep) k.shares.forEach(s => { s.value = ''; });
     this.mmRenderShares();
   },
 
   mmAddShare() {
-    this.mm.shares.push({ name: '', satak: '' });
+    this.mm.shares.push({ name: '', value: '' });
     this.mmRenderShares();
   },
   mmDelShare(i) {
@@ -1440,17 +1646,44 @@ const AppController = {
   },
   mmSetShare(i, field, v) {
     if (!this.mm.shares[i]) return;
-    this.mm.shares[i][field] = field === 'satak' ? toEn(String(v)) : v;
+    this.mm.shares[i][field] = field === 'value' ? toEn(String(v)) : v;
     this.mmSharePill();
   },
 
-  mmSharePill() {
+  /** এই মুহূর্তে শরিকদের অংশ শতকে — না পারলে null */
+  mmShareSatak() {
     const k = this.mm;
     const plot = this.mmSelPlot();
     const total = plot && k.ftPerPx > 0 ? MapMeasure.measure(plot, k.ftPerPx).satak : 0;
-    const asked = k.shares.reduce((a, b) => a + (Number(b.satak) || 0), 0);
+    if (!(total > 0)) return null;
+    const list = k.shareMode === 'equal'
+      ? k.shares
+      : k.shares.filter(x => Number(x.value) > 0);
+    if (!list.length) return null;
+    try {
+      return { total, parts: MapMeasure.sharesToSatak(k.shareMode, list.map((x, i) => ({
+        name: (x.name || '').trim() || ('শরিক ' + toBn(i + 1)),
+        value: Number(x.value) || 0
+      })), total) };
+    } catch (e) {
+      return { total, error: e.message };
+    }
+  },
+
+  mmSharePill() {
     const el = document.getElementById('mm-share-pill');
     if (!el) return;
+    const k = this.mm;
+    const r = this.mmShareSatak();
+    const total = r ? r.total
+      : (this.mmSelPlot() && k.ftPerPx > 0
+          ? MapMeasure.measure(this.mmSelPlot(), k.ftPerPx).satak : 0);
+    if (r && r.error) {
+      el.textContent = r.error;
+      el.className = 'fz-pill bad';
+      return;
+    }
+    const asked = r ? r.parts.reduce((a, b) => a + b.satak, 0) : 0;
     el.textContent = toBn(asked.toFixed(2)) + ' / ' + toBn(total.toFixed(2)) + ' শতক';
     el.className = 'fz-pill' + (asked > total + 0.01 ? ' bad' : asked > 0 ? ' ok' : '');
   },
@@ -1458,16 +1691,25 @@ const AppController = {
   mmRenderShares() {
     const box = document.getElementById('mm-shares');
     if (!box) return;
+    // কেউ ঘরে লিখতে থাকলে DOM ভাঙা যাবে না — ফোকাস হারিয়ে যেত
+    const ae = document.activeElement;
+    if (ae && ae.tagName === 'INPUT' && box.contains(ae)) { this.mmSharePill(); return; }
+    const mode = this.mm.shareMode;
+    const unit = mode === 'pct' ? '%' : 'শতক';
+    const r = mode === 'equal' ? this.mmShareSatak() : null;
     box.innerHTML = this.mm.shares.map((sh, i) =>
       '<div class="mm-share">' +
         '<span class="mm-share-n">' + toBn(i + 1) + '</span>' +
         '<input class="mm-share-name" placeholder="শরিক ' + toBn(i + 1) + ' এর নাম"' +
           ' value="' + (sh.name || '') + '"' +
           ' oninput="AppController.mmSetShare(' + i + ',\'name\',this.value)">' +
-        '<span class="fz-input-wrap mm-share-amt"><input inputmode="decimal" placeholder="০"' +
-          ' value="' + (sh.satak || '') + '"' +
-          ' oninput="AppController.mmSetShare(' + i + ',\'satak\',this.value)">' +
-          '<span class="mm-share-u">শতক</span></span>' +
+        (mode === 'equal'
+          ? '<span class="mm-share-amt mm-share-eq">' +
+              (r && r.parts[i] ? toBn(r.parts[i].satak.toFixed(2)) + ' শতক' : '—') + '</span>'
+          : '<span class="fz-input-wrap mm-share-amt"><input inputmode="decimal" placeholder="০"' +
+              ' value="' + (sh.value || '') + '"' +
+              ' oninput="AppController.mmSetShare(' + i + ',\'value\',this.value)">' +
+              '<span class="mm-share-u">' + unit + '</span></span>') +
         '<button type="button" class="fz-btn-del" onclick="AppController.mmDelShare(' + i + ')">' +
           '<i class="bi bi-x-lg"></i></button>' +
       '</div>').join('');
@@ -1481,11 +1723,15 @@ const AppController = {
     const plot = this.mmSelPlot();
     if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
     if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
-    const side = Number((document.getElementById('mm-div-side') || {}).value || 0);
-    const people = k.shares
-      .map((x, i) => ({ name: (x.name || '').trim() || ('শরিক ' + toBn(i + 1)),
-                        satak: Number(x.satak) || 0 }))
-      .filter(x => x.satak > 0);
+    if (this.mmGuardBroken(plot)) return;
+    // দিক হলে স্ট্রিং (w2e…), বাহু হলে সূচক — divideByArea দুটোই নেয়
+    const raw = String((document.getElementById('mm-div-side') || {}).value || '0');
+    const side = /^\d+$/.test(raw) ? Number(raw) : raw;
+
+    const r = this.mmShareSatak();
+    if (!r) { alert('অন্তত একজন শরিকের অংশ দিন'); return; }
+    if (r.error) { alert(r.error); return; }
+    const people = r.parts.filter(x => x.satak > 0);
     if (!people.length) { alert('অন্তত একজন শরিকের অংশ দিন'); return; }
 
     try {
@@ -1504,6 +1750,7 @@ const AppController = {
     const plot = this.mmSelPlot();
     if (!plot) { alert('আগে একটি প্লট নির্বাচন করুন'); return; }
     if (!(k.ftPerPx > 0)) { alert('আগে স্কেল ঠিক করুন'); return; }
+    if (this.mmGuardBroken(plot)) return;
     const bar = document.getElementById('mm-draw-bar');
     const hint = document.getElementById('mm-draw-hint');
     const fin = document.getElementById('mm-finish');
@@ -1566,7 +1813,11 @@ const AppController = {
         '<tr' + (r.name === 'অবশিষ্ট' ? ' class="left"' : '') + '>' +
           '<td><span class="mm-div-dot" style="background:' + this.mmDivColor(i) + '"></span>' +
             toBn(r.serial) + '</td>' +
-          '<td>' + r.name + '</td>' +
+          '<td>' + r.name +
+            // ★ অবতল প্লটে কারো অংশ দুই টুকরোয় পড়তে পারে
+            (r.pieces > 1 ? ' <span class="mm-div-split" title="এই অংশটি এক টুকরো নয়">'
+              + '<i class="bi bi-exclamation-triangle-fill"></i> '
+              + toBn(r.pieces) + ' টুকরো</span>' : '') + '</td>' +
           '<td class="num">' + toBn(r.satak.toFixed(2)) + ' শতক</td>' +
           '<td class="num">' + toBn(r.percent.toFixed(2)) + '%</td>' +
         '</tr>').join('') +
@@ -1578,6 +1829,12 @@ const AppController = {
       (rep.exact
         ? '<p class="mm-div-ok"><i class="bi bi-check-circle"></i> যোগফল মূল প্লটের সাথে হুবহু মিলেছে।</p>'
         : '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> যোগফল মিলছে না — আবার দেখুন।</p>') +
+      (rep.rows.some(r => r.pieces > 1)
+        ? '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> '
+          + 'প্লটটি অবতল (কোণা ভেতরের দিকে ঢোকা), তাই কারো কারো অংশ <b>এক টুকরোয় পড়েনি</b>। '
+          + 'ক্ষেত্রফল ঠিক আছে, কিন্তু জমি দু জায়গায় ছড়িয়ে থাকবে — অন্য বাহু বা '
+          + 'দিক বেছে আবার ভাগ করে দেখুন।</p>'
+        : '') +
       '<button type="button" class="btn btn-outline btn-sm" onclick="AppController.mmCopyReport()">' +
         '<i class="bi bi-clipboard"></i> রিপোর্ট কপি করুন</button>';
     this.mm.lastReport = rep;
@@ -1633,6 +1890,9 @@ const AppController = {
     const k = this.mm;
     k.img = r.img; k.imgName = name || 'map.jpg';
     k.isPdf = !!isPdf; k.pdfScale = pdfScale || 0;
+    k.pageIn = r.pageIn || null;
+    const dpEl = document.getElementById('mm-dpi');
+    if (dpEl) dpEl._mmSet = false;      // নতুন ফাইলে আবার বসবে
     k.ftPerPx = 0; k.scaleFrom = ''; k.calibrating = null;
     MeasureCanvas.setImage(r.img);
     MeasureCanvas.setScale(0);
@@ -1652,6 +1912,7 @@ const AppController = {
       try {
         const isPdf = KmzSource.looksLikePdf(buf) || f.type === 'application/pdf';
         const r = await KmzSource.toImage(buf, f.type, {
+          needBytes: false,                       // মাপে JPEG লাগে না
           onStage: (pc, m) => this.mmProg(pc, m)
         });
         this.mmProg(null);
@@ -1760,7 +2021,8 @@ const AppController = {
     if (!f) return;
     try {
       this.mmProg(3, 'ফাইল নামানো হচ্ছে…');
-      const r = await KmzSource.fromArchive(f, (pc, m) => this.mmProg(pc, m));
+      const r = await KmzSource.fromArchive(f, (pc, m) => this.mmProg(pc, m),
+                                            { needBytes: false });
       this.mmProg(null);
       this.mmUseImage(r, r.name || f.name, !!r.wasPdf, r.pdfScale || 0);
     } catch (e) {

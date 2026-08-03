@@ -18,13 +18,44 @@ const KmzSource = {
   PDFJS_WORKER: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
 
   /**
-   * রেন্ডার করা ছবির দীর্ঘতম বাহু
-   * ৩০০০px এ দাগ নম্বর পড়া যেত না। প্রতিযোগীর ডিবাগ লগে দেখা গেল ওরা
-   * ২৩৮৪×১৬৮৪ পয়েন্টের পাতা ২.২ গুণে **৫২৪৫×৩৭০৫ (১৯.৪ MP)** এ আঁকে।
-   * সেটাই লক্ষ্য ধরা হলো — জুম করলে দাগ নম্বর পড়া যায়।
+   * PDF কত বড় করে আঁকা হবে — সীমাগুলো
+   * (প্রতিযোগী ২৩৮৪×১৬৮৪ পয়েন্টের পাতা ২.২ গুণে ৫২৪৫×৩৭০৫ = ১৯.৪ MP এ আঁকে)
    */
-  MAX_SIDE: 8000,
-  DEFAULT_SIDE: 5200,
+  MAX_SIDE: 12000,
+  MAX_PIXELS: 40e6,          // ডেস্কটপ — ক্যানভাসে পিক্সেলপ্রতি ৪ বাইট, তাই ~১৬০ MB
+  MAX_PIXELS_SMALL: 20e6,    // কম র‍্যামের ফোন
+  TARGET_DPI: 500,           // এর চেয়ে বেশি আঁকার দরকার নেই
+  DEFAULT_SIDE: 5200,        // পুরনো নাম — বাইরে ব্যবহার হয়
+
+  /**
+   * ★ আগে সবসময় দীর্ঘতম বাহু ৫২০০px ধরা হতো। সমস্যা — স্ক্যান করা মৌজা
+   * নকশার PDF এ পাতার মাপ অনেক সময় **ছবির পিক্সেল সংখ্যাই** পয়েন্ট হিসেবে
+   * লেখা থাকে (ছবি→PDF রূপান্তরে যা সবচেয়ে সাধারণ)। তখন ১৬,০০০px এর
+   * স্ক্যান ৫২০০px এ নেমে আসত — দুই তৃতীয়াংশ রেজুলেশন হারিয়ে যেত।
+   *
+   * এখন দীর্ঘতম বাহু নয়, **মোট পিক্সেলের বাজেট** ধরা হয় — লম্বা-সরু
+   * পাতাতেও পুরো বাজেট কাজে লাগে।
+   */
+  pixelBudget() {
+    const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8;
+    const coarse = typeof matchMedia === 'function'
+      && matchMedia('(pointer: coarse)').matches;
+    return (mem <= 4 || coarse) ? this.MAX_PIXELS_SMALL : this.MAX_PIXELS;
+  },
+
+  /**
+   * পাতার মাপ (পয়েন্টে) দেখে কত গুণে আঁকব
+   * তিন সীমার মধ্যে যেটি সবচেয়ে ছোট: DPI লক্ষ্য · বাহুর সীমা · পিক্সেল বাজেট
+   */
+  renderScaleFor(wPt, hPt, budget) {
+    const w = Math.max(1, wPt), h = Math.max(1, hPt);
+    const cap = budget > 0 ? budget : this.MAX_PIXELS;
+    return Math.max(0.05, Math.min(
+      this.TARGET_DPI / 72,
+      this.MAX_SIDE / Math.max(w, h),
+      Math.sqrt(cap / (w * h))
+    ));
+  },
 
   _pdfPromise: null,
 
@@ -72,10 +103,11 @@ const KmzSource = {
     const pageNo = Math.max(1, Math.min(pageCount, o.page || 1));
     const page = await doc.getPage(pageNo);
 
-    // কত বড় করে আঁকা হবে — দীর্ঘতম বাহু ধরে
+    // কত বড় করে আঁকা হবে — পিক্সেলের বাজেট ধরে
     const base = page.getViewport({ scale: 1 });
-    const target = Math.min(this.MAX_SIDE, Math.max(600, o.targetSide || this.DEFAULT_SIDE));
-    const scale = target / Math.max(base.width, base.height);
+    const scale = o.targetSide
+      ? Math.min(this.MAX_SIDE, Math.max(600, o.targetSide)) / Math.max(base.width, base.height)
+      : this.renderScaleFor(base.width, base.height, o.budget || this.pixelBudget());
     const vp = page.getViewport({ scale });
 
     stage(50, 'পাতা আঁকা হচ্ছে…');
@@ -88,16 +120,25 @@ const KmzSource = {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
 
-    stage(80, 'ছবিতে রূপান্তর হচ্ছে…');
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-    const outBytes = new Uint8Array(await blob.arrayBuffer());
-    const img = await this.blobToImage(blob);
+    // ★ ছবি হিসেবে ক্যানভাসটাই ফেরত যায় — আগে এখানে JPEG (৯২%) এ ঘুরিয়ে
+    //   আনা হতো, তাতে হাতে আঁকা সূক্ষ্ম রেখায় কম্প্রেশনের দাগ পড়ত আর
+    //   স্মৃতিও দ্বিগুণ লাগত। JPEG বাইট কেবল KMZ রপ্তানিতে দরকার — মাপের
+    //   টুল `needBytes: false` দিয়ে সেটা এড়ায়।
+    let outBytes = null;
+    if (o.needBytes !== false) {
+      stage(80, 'ছবিতে রূপান্তর হচ্ছে…');
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      outBytes = new Uint8Array(await blob.arrayBuffer());
+    }
 
     stage(100, 'প্রস্তুত');
     return {
-      img, bytes: outBytes,
+      img: canvas, canvas, bytes: outBytes,
       width: canvas.width, height: canvas.height,
       pageCount, page: pageNo,
+      // পাতার মাপ — স্কেল বিশ্বাসযোগ্য কি না যাচাই করতে লাগে
+      pagePt: { w: base.width, h: base.height },
+      pageIn: { w: base.width / 72, h: base.height / 72 },
       // ★ রেন্ডার স্কেল ফেরত দেওয়া জরুরি — এটি থেকেই PDF এর DPI বেরোয়
       //   (MapMeasure.dpiForPdf: DPI = ৭২ × স্কেল)
       pdfScale: scale
@@ -160,11 +201,12 @@ const KmzSource = {
   },
 
   /** আর্কাইভের একটি ফাইল নামিয়ে ছবিতে রূপান্তর */
-  async fromArchive(file, onStage) {
+  async fromArchive(file, onStage, opt) {
     const got = await MouzaMap.fetchBytes(file, onStage);
     const bytes = new Uint8Array(await got.blob.arrayBuffer());
     if (onStage) onStage(96, 'ছবি প্রস্তুত হচ্ছে…');
     const r = await this.toImage(bytes, got.mimeType, {
+      ...(opt || {}),
       onStage: (p, m) => { if (onStage) onStage(96 + p * 0.04, m); }
     });
     return { ...r, name: got.fileName };
