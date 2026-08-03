@@ -1192,10 +1192,14 @@ const AppController = {
         if (![].some.call(dp.options, o => Math.abs(Number(o.value) - dpi) < 0.5)) {
           const op = document.createElement('option');
           op.value = String(Math.round(dpi));
-          op.textContent = 'PDF থেকে পাওয়া — ' + toBn(dpi.toFixed(0)) + ' DPI';
+          op.textContent = 'PDF থেকে পাওয়া — ' + toBn(dpi.toFixed(0)) + ' DPI'
+            + (trusty ? '' : ' (সন্দেহজনক)');
           dp.insertBefore(op, dp.firstChild);
         }
-        dp.value = String(Math.round(dpi));
+        // ★ বিশ্বাসযোগ্য হলেই বসাই। অবিশ্বাস্য মান বসিয়ে দিলে ইউজার
+        //   "স্কেল বসান" চাপলেই সতর্কবার্তা পেতেন, আর বাতিল করলে স্কেলই
+        //   বসত না — টুলটা অচল মনে হতো। তালিকায় থাকল, কিন্তু বাছা নয়।
+        dp.value = trusty ? String(Math.round(dpi)) : '300';
         dp._mmSet = true;
       }
       if (badge) {
@@ -1213,8 +1217,9 @@ const AppController = {
             + ' মিল না হলে বদলে নিন।'
           : '<b>সাবধান —</b> PDF থেকে DPI এল <b>' + toBn(dpi.toFixed(0)) + '</b>, যা '
             + 'স্ক্যান করা নকশার জন্য অস্বাভাবিক।' + pg
-            + ' এই PDF-এ পাতার মাপ সম্ভবত আসল কাগজের মাপ নয়। '
-            + '<b>পদ্ধতি ২</b> (ম্যাপ থেকে মেপে নেওয়া) ব্যবহার করুন।';
+            + ' এই PDF-এ পাতার মাপ সম্ভবত আসল কাগজের মাপ নয়, তাই '
+            + '<b>৩০০ DPI</b> ধরে রাখা হলো। নিখুঁত মাপ চাইলে নিচের '
+            + '<b>পদ্ধতি ২</b> — ম্যাপের স্কেল-দণ্ড ধরে মেপে নিন।';
       }
     } else {
       dp.disabled = false;
