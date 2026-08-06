@@ -750,24 +750,45 @@
 
               <div class="mm-method alt">
                 <h5>পদ্ধতি ২ — ম্যাপ থেকে মাপুন <span>(সর্বোচ্চ নিখুঁত)</span></h5>
-                <p class="kmz-hint">
-                  <b>যেভাবে হয় —</b> নিচে দৈর্ঘ্যটা বেছে নিন, তারপর বোতামে চাপ দিন।
-                  এই বাক্স বন্ধ হয়ে যাবে, আর নকশার উপর <b>দুই জায়গায় ক্লিক</b>
-                  করতে বলবে। ওই দুই বিন্দুর মাঝের আসল দূরত্বই হবে বেছে নেওয়া মাপ।
-                </p>
-                <p class="kmz-hint">
-                  <b>কোন দুই বিন্দু?</b> নকশার নিচে/পাশে আঁকা <b>স্কেল-দণ্ড</b>
-                  থাকলে তার দুই প্রান্ত সবচেয়ে ভালো। না থাকলে <b>যেকোনো চেনা
-                  দূরত্ব</b> চলবে — যেমন যে দাগের মাপ আপনি খতিয়ান থেকে জানেন,
-                  তার দুই কোণা। জুম করে নিলে আরও নিখুঁত হয়।
-                </p>
-                <div class="fz-field">
-                  <div class="fz-field-label"><span>দুই ক্লিকের মাঝের আসল দূরত্ব</span></div>
-                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-barlen"></select></div>
+
+                <!-- ধাপ ১ — কোন দূরত্ব -->
+                <div class="mm-step">
+                  <span class="mm-step-n">১</span>
+                  <div class="mm-step-body">
+                    <b>কত দূরত্ব ধরে মাপবেন, বেছে নিন</b>
+                    <div class="fz-input-wrap fz-select-wrap" style="margin-top:7px">
+                      <select id="mm-barlen" onchange="AppController.mmDrawCalibHelp()"></select>
+                    </div>
+                  </div>
                 </div>
-                <button type="button" class="btn btn-purple" onclick="AppController.mmStartCalibrate()">
-                  <i class="bi bi-pencil"></i> শুরু করুন — নকশায় ২টি ক্লিক
-                </button>
+
+                <!-- ধাপ ২ — ছবিতে দেখানো কোথায় ক্লিক -->
+                <div class="mm-step">
+                  <span class="mm-step-n">২</span>
+                  <div class="mm-step-body">
+                    <b>নকশার স্কেল-দণ্ডে ঠিক এই দুই জায়গায় ক্লিক করুন</b>
+                    <div class="mm-calib-help" id="mm-calib-help"></div>
+                  </div>
+                </div>
+
+                <!-- ধাপ ৩ — শুরু -->
+                <div class="mm-step">
+                  <span class="mm-step-n">৩</span>
+                  <div class="mm-step-body">
+                    <b>বোতামে চাপ দিন</b> — এই বাক্স বন্ধ হবে, নিচে গুনতি দেখাবে
+                    <button type="button" class="btn btn-purple" style="margin-top:8px"
+                            onclick="AppController.mmStartCalibrate()">
+                      <i class="bi bi-pencil"></i> শুরু করুন — নকশায় ২টি ক্লিক
+                    </button>
+                  </div>
+                </div>
+
+                <p class="kmz-hint" style="margin-top:12px">
+                  <b>স্কেল-দণ্ড না থাকলে?</b> যেকোনো <b>চেনা দূরত্ব</b> চলবে —
+                  যেমন যে দাগের মাপ খতিয়ান থেকে জানেন, তার দুই কোণা। তালিকা থেকে
+                  “অন্য দৈর্ঘ্য” বেছে মাপটা লিখে দিন।
+                  <b>আগে জুম করে নিন</b> — দুই বিন্দু পর্দাজুড়ে যত দূরে, মাপ তত নিখুঁত।
+                </p>
               </div>
             </div>
           </div>
