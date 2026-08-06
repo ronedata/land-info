@@ -1185,12 +1185,14 @@ const AppController = {
    * তাই বাছাই অনুযায়ী দুই সারির দাগ ও ফুট স্কেল সরাসরি এঁকে দেখাই।
    */
   /**
-   * ★ পদ্ধতি ২ এর ছবি — নকশার কর্ণ স্কেলে কোথায় ক্লিক করতে হবে
+   * ★ পদ্ধতি ২ এর ছবি — নকশার স্কেল-দণ্ডে কোথায় ক্লিক
    *
-   * মৌজা নকশার নিচে যে স্কেল-দণ্ড আঁকা থাকে সেটি **কর্ণ স্কেল**
-   * (diagonal scale) — বাঁ দিকে তির্যক রেখার জাল (ভগ্নাংশ পড়ার জন্য),
-   * তারপর সরল ঘর — ০ · ৫ · ১০ চেইন। ইউজার যে দূরত্ব বেছেছেন, ঠিক
-   * সেই দুই দাগে লাল চিহ্ন বসে — তাই ছবিটি বাছাইয়ের সাথে বদলায়।
+   * মৌজা নকশার নিচে যে দণ্ড আঁকা থাকে সেটি **কর্ণ স্কেল** — বাঁ প্রান্তে
+   * ০, মাঝে ৫, ডান প্রান্তে ১০ চেইন। বাঁ অর্ধেকে তির্যক রেখার জাল,
+   * যা দিয়ে চেইনের ভগ্নাংশ পড়া যায়; বাঁ পাশে ২ · ৪ · ৬ · ৮ · ১০।
+   *
+   * দুটি লাল পিন দেখায় ঠিক কোন দুই দাগে ক্লিক করতে হবে — ইউজার
+   * যে দূরত্ব বেছেছেন সেই অনুযায়ী সরে, আর নিচে তীর দিয়ে মাপ লেখা থাকে।
    */
   mmDrawCalibHelp() {
     const box = document.getElementById('mm-calib-help');
@@ -1199,75 +1201,100 @@ const AppController = {
     const raw = (bl || {}).value;
     const feet = Number(raw);
 
-    // দণ্ডটি ১০ চেইন লম্বা ধরা হয় (মৌজা নকশায় সবচেয়ে প্রচলিত)
-    const BAR_CHAINS = 10;
-    const W = 320, H = 96;
-    const L = 30, R = W - 16, T = 20, B = 74;   // দণ্ডের বাক্স
-    const zero = L + (R - L) * 0.30;            // ‘০’ — তির্যক অংশের ডান প্রান্তে
-    const perChain = (R - zero) / BAR_CHAINS;
-    const xAt = ch => zero + perChain * ch;
+    const CH = 10;                       // দণ্ডটি ১০ চেইন
+    const W = 340, H = 132;
+    const L = 34, R = W - 20;            // দণ্ডের দুই প্রান্ত (বাঁ = ০)
+    const T = 46, B = 92;                // উপর-নিচ
+    const per = (R - L) / CH;
+    const xAt = c => L + per * c;
+    const bn = v => toBn(String(Number(v.toFixed(2))));
 
-    let d = '';
-    // অনুভূমিক সারি (কর্ণ স্কেলের ১০ ভাগ)
+    /* দণ্ডের জাল */
+    let grid = '';
     for (let i = 0; i <= 5; i++) {
       const y = T + (B - T) * i / 5;
-      d += 'M' + L + ' ' + y.toFixed(1) + 'H' + R + ' ';
+      grid += 'M' + L + ' ' + y.toFixed(1) + 'H' + R + ' ';
     }
-    // চেইনের খাড়া দাগ
-    for (let c = 0; c <= BAR_CHAINS; c++) {
-      const x = xAt(c);
-      d += 'M' + x.toFixed(1) + ' ' + T + 'V' + B + ' ';
+    for (let c = 0; c <= CH; c++) {
+      grid += 'M' + xAt(c).toFixed(1) + ' ' + T + 'V' + B + ' ';
     }
-    // বাঁ পাশের তির্যক জাল
-    let dg = '';
-    for (let i = 0; i <= 10; i++) {
-      const x1 = L + (zero - L) * i / 10;
-      const x2 = L + (zero - L) * (i - 1) / 10;
-      dg += 'M' + x1.toFixed(1) + ' ' + T + 'L' + Math.max(L, x2).toFixed(1) + ' ' + B + ' ';
+    /* বাঁ অর্ধেকে তির্যক জাল (০ থেকে ৫ চেইন) */
+    let diag = '';
+    for (let c = 0; c < 5; c++) {
+      diag += 'M' + xAt(c).toFixed(1) + ' ' + T
+            + 'L' + xAt(c + 1).toFixed(1) + ' ' + B + ' ';
     }
 
-    // কোথায় ক্লিক — বাছাই অনুযায়ী
-    const bn = v => toBn(String(Number(v.toFixed(2))));
-    let m1 = zero, m2 = xAt(BAR_CHAINS), lab1 = '০', lab2 = '১০ চেইন', note = '';
+    /* কোথায় ক্লিক — বাছাই অনুযায়ী */
+    let x1 = xAt(0), x2 = xAt(CH), lab2 = '১০ চেইন', note = '', span = '';
     if (feet > 0) {
       const ch = feet / MapMeasure.FT_PER_CHAIN;
-      if (ch <= BAR_CHAINS + 1e-9) {
-        m2 = xAt(ch);
+      if (ch <= CH + 1e-9) {
+        x2 = xAt(ch);
         lab2 = (Math.abs(ch - Math.round(ch)) < 1e-9 ? toBn(Math.round(ch)) : bn(ch))
              + ' চেইন';
-        note = 'নির্বাচিত <b>' + bn(feet) + ' ফুট</b> = ' + lab2 + '।';
+        span = bn(feet) + ' ফুট = ' + lab2;
       } else {
-        note = 'নির্বাচিত <b>' + bn(feet) + ' ফুট</b> দণ্ডের চেয়েও বড় — '
+        note = '⚠️ নির্বাচিত <b>' + bn(feet) + ' ফুট</b> দণ্ডটির চেয়েও বড় — '
              + 'নকশায় এত লম্বা চেনা দূরত্ব থাকলে তবেই বাছুন।';
+        span = bn(feet) + ' ফুট';
       }
     } else if (raw === 'custom') {
-      note = 'নিজে দৈর্ঘ্য লিখবেন — বোতামে চাপ দিলে জিজ্ঞেস করবে।';
+      note = 'দৈর্ঘ্য নিজে লিখবেন — বোতামে চাপ দিলে জিজ্ঞেস করবে।';
+      span = 'আপনার লেখা মাপ';
     }
 
-    const pin = (x, n) =>
-      '<g class="c-pin"><line x1="' + x.toFixed(1) + '" y1="' + (T - 8)
-      + '" x2="' + x.toFixed(1) + '" y2="' + (B + 6) + '"/>'
-      + '<circle cx="' + x.toFixed(1) + '" cy="' + (B + 14) + '" r="8"/>'
-      + '<text x="' + x.toFixed(1) + '" y="' + (B + 17.5) + '">' + toBn(n) + '</text></g>';
+    /* পিন — বাক্স + নিচের দিকে তির, তারপর ড্যাশ রেখা ও বিন্দু */
+    const pin = (x, n) => {
+      const cx = Math.max(L + 9, Math.min(R - 9, x));
+      return '<g class="c-pin">'
+        + '<line x1="' + x.toFixed(1) + '" y1="' + (T - 4)
+        + '" x2="' + x.toFixed(1) + '" y2="' + (B + 4) + '"/>'
+        + '<circle class="c-hit" cx="' + x.toFixed(1) + '" cy="' + B + '" r="3.4"/>'
+        + '<path class="c-tip" d="M' + (x - 4.5).toFixed(1) + ' ' + (T - 8)
+        + 'H' + (x + 4.5).toFixed(1) + 'L' + x.toFixed(1) + ' ' + (T - 2) + 'Z"/>'
+        + '<rect class="c-tag" x="' + (cx - 9) + '" y="' + (T - 26)
+        + '" width="18" height="18" rx="9"/>'
+        + '<text class="c-tagt" x="' + cx + '" y="' + (T - 13.5) + '">' + toBn(n) + '</text>'
+        + '</g>';
+    };
+
+    /* দুই পিনের মাঝে মাপের তীর */
+    const ay = B + 22;
+    const arrow = Math.abs(x2 - x1) > 26
+      ? '<g class="c-arrow">'
+        + '<line x1="' + x1.toFixed(1) + '" y1="' + ay + '" x2="' + x2.toFixed(1)
+        + '" y2="' + ay + '"/>'
+        + '<path d="M' + (x1 + 6).toFixed(1) + ' ' + (ay - 3.5) + 'L' + x1.toFixed(1)
+        + ' ' + ay + 'L' + (x1 + 6).toFixed(1) + ' ' + (ay + 3.5) + 'Z"/>'
+        + '<path d="M' + (x2 - 6).toFixed(1) + ' ' + (ay - 3.5) + 'L' + x2.toFixed(1)
+        + ' ' + ay + 'L' + (x2 - 6).toFixed(1) + ' ' + (ay + 3.5) + 'Z"/>'
+        + (span ? '<rect class="c-spanbg" x="' + ((x1 + x2) / 2 - 42) + '" y="' + (ay - 8)
+            + '" width="84" height="16" rx="8"/>'
+            + '<text class="c-spant" x="' + ((x1 + x2) / 2) + '" y="' + (ay + 4)
+            + '">' + span + '</text>' : '')
+        + '</g>' : '';
 
     box.innerHTML =
       '<svg viewBox="0 0 ' + W + ' ' + H + '" class="mm-calib-svg" role="img" '
       + 'aria-label="নকশার স্কেল-দণ্ডে কোথায় ক্লিক করতে হবে">'
       + '<rect x="' + L + '" y="' + T + '" width="' + (R - L) + '" height="' + (B - T)
       + '" class="c-body"/>'
-      + '<path d="' + dg + '" class="c-diag"/>'
-      + '<path d="' + d + '" class="c-grid"/>'
-      + '<text x="' + zero + '" y="' + (T - 6) + '" class="c-lab">০</text>'
-      + '<text x="' + xAt(5) + '" y="' + (T - 6) + '" class="c-lab">৫</text>'
-      + '<text x="' + (R - 2) + '" y="' + (T - 6) + '" class="c-lab end">১০ চেইন</text>'
+      + '<path d="' + diag + '" class="c-diag"/>'
+      + '<path d="' + grid + '" class="c-grid"/>'
+      + '<circle cx="' + L + '" cy="' + (T - 30) + '" r="0"/>'
+      + '<text x="' + L + '" y="' + (B + 11) + '" class="c-lab">০</text>'
+      + '<text x="' + xAt(5) + '" y="' + (B + 11) + '" class="c-lab">৫</text>'
+      + '<text x="' + R + '" y="' + (B + 11) + '" class="c-lab end">১০ চেইন</text>'
       + '<text x="' + (L - 5) + '" y="' + (T + 5) + '" class="c-side">২</text>'
       + '<text x="' + (L - 5) + '" y="' + ((T + B) / 2 + 3) + '" class="c-side">৬</text>'
       + '<text x="' + (L - 5) + '" y="' + (B + 2) + '" class="c-side">১০</text>'
-      + pin(m1, 1) + pin(m2, 2)
+      + arrow + pin(x1, 1) + pin(x2, 2)
       + '</svg>'
-      + '<p class="mm-calib-cap"><b><span class="c-num">১</span> ‘০’ দাগে</b> ক্লিক, '
-      + 'তারপর <b><span class="c-num">২</span> ‘' + lab2 + '’ দাগে</b> ক্লিক। '
-      + note + '</p>';
+      + '<p class="mm-calib-cap">'
+      + '<span class="c-num">১</span> দণ্ডের <b>‘০’ দাগে</b> ক্লিক করুন, '
+      + 'তারপর <span class="c-num">২</span> <b>‘' + lab2 + '’ দাগে</b>।'
+      + (note ? '<br>' + note : '') + '</p>';
   },
 
   mmDrawGunia() {
