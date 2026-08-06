@@ -535,6 +535,10 @@
               <button type="button" class="mm-cbtn" title="বড়" onclick="AppController.mmZoom(1)"><i class="bi bi-plus-lg"></i></button>
               <button type="button" class="mm-cbtn" title="ছোট" onclick="AppController.mmZoom(-1)"><i class="bi bi-dash-lg"></i></button>
               <button type="button" class="mm-cbtn" title="পুরোটা" onclick="AppController.mmFit()"><i class="bi bi-arrows-fullscreen"></i></button>
+              <button type="button" class="mm-cbtn" id="mm-history-undo" title="পূর্বাবস্থায় ফিরুন"
+                      onclick="AppController.mmHistoryUndo()" disabled><i class="bi bi-arrow-counterclockwise"></i></button>
+              <button type="button" class="mm-cbtn" id="mm-history-redo" title="আবার করুন"
+                      onclick="AppController.mmHistoryRedo()" disabled><i class="bi bi-arrow-clockwise"></i></button>
               <button type="button" class="mm-cbtn danger" title="সব মুছুন" onclick="AppController.mmClear()"><i class="bi bi-trash3"></i></button>
             </div>
 
@@ -594,6 +598,15 @@
               </label>
             </div>
             <div id="mm-list" class="mm-list">কোনো প্লট নেই</div>
+          </div>
+
+          <div class="mm-history-wrap" id="mm-history-wrap" style="display:none">
+            <div class="fz-panel-head">
+              <span class="fz-badge-num"><i class="bi bi-clock-history"></i></span>
+              <h3>পরিবর্তনের ইতিহাস</h3>
+              <span class="fz-pill" id="mm-history-pill">১টি</span>
+            </div>
+            <div id="mm-history" class="mm-history"></div>
           </div>
 
           <!-- ভাগবণ্টন -->
@@ -706,7 +719,14 @@
                 <h5>পদ্ধতি ১ — মৌজার স্কেল</h5>
                 <div class="fz-field">
                   <div class="fz-field-label"><span>ম্যাপের স্কেল</span></div>
-                  <div class="fz-input-wrap fz-select-wrap"><select id="mm-mapscale"></select></div>
+                  <div class="fz-input-wrap fz-select-wrap">
+                    <select id="mm-mapscale" onchange="AppController.mmFillBarLengths()"></select>
+                  </div>
+                  <p class="kmz-hint" style="margin:6px 0 0">
+                    <b>কোনটা বাছবেন?</b> নকশার গায়ে লেখা থাকে। <b>1″=330′</b> লেখা
+                    থাকলে ১৬″=১ মাইল — গ্রামের সাধারণ মৌজা ম্যাপ। ঢাকা বা জেলা সদরের
+                    <b>সিটি জরিপ / বি‌আর‌এস</b> নকশা সাধারণত <b>৮০″=১ মাইল</b>।
+                  </p>
                 </div>
                 <div class="fz-field">
                   <div class="fz-field-label">

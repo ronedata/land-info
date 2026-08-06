@@ -47,8 +47,13 @@ const MeasureCanvas = {
       dpr: 1,                 // ★ পর্দার ঘনত্ব — বিটম্যাপ এর গুণ বেশি
       onChange: o.onChange || null,
       onSelect: o.onSelect || null,
-      onView: o.onView || null   // জুম/মাপ বদলালে — নির্ভুলতার বাতি হালনাগাদে
+      onView: o.onView || null,  // জুম/মাপ বদলালে — নির্ভুলতার বাতি হালনাগাদে
+      onHistory: o.onHistory || null,
+      onRestore: o.onRestore || null,
+      history: [],
+      historyIndex: -1
     };
+    this.resetHistory('শুরু');
     this._bind();
     this.resize();
     return this.state;
@@ -85,6 +90,7 @@ const MeasureCanvas = {
     s.img = img;
     s.plots = []; s.draft = []; s.selected = -1;
     this.fit();
+    this.resetHistory('নতুন ম্যাপ');
   },
 
   fit() {
@@ -267,7 +273,11 @@ const MeasureCanvas = {
       s.dragPt = null; s.drag = null; s.panning = false; s.gesture = false;
       s.lens = null;
       if (s.tool === 'pan') c.style.cursor = 'grab';
-      if (wasDrag || hadPt) { this.draw(); return; }
+      if (wasDrag || hadPt) {
+        this.draw();
+        if (hadPt) this.commitHistory('কোণা সরানো');
+        return;
+      }
 
       const p = p0;
 
@@ -294,7 +304,7 @@ const MeasureCanvas = {
           if (Math.hypot(f.x - p.x, f.y - p.y) <= 14) { this.closePlot(); return; }
         }
         s.draft.push(ip);
-        this.draw(); this._changed();
+        this.draw(); this._changed(); this.commitHistory('পয়েন্ট বসানো');
       } else if (s.tool === 'select') {
         s.selected = this.hitPlot(p);
         this.draw();
@@ -302,7 +312,7 @@ const MeasureCanvas = {
       } else if (s.tool === 'point') {
         // বাহুর মাঝে ক্লিক করলে নতুন বিন্দু যোগ
         const added = this._insertOnEdge(p);
-        if (added) { this.draw(); this._changed(); }
+        if (added) { this.draw(); this._changed(); this.commitHistory('কোণা যোগ'); }
       }
     };
 
@@ -395,7 +405,7 @@ const MeasureCanvas = {
     if (p.points.length <= 3) return false;      // ত্রিভুজই সবচেয়ে ছোট প্লট
     p.points.splice(index, 1);
     s.picked = null;
-    this.draw(); this._changed();
+    this.draw(); this._changed(); this.commitHistory('কোণা মোছা');
     return true;
   },
 
@@ -438,6 +448,72 @@ const MeasureCanvas = {
 
   _changed() { if (this.state.onChange) this.state.onChange(); },
 
+  /* ---------------- ইতিহাস (Undo / Redo) ---------------- */
+
+  _historySnapshot() {
+    const s = this.state;
+    return JSON.stringify({
+      plots: s.plots.map(p => ({ id: p.id, dag: p.dag || '', name: p.name || '',
+        points: p.points.map(q => ({ x: q.x, y: q.y })), closed: !!p.closed })),
+      draft: s.draft.map(q => ({ x: q.x, y: q.y })),
+      selected: s.selected,
+      ftPerPx: s.ftPerPx,
+      division: s.division || null
+    });
+  },
+
+  _historyChanged() { if (this.state.onHistory) this.state.onHistory(this.historyInfo()); },
+
+  resetHistory(label) {
+    const s = this.state;
+    if (!s) return;
+    s.history = [{ label: label || 'শুরু', state: this._historySnapshot() }];
+    s.historyIndex = 0;
+    this._historyChanged();
+  },
+
+  commitHistory(label) {
+    const s = this.state;
+    if (!s) return;
+    const snap = this._historySnapshot();
+    const cur = s.history[s.historyIndex];
+    if (cur && cur.state === snap) return;
+    s.history = s.history.slice(0, s.historyIndex + 1);
+    s.history.push({ label: label || 'পরিবর্তন', state: snap });
+    if (s.history.length > 60) s.history.shift();
+    s.historyIndex = s.history.length - 1;
+    this._historyChanged();
+  },
+
+  historyInfo() {
+    const s = this.state;
+    if (!s) return { canUndo: false, canRedo: false, index: -1, items: [] };
+    return {
+      canUndo: s.historyIndex > 0,
+      canRedo: s.historyIndex >= 0 && s.historyIndex < s.history.length - 1,
+      index: s.historyIndex,
+      items: s.history.map((h, i) => ({ label: h.label, current: i === s.historyIndex }))
+    };
+  },
+
+  restoreHistory(index) {
+    const s = this.state, h = s && s.history[index];
+    if (!h) return false;
+    const v = JSON.parse(h.state);
+    s.plots = v.plots || []; s.draft = v.draft || [];
+    s.selected = Math.min(Math.max(-1, Number(v.selected) || -1), s.plots.length - 1);
+    s.ftPerPx = Number(v.ftPerPx) || 0; s.division = v.division || null;
+    s.picked = null; s.historyIndex = index;
+    this.draw();
+    if (s.onRestore) s.onRestore({ ftPerPx: s.ftPerPx, division: s.division });
+    this._changed();
+    this._historyChanged();
+    return true;
+  },
+
+  undoHistory() { return this.restoreHistory(this.state.historyIndex - 1); },
+  redoHistory() { return this.restoreHistory(this.state.historyIndex + 1); },
+
   /* ---------------- প্লট ---------------- */
 
   /** চলতি আঁকা শেষ করে প্লট বানানো */
@@ -460,11 +536,14 @@ const MeasureCanvas = {
                    points: pts, closed: true });
     s.draft = [];
     s.selected = s.plots.length - 1;
-    this.draw(); this._changed();
+    this.draw(); this._changed(); this.commitHistory('প্লট সম্পন্ন');
     return { ok: true, index: s.selected };
   },
 
-  cancelDraft() { this.state.draft = []; this.draw(); this._changed(); },
+  cancelDraft() {
+    if (!this.state.draft.length) return;
+    this.state.draft = []; this.draw(); this._changed(); this.commitHistory('খসড়া বাতিল');
+  },
 
   /** স্কেল ক্যালিব্রেশন শুরু — দুটি ক্লিক নিয়ে cb(p1, p2) ডাকে */
   startCalibrate(cb, onStep) {
@@ -487,7 +566,9 @@ const MeasureCanvas = {
 
   undoDraftPoint() {
     const s = this.state;
-    if (s.draft.length) { s.draft.pop(); this.draw(); this._changed(); return true; }
+    if (s.draft.length) {
+      s.draft.pop(); this.draw(); this._changed(); this.commitHistory('শেষ পয়েন্ট মোছা'); return true;
+    }
     return false;
   },
 
@@ -496,13 +577,13 @@ const MeasureCanvas = {
     if (i < 0 || i >= s.plots.length) return;
     s.plots.splice(i, 1);
     if (s.selected >= s.plots.length) s.selected = s.plots.length - 1;
-    this.draw(); this._changed();
+    this.draw(); this._changed(); this.commitHistory('প্লট মোছা');
   },
 
   clearAll() {
     const s = this.state;
     s.plots = []; s.draft = []; s.selected = -1;
-    this.draw(); this._changed();
+    this.draw(); this._changed(); this.commitHistory('সব প্লট মোছা');
   },
 
   /* ---------------- আঁকা ---------------- */

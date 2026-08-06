@@ -41,8 +41,79 @@ const MapMeasure = {
   LINK_PER_MILE: 8000,
   SQLINK_PER_SATAK: 1000,
 
-  /** গুনিয়া স্কেলে ১ ইঞ্চিতে ২৫টি বড় দাগ থাকে */
-  GUNIA_MARKS_PER_INCH: 25,
+  /**
+   * ★ নকশা মাপার দুই রকম স্কেল — গুনিয়া ও ফুট (মাপনি)
+   *
+   * গুনিয়ায় দুটি সারি — নিচেরটা বড় ঘর, উপরেরটা ঠিক তার অর্ধেক।
+   * ইউজারের (ভূমি রেকর্ডের বিশেষজ্ঞ) দেওয়া নিয়মের সাথে মিলিয়ে দেখা:
+   *
+   *   ইঞ্চি/মাইল | গুনিয়া নিচ | গুনিয়া উপর | ফুট স্কেল
+   *   ১৬         | ২০ লিংক   | ১০ লিংক    | ১০ ফুট
+   *   ৩২         | ১০ লিংক   | ৫ লিংক     | ৫ ফুট
+   *   ৬৪         | ৫ লিংক    | ২.৫ লিংক   | ২.৫ ফুট
+   *   ৮০         | ৪ লিংক    | ২ লিংক     | ২ ফুট
+   *
+   * অর্থাৎ প্রতি ইঞ্চিতে দাগের সংখ্যা স্থির — গুনিয়া নিচ ২৫, উপর ৫০,
+   * ফুট স্কেল ৩৩। ফুট স্কেলের ৩৩ চারটি স্কেলেই এক:
+   *   ৩৩০÷১০ = ১৬৫÷৫ = ৮২.৫÷২.৫ = ৬৬÷২ = ৩৩
+   * তাই একটি ফুট স্কেল দিয়েই সব নকশা পড়া যায়, কেবল ঘরপ্রতি মান বদলায়।
+   */
+  GUNIA_MARKS_PER_INCH: 25,        // গুনিয়ার নিচের সারি (বড় ঘর)
+  GUNIA_FINE_MARKS_PER_INCH: 50,   // গুনিয়ার উপরের সারি (ছোট ঘর)
+  FOOT_SCALE_MARKS_PER_INCH: 33,   // ফুট (মাপনি) স্কেল
+
+  /** যে তিন রকম সারি ধরে আমিনরা মাপেন */
+  SCALE_BARS: [
+    { id: 'gunia',     name: 'গুনিয়া নিচের সারি (বড় ঘর)', marksPerInch: 25, unit: 'link' },
+    { id: 'guniaFine', name: 'গুনিয়া উপরের সারি (ছোট ঘর)', marksPerInch: 50, unit: 'link' },
+    { id: 'foot',      name: 'ফুট (মাপনি) স্কেল', marksPerInch: 33, unit: 'ft' }
+  ],
+
+  /**
+   * এক ঘর (এক দাগ থেকে পরের দাগ) কতটুকু
+   * @param {string} barId  gunia | guniaFine | foot
+   * @param {number} inchPerMile  ১৬ · ৩২ · ৬৪ · ৮০
+   */
+  barMark(barId, inchPerMile) {
+    const bar = this.SCALE_BARS.filter(b => b.id === barId)[0];
+    if (!bar) throw new Error('স্কেলের সারি চেনা গেল না');
+    const n = Number(inchPerMile);
+    if (!(n > 0)) throw new Error('স্কেল শূন্যের বেশি হতে হবে');
+    const feet = (this.FT_PER_MILE / n) / bar.marksPerInch;
+    // লিংক সরাসরি — ফুট থেকে ঘুরিয়়ে আনলে ২০ এর বদলে ১৯.৯৯৯৯ আসে
+    return { id: bar.id, feet, link: (this.LINK_PER_MILE / n) / bar.marksPerInch,
+             marksPerInch: bar.marksPerInch, name: bar.name };
+  },
+
+  /** ঘর গুনে দূরত্ব — আমিন যেভাবে মাপেন */
+  barLength(barId, inchPerMile, marks) {
+    const m = this.barMark(barId, inchPerMile);
+    const k = Number(marks) || 0;
+    return { feet: m.feet * k, link: m.link * k, perMark: m };
+  },
+
+  /**
+   * পদ্ধতি ২ এর দূরত্বের তালিকা — চেইনের সাথে ঘর-ভিত্তিকও
+   * নকশার নিজের স্কেল-দণ্ডে ঘর গুনে ক্লিক করাটাই সবচেয়ে সহজ
+   */
+  calibChoices(inchPerMile) {
+    const bn = v => (typeof toBn === 'function' ? toBn(v) : String(v));
+    const num = v => bn(String(Number(v.toFixed(2))));
+    const out = this.COMMON_SCALES.map(x => ({ ft: x.ft, label: x.label }));
+    const n = Number(inchPerMile);
+    if (!(n > 0)) return out;
+    this.SCALE_BARS.forEach(b => {
+      const m = this.barMark(b.id, n);
+      // ১০ ঘর, আর পুরো ১ ইঞ্চি — দুটোই নকশায় গুনতে সহজ
+      [10, b.marksPerInch].forEach(marks => {
+        const ft = m.feet * marks;
+        out.push({ ft, label: b.name + ' — ' + bn(marks) + ' ঘর'
+          + (marks === b.marksPerInch ? ' (১ ইঞ্চি)' : '')
+          + ' = ' + num(ft) + ' ফুট' });
+      });
+    });
+    return out;
+  },
 
   /** নকশায় প্রচলিত স্কেল-দণ্ডের দৈর্ঘ্য (ফুট) — ইউজার বদলাতে পারবেন */
   COMMON_SCALES: [
@@ -62,10 +133,10 @@ const MapMeasure = {
    * প্রতিটির সাথে গুনিয়া স্কেলের পাঠও দেওয়া হলো, কারণ আমিনরা ওভাবেই পড়েন।
    */
   MAP_SCALES: [
-    { inchPerMile: 16, label: '১৬ ইঞ্চি = ১ মাইল (৩৩০ ফুট/ইঞ্চি · ৫০০ লিংক)' },
-    { inchPerMile: 32, label: '৩২ ইঞ্চি = ১ মাইল (১৬৫ ফুট/ইঞ্চি · ২৫০ লিংক)' },
-    { inchPerMile: 64, label: '৬৪ ইঞ্চি = ১ মাইল (৮২.৫ ফুট/ইঞ্চি · ১২৫ লিংক)' },
-    { inchPerMile: 80, label: '৮০ ইঞ্চি = ১ মাইল (৬৬ ফুট/ইঞ্চি · ১০০ লিংক)' }
+    { inchPerMile: 16, label: '১৬ ইঞ্চি = ১ মাইল · 1″=330′ (সাধারণ মৌজা ম্যাপ)' },
+    { inchPerMile: 32, label: '৩২ ইঞ্চি = ১ মাইল · 1″=165′' },
+    { inchPerMile: 64, label: '৬৪ ইঞ্চি = ১ মাইল · 1″=82.5′' },
+    { inchPerMile: 80, label: '৮০ ইঞ্চি = ১ মাইল · 1″=66′ (সিটি জরিপ / বিআরএস)' },
   ].map(function (x) {
     return { inchPerMile: x.inchPerMile, ftPerInch: 5280 / x.inchPerMile,
              linkPerInch: 8000 / x.inchPerMile,

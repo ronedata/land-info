@@ -1098,7 +1098,13 @@ const AppController = {
       MeasureCanvas.init(c, {
         onChange: () => this.mmRefresh(),
         onSelect: () => this.mmRefresh(),
-        onView: () => this.mmPrecision()
+        onView: () => this.mmPrecision(),
+        onHistory: () => this.mmRenderHistory(),
+        onRestore: data => {
+          this.mm.ftPerPx = data.ftPerPx;
+          this.mm.division = data.division;
+          this.mm.scaleFrom = 'ইতিহাস থেকে ফিরিয়ে আনা';
+        }
       });
       // ★ জানালার মাপ বদলালে বা ফোন ঘোরালে ক্যানভাস আর ক্লিকের হিসাব
       //   আলাদা হয়ে যেত — তখন থেকে সব ক্লিক সরে পড়ত
@@ -1161,12 +1167,36 @@ const AppController = {
       dp.innerHTML = MapMeasure.DPI_OPTIONS.map(x =>
         '<option value="' + x.dpi + '">' + x.label + '</option>').join('');
     }
+    this.mmFillBarLengths();
+  },
+
+  /**
+   * ★ পদ্ধতি ২ এর দূরত্বের তালিকা — নকশার স্কেল বদলালে বদলায়
+   *
+   * আমিনরা ফিতা ধরে ফুট গোনেন না — গুনিয়া বা ফুট স্কেলের **ঘর**
+   * গোনেন। তাই চেইনের সাথে ঘর-ভিত্তিক বিকল্পও থাকে, আর খুলে লেখা
+   * থাকে কত ঘর = কত ফুট।
+   */
+  mmFillBarLengths() {
     const bl = document.getElementById('mm-barlen');
-    if (bl && !bl.options.length) {
-      bl.innerHTML = MapMeasure.COMMON_SCALES.map(x =>
-        '<option value="' + x.ft + '">' + x.label + '</option>').join('') +
-        '<option value="custom">অন্য দৈর্ঘ্য (নিজে লিখব)</option>';
-    }
+    if (!bl) return;
+    const ms = document.getElementById('mm-mapscale');
+    const sc = MapMeasure.MAP_SCALES[Number((ms || {}).value || 0)];
+    const keep = bl.value;
+    const list = MapMeasure.calibChoices(sc ? sc.inchPerMile : 0);
+    const chain = list.filter(x => /চেইন/.test(x.label));
+    const bars = list.filter(x => !/চেইন/.test(x.label));
+    const opt = x => '<option value="' + x.ft + '">' + x.label + '</option>';
+    bl.innerHTML =
+      '<optgroup label="নকশার স্কেল-দণ্ড (চেইন)">'
+        + chain.map(opt).join('') + '</optgroup>'
+      + (bars.length && sc
+          ? '<optgroup label="ঘর গুনে — ' + toBn(sc.inchPerMile) + '″/মাইল নকশায়">'
+            + bars.map(opt).join('') + '</optgroup>' : '')
+      + '<option value="custom">অন্য দৈর্ঘ্য (নিজে লিখব)</option>';
+    // আগের বাছাই থাকলে রাখি, নইলে ৫ চেইন (সবচেয়ে প্রচলিত)
+    if (keep && [].some.call(bl.options, o => o.value === keep)) bl.value = keep;
+    else bl.value = '330';
   },
 
   mmScaleDialog(show) {
@@ -1275,6 +1305,7 @@ const AppController = {
       k.ftPerPx = r.ftPerPx;
       k.scaleFrom = sc.label + ' · ' + toBn(dpi.toFixed(0)) + ' DPI';
       MeasureCanvas.setScale(k.ftPerPx);
+      MeasureCanvas.commitHistory('স্কেল সেট করা');
       this.mmScaleDialog(false);
       this.mmRefresh();
     } catch (e) { alert(e.message); }
@@ -1335,6 +1366,7 @@ const AppController = {
         + toBn(Math.round(r.pxLength)) + ' পিক্সেল)';
       k.calibrating = null;
       MeasureCanvas.setScale(k.ftPerPx);
+      MeasureCanvas.commitHistory('স্কেল ক্যালিব্রেট করা');
       if (bar) bar.style.display = 'none';
       this.mmTool('pan');
       this.mmRefresh();
@@ -1417,6 +1449,10 @@ const AppController = {
   },
 
   mmUndoPoint() { MeasureCanvas.undoDraftPoint(); },
+
+  mmHistoryUndo() { MeasureCanvas.undoHistory(); },
+  mmHistoryRedo() { MeasureCanvas.redoHistory(); },
+  mmHistoryGo(i) { MeasureCanvas.restoreHistory(Number(i)); },
   /**
    * "বাতিল" — যা চলছিল তাই থামায়
    * ★ আগে কেবল খসড়া মুছত। ক্যালিব্রেশন শুরু করে ফেললে বেরোনোর কোনো পথই
@@ -1466,7 +1502,13 @@ const AppController = {
 
   mmSetDag(i, v) {
     const p = MeasureCanvas.state.plots[i];
-    if (p) { p.dag = String(v || '').trim(); MeasureCanvas.draw(); }
+    if (p) {
+      const dag = String(v || '').trim();
+      if (p.dag === dag) return;
+      p.dag = dag;
+      MeasureCanvas.draw();
+      MeasureCanvas.commitHistory('দাগ নং পরিবর্তন');
+    }
   },
 
   /* ---- হালনাগাদ ---- */
@@ -1474,7 +1516,7 @@ const AppController = {
   mmRefresh() {
     const k = this.mm;
     const has = !!k.img;
-    ['mm-left', 'mm-tools', 'mm-tiles', 'mm-scale-pill', 'mm-list-wrap'].forEach(id => {
+    ['mm-left', 'mm-tools', 'mm-tiles', 'mm-scale-pill', 'mm-list-wrap', 'mm-history-wrap'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = has ? '' : 'none';
     });
@@ -1537,6 +1579,7 @@ const AppController = {
     }
 
     this.mmRenderList();
+    this.mmRenderHistory();
 
     // ভাগবণ্টন খোলা থাকলে প্লট বদলালে বাহুর তালিকাও বদলাতে হবে
     const dw = document.getElementById('mm-div-wrap');
@@ -1561,7 +1604,7 @@ const AppController = {
       return '<div class="mm-row' + (sel ? ' sel' : '') + (bad ? ' bad' : '') + '">' +
         '<span class="mm-row-n">' + toBn(i + 1) + '</span>' +
         '<input class="mm-row-dag" value="' + (p.dag || '') + '" placeholder="দাগ নং"' +
-          ' oninput="AppController.mmSetDag(' + i + ', this.value)">' +
+          ' onchange="AppController.mmSetDag(' + i + ', this.value)">' +
         (bad
           ? '<span class="mm-row-a warn" title="' + toBn(bad.i + 1) + ' ও '
               + toBn(bad.j + 1) + ' নং বাহু কাটাকাটি করছে">'
@@ -1579,6 +1622,28 @@ const AppController = {
       '<span class="mm-row-a">' + toBn(MeasureCanvas.stats().totals.satak.toFixed(2)) +
       ' শতক</span><span class="mm-row-k">' +
       toBn(MeasureCanvas.stats().totals.katha.toFixed(2)) + ' কাঠা</span><span></span></div>' : '');
+  },
+
+  mmRenderHistory() {
+    const box = document.getElementById('mm-history');
+    const pill = document.getElementById('mm-history-pill');
+    const undo = document.getElementById('mm-history-undo');
+    const redo = document.getElementById('mm-history-redo');
+    if (!MeasureCanvas.state) return;
+    const h = MeasureCanvas.historyInfo();
+    if (undo) undo.disabled = !h.canUndo;
+    if (redo) redo.disabled = !h.canRedo;
+    if (pill) pill.textContent = toBn(h.items.length) + 'টি';
+    if (!box) return;
+    const start = Math.max(0, h.items.length - 10);
+    box.innerHTML = h.items.slice(start).map((item, n) => {
+      const i = start + n;
+      return '<button type="button" class="mm-history-row' + (item.current ? ' current' : '') +
+        '" onclick="AppController.mmHistoryGo(' + i + ')"' +
+        (item.current ? ' aria-current="true"' : '') + '>' +
+        '<span>' + toBn(i + 1) + '</span><b>' + item.label + '</b>' +
+        (item.current ? '<i class="bi bi-check2"></i>' : '') + '</button>';
+    }).reverse().join('');
   },
 
 
@@ -1769,6 +1834,7 @@ const AppController = {
       const res = MapMeasure.divideByArea(plot.points, side, people, k.ftPerPx);
       k.division = res;
       MeasureCanvas.setDivision(res);
+      MeasureCanvas.commitHistory('আনুপাতিক ভাগবণ্টন');
       this.mmShowDivResult(MapMeasure.divisionReport(res,
         plot.dag ? 'দাগ ' + plot.dag : plot.name));
     } catch (e) {
@@ -1818,6 +1884,7 @@ const AppController = {
       };
       k.division = res;
       MeasureCanvas.setDivision(res);
+      MeasureCanvas.commitHistory('ম্যানুয়াল ভাগবণ্টন');
       this.mmShowDivResult(MapMeasure.divisionReport(res, base));
     } catch (e) {
       alert(e.message);
@@ -1825,8 +1892,10 @@ const AppController = {
   },
 
   mmClearDivision() {
+    if (!this.mm.division) return;
     this.mm.division = null;
     MeasureCanvas.setDivision(null);
+    MeasureCanvas.commitHistory('ভাগবণ্টন মোছা');
     const r = document.getElementById('mm-div-result');
     if (r) r.style.display = 'none';
   },

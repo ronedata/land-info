@@ -630,7 +630,43 @@ head('ক্যানভাসে বাহুর লেবেলের এক�
   MC.state = null;
 }
 
-/* ═══════════ ২২. বহুভুজ বৈধ তো? ═══════════ */
+/* ═══════════ ২২. Undo / Redo ইতিহাস ═══════════ */
+head('Undo / Redo ইতিহাস');
+{
+  global.MapMeasure = M;
+  const MC = require('../js/map-measure-ui.js');
+  const realDraw = MC.draw;
+  let restored = 0;
+  MC.draw = () => {};
+  MC.state = {
+    plots: [], draft: [], selected: -1, ftPerPx: 0, division: null,
+    history: [], historyIndex: -1,
+    onHistory: null, onChange: null,
+    onRestore: () => { restored++; }
+  };
+  MC.resetHistory('শুরু');
+  MC.state.plots.push({ id: 1, dag: '', name: 'প্লট ১', closed: true,
+    points: [{x:0,y:0},{x:10,y:0},{x:10,y:10}] });
+  MC.state.selected = 0;
+  MC.commitHistory('প্লট সম্পন্ন');
+  MC.state.plots[0].dag = '১২৩';
+  MC.commitHistory('দাগ নং পরিবর্তন');
+  ok('দুটি পরিবর্তন যোগ হয়েছে', MC.historyInfo().items.length === 3);
+  ok('Undo সক্রিয়', MC.historyInfo().canUndo);
+  ok('Redo শুরুতে নিষ্ক্রিয়', !MC.historyInfo().canRedo);
+  ok('Undo-তে দাগ আগের অবস্থায়', MC.undoHistory() && MC.state.plots[0].dag === '');
+  ok('Undo-র পরে Redo সক্রিয়', MC.historyInfo().canRedo);
+  ok('Redo-তে দাগ ফিরে আসে', MC.redoHistory() && MC.state.plots[0].dag === '১২৩');
+  MC.undoHistory();
+  MC.state.plots[0].dag = '৪৫৬';
+  MC.commitHistory('নতুন শাখা');
+  ok('নতুন পরিবর্তনে পুরনো Redo বাদ যায়', !MC.historyInfo().canRedo);
+  ok('ইতিহাস থেকে ফিরলে callback চলে', restored >= 2, restored + ' বার');
+  MC.draw = realDraw;
+  MC.state = null;
+}
+
+/* ═══════════ ২৩. বহুভুজ বৈধ তো? ═══════════ */
 head('নিজেকে কাটা বহুভুজ ধরা');
 {
   const sq = [{x:0,y:0},{x:400,y:0},{x:400,y:300},{x:0,y:300}];
@@ -760,6 +796,69 @@ head('স্কেলের যুক্তিযাচাই');
   ok('১ পিক্সেল = ১৪.৪ ফুট অস্বাভাবিক', !M.scaleSanity(14.4, 23).ok);
 }
 
+/* ═══════════ ২৪. গুনিয়া ও ফুট স্কেলের ঘর ═══════════ */
+head('গুনিয়া ও ফুট স্কেল — এক ঘর কতটুকু');
+{
+  // ★ ইউজারের (ভূমি রেকর্ডের বিশেষজ্ঞ) দেওয়া নিয়ম — হুবহু মিলতে হবে
+  const RULE = [
+    { ipm: 16, gunia: 20, fine: 10, foot: 10 },
+    { ipm: 32, gunia: 10, fine: 5,  foot: 5 },
+    { ipm: 64, gunia: 5,  fine: 2.5, foot: 2.5 },
+    { ipm: 80, gunia: 4,  fine: 2,  foot: 2 }
+  ];
+  RULE.forEach(r => {
+    ok(r.ipm + '"/মাইল · গুনিয়া নিচ = ' + r.gunia + ' লিংক',
+       M.barMark('gunia', r.ipm).link === r.gunia, M.barMark('gunia', r.ipm).link + '');
+    ok(r.ipm + '"/মাইল · গুনিয়া উপর = ' + r.fine + ' লিংক',
+       M.barMark('guniaFine', r.ipm).link === r.fine, M.barMark('guniaFine', r.ipm).link + '');
+    ok(r.ipm + '"/মাইল · ফুট স্কেল = ' + r.foot + ' ফুট',
+       M.barMark('foot', r.ipm).feet === r.foot, M.barMark('foot', r.ipm).feet + '');
+  });
+
+  ok('উপরের সারি সবসময় নিচের অর্ধেক',
+     RULE.every(r => M.barMark('guniaFine', r.ipm).link * 2 === M.barMark('gunia', r.ipm).link));
+  ok('★ ফুট স্কেলে সবসময় ৩৩ দাগ/ইঞ্চি',
+     RULE.every(r => Math.abs((5280 / r.ipm) / M.barMark('foot', r.ipm).feet - 33) < 1e-9));
+  ok('পুরনো linkPerMark = গুনিয়ার নিচের সারি',
+     M.MAP_SCALES.every(x => Math.abs(x.linkPerMark - M.barMark('gunia', x.inchPerMile).link) < 1e-9));
+
+  // ১ ইঞ্চি পুরো ঘর গুনলে মাপ স্কেলের ftPerInch এর সমান হবে
+  M.MAP_SCALES.forEach(x => {
+    ['gunia', 'guniaFine', 'foot'].forEach(id => {
+      const m = M.barMark(id, x.inchPerMile);
+      near(x.inchPerMile + '" · ' + id + ' এর সব ঘর = ১ ইঞ্চি',
+           M.barLength(id, x.inchPerMile, m.marksPerInch).feet, x.ftPerInch, 1e-9);
+    });
+  });
+
+  near('ঘর গুনে দূরত্ব — ১৬" এ ১০ বড় ঘর',
+       M.barLength('gunia', 16, 10).feet, 132, 1e-9);
+  near('  লিংকেও ঠিক (২০০ লিংক)',
+       M.barLength('gunia', 16, 10).link, 200, 1e-9);
+  near('৮০" এ ফুট স্কেলের ২৫ ঘর = ৫০ ফুট',
+       M.barLength('foot', 80, 25).feet, 50, 1e-9);
+
+  throws('অজানা সারিতে ত্রুটি', () => M.barMark('hijibiji', 16), 'চেনা গেল না');
+  throws('শূন্য স্কেলে ত্রুটি', () => M.barMark('gunia', 0), 'শূন্যের বেশি');
+
+  // ক্যালিব্রেশনের তালিকা
+  const ch = M.calibChoices(16);
+  ok('চেইনের ৪টি + ঘরের ৬টি', ch.length === 10, ch.length + 'টি');
+  ok('সব দৈর্ঘ্য ধনাত্মক', ch.every(x => x.ft > 0));
+  ok('২৫ বড় ঘর = ৩৩০ ফুট (১ ইঞ্চি)',
+     ch.some(x => Math.abs(x.ft - 330) < 1e-9 && /১ ইঞ্চি/.test(x.label)));
+  ok('স্কেল না দিলে কেবল চেইন', M.calibChoices(0).length === 4);
+  const ch80 = M.calibChoices(80);
+  ok('৮০" এ ঘর ছোট হয় — বড় ঘর ২.৬৪ ফুট (১৬" এ ১৩.২)',
+     M.barMark('gunia', 80).feet === 2.64 && M.barMark('gunia', 16).feet === 13.2,
+     M.barMark('gunia', 80).feet + ' vs ' + M.barMark('gunia', 16).feet);
+  ok('৮০" এ ফুট স্কেলের ৩৩ ঘর = ৬৬ ফুট (১ ইঞ্চি)',
+     ch80.some(x => Math.abs(x.ft - 66) < 1e-9 && /ফুট \(মাপনি\)/.test(x.label)));
+  ok('একই ঘরসংখ্যায় ৮০" এর মান ১৬" এর পাঁচ ভাগের এক',
+     Math.abs(M.barLength('gunia', 80, 10).feet * 5 - M.barLength('gunia', 16, 10).feet) < 1e-9,
+     M.barLength('gunia', 80, 10).feet.toFixed(2) + ' × ৫ = '
+     + M.barLength('gunia', 16, 10).feet.toFixed(2));
+}
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
 console.log('='.repeat(78) + '\n');
