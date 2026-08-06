@@ -715,8 +715,21 @@
             <div class="mm-modal-box">
               <div class="mm-modal-head"><i class="bi bi-rulers"></i> স্কেল সেটিংস</div>
 
-              <div class="mm-method">
-                <h5>পদ্ধতি ১ — মৌজার স্কেল</h5>
+              <!-- দুটি পদ্ধতিই উপরে দেখা যাক — আগে দুটো একসাথে থাকায়
+                   পদ্ধতি ২ পর্দার নিচে পড়ে যেত, স্ক্রল না করলে চোখেই পড়ত না -->
+              <div class="fz-seg mm-scale-tabs">
+                <button type="button" class="fz-seg-btn active" id="mm-tab-1"
+                        onclick="AppController.mmScaleTab(1)">
+                  পদ্ধতি ১ — মৌজার স্কেল
+                </button>
+                <button type="button" class="fz-seg-btn" id="mm-tab-2"
+                        onclick="AppController.mmScaleTab(2)">
+                  পদ্ধতি ২ — ম্যাপ থেকে মাপুন <b>(নিখুঁত)</b>
+                </button>
+              </div>
+
+              <div class="mm-method" id="mm-method-1">
+                <h5>পদ্ধতি ১ — মৌজার স্কেল <span>(নকশার গায়ে লেখা স্কেল ধরে)</span></h5>
                 <div class="fz-field">
                   <div class="fz-field-label"><span>ম্যাপের স্কেল</span></div>
                   <div class="fz-input-wrap fz-select-wrap">
@@ -748,7 +761,7 @@
                 </div>
               </div>
 
-              <div class="mm-method alt">
+              <div class="mm-method alt" id="mm-method-2" style="display:none">
                 <h5>পদ্ধতি ২ — ম্যাপ থেকে মাপুন <span>(সর্বোচ্চ নিখুঁত)</span></h5>
 
                 <!-- ধাপ ১ — কোন দূরত্ব -->

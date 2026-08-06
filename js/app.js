@@ -1374,11 +1374,31 @@ const AppController = {
     this.mmDrawCalibHelp();
   },
 
+  /**
+   * ★ স্কেল সেটিংসে দুই পদ্ধতির ট্যাব
+   *
+   * আগে দুটো একসাথে থাকায় বাক্স হয়ে যেত ১৩২২px, আর পদ্ধতি ২
+   * শুরু হতো y=৭৫১ এ — পর্দার নিচে, স্ক্রল না করলে চোখেই পড়ত না।
+   * এখন উপরে দুটি নামই দেখা যায়, একসাথে একটি প্যানেল খোলে।
+   */
+  mmScaleTab(n) {
+    this.mm.scaleTab = n === 2 ? 2 : 1;
+    [1, 2].forEach(i => {
+      const b = document.getElementById('mm-tab-' + i);
+      const m = document.getElementById('mm-method-' + i);
+      if (b) b.classList.toggle('active', i === this.mm.scaleTab);
+      if (m) m.style.display = i === this.mm.scaleTab ? '' : 'none';
+    });
+    // পদ্ধতি ২ দেখানোর সময় ছবিটা আবার আঁকি — লুকানো অবস্থায়
+    // SVG এর মাপ শূন্য থাকে
+    if (this.mm.scaleTab === 2) this.mmDrawCalibHelp();
+  },
+
   mmScaleDialog(show) {
     const m = document.getElementById('mm-scale-modal');
     if (!m) return;
     m.style.display = show ? '' : 'none';
-    if (show) this.mmSyncDpiState();
+    if (show) { this.mmSyncDpiState(); this.mmScaleTab(this.mm.scaleTab || 1); }
   },
 
   /** PDF হলে DPI বন্ধ — কারণ রেন্ডার স্কেল থেকেই বেরিয়ে আসে */
