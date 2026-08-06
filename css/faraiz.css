@@ -2903,3 +2903,13 @@
   border-radius: 50%; background: #dc2626; color: #fff;
   font-size: 0.66rem; font-weight: 700; vertical-align: -2px;
 }
+
+/* স্কেল সেটিংসের দুই পদ্ধতির ট্যাব */
+.mm-scale-tabs { margin-bottom: 14px; }
+.mm-scale-tabs .fz-seg-btn { flex: 1 1 150px; padding: 9px 10px; font-size: 0.8rem; }
+.mm-scale-tabs .fz-seg-btn b { font-weight: 700; }
+.mm-scale-tabs .fz-seg-btn:nth-child(2) { border-color: #ddd6fe; color: #7c3aed; }
+.mm-scale-tabs .fz-seg-btn:nth-child(2):hover { border-color: #7c3aed; }
+.mm-scale-tabs .fz-seg-btn:nth-child(2).active {
+  background: #7c3aed; border-color: #7c3aed; color: #fff;
+}
