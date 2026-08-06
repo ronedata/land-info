@@ -80,7 +80,7 @@ const MapMeasure = {
     const n = Number(inchPerMile);
     if (!(n > 0)) throw new Error('স্কেল শূন্যের বেশি হতে হবে');
     const feet = (this.FT_PER_MILE / n) / bar.marksPerInch;
-    // লিংক সরাসরি — ফুট থেকে ঘুরিয়়ে আনলে ২০ এর বদলে ১৯.৯৯৯৯ আসে
+    // লিংক সরাসরি — ফুট থেকে ঘুরিয়ে আনলে ২০ এর বদলে ১৯.৯৯৯৯ আসে
     return { id: bar.id, feet, link: (this.LINK_PER_MILE / n) / bar.marksPerInch,
              marksPerInch: bar.marksPerInch, name: bar.name };
   },

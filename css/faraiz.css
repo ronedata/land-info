@@ -2312,9 +2312,14 @@
 
 .mm-wrap { display: flex; flex-direction: column; min-height: 0; }
 
+/* ★ আগে কেবল `flex: 1` ছিল, কিন্তু `.mm-wrap` এর নিজের উচ্চতা নির্দিষ্ট নয়
+   (মডালের ভেতরটা স্ক্রল করে)। তাই flex এর ভাগ করার মতো কিছু থাকত না আর
+   stage `min-height` ৪২০px এই আটকে যেত — নকশা মাপার জন্য যা খুবই ছোট।
+   এখন সরাসরি পর্দার উচ্চতা ধরে — ফোনেও, ডেস্কটপেও অনেক বড়। */
 .mm-stage {
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
+  height: min(72vh, 860px);
   min-height: 420px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -2800,4 +2805,39 @@
 .mm-draw-bar .btn-outline:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.25);
   color: #fff;
+}
+
+/* গুনিয়া ও ফুট স্কেলের ঘর — স্কেল ডায়ালগে ছবিসহ */
+.mm-gunia {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+.mm-gunia-head {
+  display: flex; align-items: center; gap: 7px;
+  margin-bottom: 10px;
+  font-size: 0.86rem; font-weight: 700; color: var(--text-main);
+}
+.mm-gunia-svg { display: block; width: 100%; max-width: 360px; height: auto; }
+.mm-gunia-svg .g-body { fill: #fffbeb; stroke: #d97706; stroke-width: 1; }
+.mm-gunia-svg .g-mid  { stroke: #d97706; stroke-width: 0.8; opacity: 0.5; }
+.mm-gunia-svg .g-tick { stroke: #92400e; stroke-width: 1; fill: none; }
+.mm-gunia-list {
+  list-style: none; margin: 10px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.mm-gunia-list li {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: 0.82rem; color: var(--text-muted);
+}
+.mm-gunia-list b { color: var(--text-main); }
+.mm-gunia-list i { font-style: normal; opacity: 0.75; }
+.g-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.g-dot.up   { background: #92400e; }
+.g-dot.down { background: #d97706; }
+.g-dot.ft   { background: #0ea5e9; }
+.mm-gunia-note {
+  margin: 9px 0 0; font-size: 0.76rem; color: var(--text-muted); line-height: 1.6;
 }
