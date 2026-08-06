@@ -2497,6 +2497,27 @@
   .mm-row-k { display: none; }
 }
 
+/* পরিবর্তনের ইতিহাস */
+.mm-history-wrap { margin-top: 14px; }
+.mm-history {
+  display: flex; flex-direction: column; gap: 5px;
+  margin-top: 8px; max-height: 230px; overflow-y: auto;
+  padding: 7px; border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm); background: var(--bg-input);
+}
+.mm-history-row {
+  display: grid; grid-template-columns: 28px 1fr 18px; align-items: center; gap: 8px;
+  width: 100%; min-height: 34px; padding: 6px 8px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  background: var(--bg-surface); color: var(--text-main); text-align: left;
+  font: inherit; font-size: 0.8rem; cursor: pointer;
+}
+.mm-history-row:hover { border-color: var(--primary); }
+.mm-history-row.current { border-color: var(--primary); background: var(--primary-light); }
+.mm-history-row span { color: var(--text-muted); font-size: 0.72rem; text-align: center; }
+.mm-history-row b { font-weight: 600; }
+.mm-history-row i { color: var(--primary); }
+
 /* স্কেল ডায়ালগ */
 .mm-modal {
   position: absolute; inset: 0; z-index: 20;
