@@ -1184,6 +1184,92 @@ const AppController = {
    * তা নকশার স্কেলের উপর নির্ভর করে — নতুন কেউ এখানেই ঠকেন।
    * তাই বাছাই অনুযায়ী দুই সারির দাগ ও ফুট স্কেল সরাসরি এঁকে দেখাই।
    */
+  /**
+   * ★ পদ্ধতি ২ এর ছবি — নকশার কর্ণ স্কেলে কোথায় ক্লিক করতে হবে
+   *
+   * মৌজা নকশার নিচে যে স্কেল-দণ্ড আঁকা থাকে সেটি **কর্ণ স্কেল**
+   * (diagonal scale) — বাঁ দিকে তির্যক রেখার জাল (ভগ্নাংশ পড়ার জন্য),
+   * তারপর সরল ঘর — ০ · ৫ · ১০ চেইন। ইউজার যে দূরত্ব বেছেছেন, ঠিক
+   * সেই দুই দাগে লাল চিহ্ন বসে — তাই ছবিটি বাছাইয়ের সাথে বদলায়।
+   */
+  mmDrawCalibHelp() {
+    const box = document.getElementById('mm-calib-help');
+    if (!box) return;
+    const bl = document.getElementById('mm-barlen');
+    const raw = (bl || {}).value;
+    const feet = Number(raw);
+
+    // দণ্ডটি ১০ চেইন লম্বা ধরা হয় (মৌজা নকশায় সবচেয়ে প্রচলিত)
+    const BAR_CHAINS = 10;
+    const W = 320, H = 96;
+    const L = 30, R = W - 16, T = 20, B = 74;   // দণ্ডের বাক্স
+    const zero = L + (R - L) * 0.30;            // ‘০’ — তির্যক অংশের ডান প্রান্তে
+    const perChain = (R - zero) / BAR_CHAINS;
+    const xAt = ch => zero + perChain * ch;
+
+    let d = '';
+    // অনুভূমিক সারি (কর্ণ স্কেলের ১০ ভাগ)
+    for (let i = 0; i <= 5; i++) {
+      const y = T + (B - T) * i / 5;
+      d += 'M' + L + ' ' + y.toFixed(1) + 'H' + R + ' ';
+    }
+    // চেইনের খাড়া দাগ
+    for (let c = 0; c <= BAR_CHAINS; c++) {
+      const x = xAt(c);
+      d += 'M' + x.toFixed(1) + ' ' + T + 'V' + B + ' ';
+    }
+    // বাঁ পাশের তির্যক জাল
+    let dg = '';
+    for (let i = 0; i <= 10; i++) {
+      const x1 = L + (zero - L) * i / 10;
+      const x2 = L + (zero - L) * (i - 1) / 10;
+      dg += 'M' + x1.toFixed(1) + ' ' + T + 'L' + Math.max(L, x2).toFixed(1) + ' ' + B + ' ';
+    }
+
+    // কোথায় ক্লিক — বাছাই অনুযায়ী
+    const bn = v => toBn(String(Number(v.toFixed(2))));
+    let m1 = zero, m2 = xAt(BAR_CHAINS), lab1 = '০', lab2 = '১০ চেইন', note = '';
+    if (feet > 0) {
+      const ch = feet / MapMeasure.FT_PER_CHAIN;
+      if (ch <= BAR_CHAINS + 1e-9) {
+        m2 = xAt(ch);
+        lab2 = (Math.abs(ch - Math.round(ch)) < 1e-9 ? toBn(Math.round(ch)) : bn(ch))
+             + ' চেইন';
+        note = 'নির্বাচিত <b>' + bn(feet) + ' ফুট</b> = ' + lab2 + '।';
+      } else {
+        note = 'নির্বাচিত <b>' + bn(feet) + ' ফুট</b> দণ্ডের চেয়েও বড় — '
+             + 'নকশায় এত লম্বা চেনা দূরত্ব থাকলে তবেই বাছুন।';
+      }
+    } else if (raw === 'custom') {
+      note = 'নিজে দৈর্ঘ্য লিখবেন — বোতামে চাপ দিলে জিজ্ঞেস করবে।';
+    }
+
+    const pin = (x, n) =>
+      '<g class="c-pin"><line x1="' + x.toFixed(1) + '" y1="' + (T - 8)
+      + '" x2="' + x.toFixed(1) + '" y2="' + (B + 6) + '"/>'
+      + '<circle cx="' + x.toFixed(1) + '" cy="' + (B + 14) + '" r="8"/>'
+      + '<text x="' + x.toFixed(1) + '" y="' + (B + 17.5) + '">' + toBn(n) + '</text></g>';
+
+    box.innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" class="mm-calib-svg" role="img" '
+      + 'aria-label="নকশার স্কেল-দণ্ডে কোথায় ক্লিক করতে হবে">'
+      + '<rect x="' + L + '" y="' + T + '" width="' + (R - L) + '" height="' + (B - T)
+      + '" class="c-body"/>'
+      + '<path d="' + dg + '" class="c-diag"/>'
+      + '<path d="' + d + '" class="c-grid"/>'
+      + '<text x="' + zero + '" y="' + (T - 6) + '" class="c-lab">০</text>'
+      + '<text x="' + xAt(5) + '" y="' + (T - 6) + '" class="c-lab">৫</text>'
+      + '<text x="' + (R - 2) + '" y="' + (T - 6) + '" class="c-lab end">১০ চেইন</text>'
+      + '<text x="' + (L - 5) + '" y="' + (T + 5) + '" class="c-side">২</text>'
+      + '<text x="' + (L - 5) + '" y="' + ((T + B) / 2 + 3) + '" class="c-side">৬</text>'
+      + '<text x="' + (L - 5) + '" y="' + (B + 2) + '" class="c-side">১০</text>'
+      + pin(m1, 1) + pin(m2, 2)
+      + '</svg>'
+      + '<p class="mm-calib-cap"><b><span class="c-num">১</span> ‘০’ দাগে</b> ক্লিক, '
+      + 'তারপর <b><span class="c-num">২</span> ‘' + lab2 + '’ দাগে</b> ক্লিক। '
+      + note + '</p>';
+  },
+
   mmDrawGunia() {
     const box = document.getElementById('mm-gunia');
     if (!box) return;
@@ -1258,6 +1344,7 @@ const AppController = {
     // আগের বাছাই থাকলে রাখি, নইলে ৫ চেইন (সবচেয়ে প্রচলিত)
     if (keep && [].some.call(bl.options, o => o.value === keep)) bl.value = keep;
     else bl.value = '330';
+    this.mmDrawCalibHelp();
   },
 
   mmScaleDialog(show) {

@@ -2841,3 +2841,48 @@
 .mm-gunia-note {
   margin: 9px 0 0; font-size: 0.76rem; color: var(--text-muted); line-height: 1.6;
 }
+
+/* ── পদ্ধতি ২ — ধাপে ধাপে ── */
+.mm-step { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+.mm-step:last-of-type { margin-bottom: 0; }
+.mm-step-n {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 24px; height: 24px; margin-top: 1px;
+  border-radius: 50%;
+  background: #7c3aed; color: #fff;
+  font-size: 0.76rem; font-weight: 700;
+}
+.mm-step-body { flex: 1; min-width: 0; font-size: 0.86rem; color: var(--text-muted); }
+.mm-step-body > b { color: var(--text-main); font-size: 0.88rem; }
+
+/* নকশার কর্ণ স্কেল — কোথায় ক্লিক করতে হবে */
+.mm-calib-help {
+  margin-top: 9px; padding: 10px 12px 8px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: #fdfbf5;
+}
+.mm-calib-svg { display: block; width: 100%; max-width: 380px; height: auto; }
+.mm-calib-svg .c-body { fill: #fffdf7; stroke: #78350f; stroke-width: 1.2; }
+.mm-calib-svg .c-grid { stroke: #78350f; stroke-width: 0.7; fill: none; opacity: 0.8; }
+.mm-calib-svg .c-diag { stroke: #78350f; stroke-width: 0.6; fill: none; opacity: 0.55; }
+.mm-calib-svg .c-lab {
+  fill: #451a03; font-size: 9px; font-weight: 700; text-anchor: middle;
+}
+.mm-calib-svg .c-lab.end { text-anchor: end; }
+.mm-calib-svg .c-side { fill: #78350f; font-size: 7.5px; text-anchor: end; }
+.mm-calib-svg .c-pin line { stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 3 2; }
+.mm-calib-svg .c-pin circle { fill: #dc2626; }
+.mm-calib-svg .c-pin text {
+  fill: #fff; font-size: 9px; font-weight: 700; text-anchor: middle;
+}
+.mm-calib-cap {
+  margin: 8px 0 0; font-size: 0.79rem; line-height: 1.7; color: var(--text-muted);
+}
+.mm-calib-cap b { color: var(--text-main); }
+.c-num {
+  display: inline-grid; place-items: center;
+  width: 16px; height: 16px; margin-inline-end: 3px;
+  border-radius: 50%; background: #dc2626; color: #fff;
+  font-size: 0.66rem; font-weight: 700; vertical-align: -2px;
+}
