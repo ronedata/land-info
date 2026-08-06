@@ -1098,7 +1098,7 @@ const AppController = {
       MeasureCanvas.init(c, {
         onChange: () => this.mmRefresh(),
         onSelect: () => this.mmRefresh(),
-        onView: () => this.mmPrecision(),
+        onView: () => { this.mmPrecision(); this.mmHiResSoon(); },
         onHistory: () => this.mmRenderHistory(),
         onRestore: data => {
           this.mm.ftPerPx = data.ftPerPx;
@@ -1177,7 +1177,68 @@ const AppController = {
    * গোনেন। তাই চেইনের সাথে ঘর-ভিত্তিক বিকল্পও থাকে, আর খুলে লেখা
    * থাকে কত ঘর = কত ফুট।
    */
+  /**
+   * ★ গুনিয়া ও ফুট স্কেলে এক ঘর কত — ছবি এঁকে দেখানো
+   *
+   * আমিনরা গুনিয়া হাতে ধরে ঘর গোনেন, কিন্তু কোন সারিতে এক ঘর কত লিংক
+   * তা নকশার স্কেলের উপর নির্ভর করে — নতুন কেউ এখানেই ঠকেন।
+   * তাই বাছাই অনুযায়ী দুই সারির দাগ ও ফুট স্কেল সরাসরি এঁকে দেখাই।
+   */
+  mmDrawGunia() {
+    const box = document.getElementById('mm-gunia');
+    if (!box) return;
+    const ms = document.getElementById('mm-mapscale');
+    const sc = MapMeasure.MAP_SCALES[Number((ms || {}).value || 0)];
+    if (!sc) { box.innerHTML = ''; return; }
+
+    const W = 260, H = 40;
+    const num = v => toBn(String(Number(v.toFixed(2))));
+    /** একটি সারি — ১০টি ঘর, মাঝে লম্বা দাগ */
+    const row = (y, n, tall) => {
+      let d = '';
+      for (let i = 0; i <= n; i++) {
+        const x = 10 + (W - 20) * i / n;
+        const big = i % 5 === 0;
+        d += 'M' + x.toFixed(1) + ' ' + y + 'v' + (big ? tall : tall * 0.55) + ' ';
+      }
+      return d;
+    };
+
+    const g = MapMeasure.barMark('gunia', sc.inchPerMile);
+    const f = MapMeasure.barMark('guniaFine', sc.inchPerMile);
+    const ft = MapMeasure.barMark('foot', sc.inchPerMile);
+
+    const svg =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" class="mm-gunia-svg" role="img" '
+      + 'aria-label="গুনিয়া স্কেলের দুই সারি">'
+      + '<rect x="8" y="6" width="' + (W - 16) + '" height="' + (H - 12)
+      + '" rx="3" class="g-body"/>'
+      + '<line x1="8" y1="' + (H / 2) + '" x2="' + (W - 8) + '" y2="' + (H / 2)
+      + '" class="g-mid"/>'
+      // উপরের সারি — দ্বিগুণ ঘন, মান অর্ধেক
+      + '<path d="' + row(6, 20, 7) + '" class="g-tick"/>'
+      // নিচের সারি — বড় ঘর
+      + '<path d="' + row(H - 6, 10, -7) + '" class="g-tick"/>'
+      + '</svg>';
+
+    box.innerHTML =
+      '<div class="mm-gunia-head"><i class="bi bi-rulers"></i> এই নকশায় '
+      + '<b>' + toBn(sc.inchPerMile) + '″ = ১ মাইল</b> — এক ঘর কত?</div>'
+      + svg
+      + '<ul class="mm-gunia-list">'
+      + '<li><span class="g-dot up"></span>গুনিয়া <b>উপরের</b> সারি (ছোট ঘর) '
+      + '<b>' + num(f.link) + ' লিংক</b> <i>= ' + num(f.feet) + ' ফুট</i></li>'
+      + '<li><span class="g-dot down"></span>গুনিয়া <b>নিচের</b> সারি (বড় ঘর) '
+      + '<b>' + num(g.link) + ' লিংক</b> <i>= ' + num(g.feet) + ' ফুট</i></li>'
+      + '<li><span class="g-dot ft"></span>ফুট (মাপনি) স্কেল '
+      + '<b>' + num(ft.feet) + ' ফুট</b> <i>(প্রতি ইঞ্চিতে ৩৩ ঘর)</i></li>'
+      + '</ul>'
+      + '<p class="mm-gunia-note">এক ঘর = এক দাগ থেকে পরের দাগ পর্যন্ত। '
+      + 'উপরের সারি সবসময় নিচের সারির ঠিক অর্ধেক।</p>';
+  },
+
   mmFillBarLengths() {
+    this.mmDrawGunia();
     const bl = document.getElementById('mm-barlen');
     if (!bl) return;
     const ms = document.getElementById('mm-mapscale');
@@ -1417,6 +1478,59 @@ const AppController = {
       return;
     }
     this.mmRefresh();
+  },
+
+  /**
+   * ★ জুম করলে ছবি ফেটে যাওয়া ঠেকানো
+   *
+   * পুরো নকশা একবারে যত বড় আঁকা সম্ভব তার সীমা আছে (স্মৃতি)। কিন্তু
+   * জুম করলে পর্দায় তো একটুকুই থাকে — তাই শুধু সেই অংশটুকু PDF থেকে
+   * নতুন করে আঁকি। স্মৃতি বাড়ে না, অথচ রেখা বেক্তরের মতো পরিষ্কার থাকে।
+   *
+   * ছবি (JPG/PNG) এ এটা করা যায় না — ওখানে বেশি রেজুলেশন নেই।
+   */
+  HIRES_MIN_ZOOM: 1.15,
+
+  mmHiResSoon() {
+    clearTimeout(this._mmHiT);
+    this._mmHiT = setTimeout(() => this.mmHiRes(), 220);
+  },
+
+  async mmHiRes() {
+    const k = this.mm;
+    /* ★ pdf.js একই পাতায় দুটি রেন্ডার একসাথে চালাতে দেয় না — দ্বিতীয়টি
+       প্রথমটিকে মেরে ফেলে। দ্রুত জুম + প্যান করলে ঠিক তাই হতো আর
+       ছবি ফাটাই থেকে যেত। তাই একটি শেষ না হলে আরেকটি শুরু হয় না। */
+    if (k.hiBusy) { k.hiAgain = true; return; }
+    k.hiBusy = true;
+    try { await this._mmHiResOnce(); }
+    finally {
+      k.hiBusy = false;
+      if (k.hiAgain) { k.hiAgain = false; this.mmHiResSoon(); }
+    }
+  },
+
+  async _mmHiResOnce() {
+    const k = this.mm;
+    const st = MeasureCanvas.state;
+    if (!k.pdfPage || !st || !k.img) return;
+    // মূল ছবির তুলনায় কত গুণ বড় দেখানো হচ্ছে (পর্দার ঘনত্বসহ)
+    const need = st.scale * st.dpr;
+    if (need < this.HIRES_MIN_ZOOM) {
+      if (st.hi) MeasureCanvas.setHiRes(null);
+      return;
+    }
+    const rect = MeasureCanvas.visibleRect();
+    if (!rect) return;
+    const seq = ++k.hiSeq;
+    try {
+      const hi = await KmzSource.renderRegion(k.pdfPage, k.pdfScale, rect, need);
+      if (seq !== k.hiSeq) return;              // এর মধ্যে আবার নড়েছে
+      MeasureCanvas.setHiRes(hi);
+    } catch (e) {
+      // এলাকা খুব বড় বা রেন্ডার বাতিল — মূল ছবিই থাকুক, কিছু ভাঙে না
+      if (seq === k.hiSeq && st.hi) MeasureCanvas.setHiRes(null);
+    }
   },
 
   mmZoom(d) { MeasureCanvas.zoom(d); this.mmPrecision(); },
@@ -1991,6 +2105,10 @@ const AppController = {
     k.img = r.img; k.imgName = name || 'map.jpg';
     k.isPdf = !!isPdf; k.pdfScale = pdfScale || 0;
     k.pageIn = r.pageIn || null;
+    // ★ জুম করলে ওই অংশটুকু PDF থেকে নতুন করে আঁকতে পাতাটি লাগে
+    k.pdfPage = r.pdfPage || null;
+    k.hiSeq = (k.hiSeq || 0) + 1;
+    MeasureCanvas.setHiRes(null);
     const dpEl = document.getElementById('mm-dpi');
     if (dpEl) dpEl._mmSet = false;      // নতুন ফাইলে আবার বসবে
     k.ftPerPx = 0; k.scaleFrom = ''; k.calibrating = null;

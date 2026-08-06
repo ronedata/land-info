@@ -37,6 +37,7 @@ const MeasureCanvas = {
       gesture: false,       // ইশারাটা ক্যানভাসেই শুরু হয়েছিল তো?
       pinch: null,          // দুই আঙুলের ইশারা — {d0, c0, scale0}
       picked: null,         // পয়েন্ট টুলে বাছাই করা শীর্ষবিন্দু {plot, index}
+      hi: null,                // জুম করলে PDF থেকে আঁকা পরিষ্কার অংশ
       lens: null,           // আতশকাচ — {x, y} ক্যানভাস স্থানাঙ্কে
       touch: false,         // এই ইশারাটা আঙুলে না মাউসে
       calib: null,            // {pts:[], cb}
@@ -88,6 +89,7 @@ const MeasureCanvas = {
   setImage(img) {
     const s = this.state;
     s.img = img;
+    s.hi = null;
     s.plots = []; s.draft = []; s.selected = -1;
     this.fit();
     this.resetHistory('নতুন ম্যাপ');
@@ -101,6 +103,25 @@ const MeasureCanvas = {
               y: (s.viewH - s.img.height * s.scale) / 2 };
     this.draw();
     if (s.onView) s.onView();
+  },
+
+  /** জুম করা অবস্থায় PDF থেকে আঁকা পরিষ্কার অংশ বসানো (null দিলে মুছে যায়) */
+  setHiRes(hi) { this.state.hi = hi || null; this.draw(); },
+
+  /** এখন ছবির কোন অংশটুকু পর্দায় দেখা যাচ্ছে — ছবির পিক্সেলে */
+  visibleRect(pad) {
+    const s = this.state;
+    if (!s.img || !(s.scale > 0)) return null;
+    const m = pad === undefined ? 0.12 : pad;
+    const a = this.toImage(0, 0);
+    const b = this.toImage(s.viewW, s.viewH);
+    const mw = (b.x - a.x) * m, mh = (b.y - a.y) * m;
+    const x = Math.max(0, Math.floor(a.x - mw));
+    const y = Math.max(0, Math.floor(a.y - mh));
+    const x2 = Math.min(s.img.width, Math.ceil(b.x + mw));
+    const y2 = Math.min(s.img.height, Math.ceil(b.y + mh));
+    if (x2 <= x || y2 <= y) return null;
+    return { x, y, w: x2 - x, h: y2 - y };
   },
 
   setTool(t) {
@@ -273,6 +294,8 @@ const MeasureCanvas = {
       s.dragPt = null; s.drag = null; s.panning = false; s.gesture = false;
       s.lens = null;
       if (s.tool === 'pan') c.style.cursor = 'grab';
+      // টান শেষ হলে নতুন এলাকা দেখা যাচ্ছে — hi-res আবার চাই
+      if (wasDrag && s.onView) s.onView();
       if (wasDrag || hadPt) {
         this.draw();
         if (hadPt) this.commitHistory('কোণা সরানো');
@@ -369,7 +392,7 @@ const MeasureCanvas = {
     c.addEventListener('touchend', e => {
       if (s.pinch) {
         // সব আঙুল না ওঠা পর্যন্ত চিমটির অবস্থাই থাকুক — বিন্দু পড়বে না
-        if (e.touches.length === 0) s.pinch = null;
+        if (e.touches.length === 0) { s.pinch = null; if (s.onView) s.onView(); }
         else if (e.touches.length >= 2) pinchStart(e);
         return;
       }
@@ -611,9 +634,15 @@ const MeasureCanvas = {
     }
 
     if (s.img) {
-      ctx.imageSmoothingEnabled = s.scale < 2.5;
+      ctx.imageSmoothingEnabled = true;
       ctx.drawImage(s.img, s.off.x, s.off.y,
                     s.img.width * s.scale, s.img.height * s.scale);
+      // ★ জুম করলে PDF থেকে নতুন করে আঁকা পরিষ্কার অংশটুকু উপরে বসে
+      if (s.hi) {
+        const a = this.toCanvas(s.hi.x, s.hi.y);
+        ctx.drawImage(s.hi.canvas, a.x, a.y,
+                      s.hi.w * s.scale, s.hi.h * s.scale);
+      }
     }
 
     s.plots.forEach((p, i) => this._drawPlot(p, i === s.selected, false));

@@ -141,11 +141,47 @@ const KmzSource = {
       pageIn: { w: base.width / 72, h: base.height / 72 },
       // ★ রেন্ডার স্কেল ফেরত দেওয়া জরুরি — এটি থেকেই PDF এর DPI বেরোয়
       //   (MapMeasure.dpiForPdf: DPI = ৭২ × স্কেল)
-      pdfScale: scale
+      pdfScale: scale,
+      // ★ পাতাটি ধরে রাখি — জুম করলে ওই অংশটুকু আরেকবার বেশি
+      //   রেজুলেশনে আঁকা যায় (renderRegion)
+      doc, pdfPage: page
     };
   },
 
   /** Blob → <img> (লোড হওয়া পর্যন্ত অপেক্ষা করে) */
+  /**
+   * ★ জুম করলে ছবি ফেটে যায় — তার সমাধান
+   *
+   * পুরো নকশা একবারে যত বড় আঁকা সম্ভব, তার সীমা আছে (স্মৃতি)। কিন্তু
+   * ব্যবহারকারী একসাথে পুরো নকশা দেখেন না — জুম করলে একটুকু দেখেন।
+   * তাই শুধু দৃশ্যমান অংশটুকু PDF থেকে নতুন করে আঁকি — তখন যত জুমই
+   * করুন, রেখা ও দাগ নম্বর বেক্তরের মতোই পরিষ্কার থাকে।
+   *
+   * @param {object} page      pdf.js এর পাতা
+   * @param {number} baseScale মূল ছবি যে স্কেলে আঁকা হয়েছিল
+   * @param {object} rect      মূল ছবির পিক্সেলে {x, y, w, h}
+   * @param {number} zoom      কত গুণ বেশি আঁকব
+   */
+  async renderRegion(page, baseScale, rect, zoom) {
+    if (!page || !(baseScale > 0)) throw new Error('পাতা নেই');
+    const z = Math.max(1, Math.min(8, Number(zoom) || 1));
+    const w = Math.max(1, Math.round(rect.w * z));
+    const h = Math.max(1, Math.round(rect.h * z));
+    // স্মৃতির রাশ টানা — দৃশ্যমান এলাকাই তো, বড় হওয়ার কথা নয়
+    if (w * h > 24e6) throw new Error('এলাকাটি খুব বড়');
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    const vp = page.getViewport({ scale: baseScale * z });
+    // পুরো পাতার ভেতর থেকে শুধু rect অংশটুকু ক্যানভাসে আনা
+    ctx.translate(-rect.x * z, -rect.y * z);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return { canvas, x: rect.x, y: rect.y, w: rect.w, h: rect.h, zoom: z };
+  },
+
   blobToImage(blob) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(blob);
