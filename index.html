@@ -887,7 +887,8 @@
                 <button type="button" class="kmz-cbtn" title="বড়" onclick="AppController.kmzImgZoom(1)"><i class="bi bi-plus-lg"></i></button>
                 <button type="button" class="kmz-cbtn" title="ছোট" onclick="AppController.kmzImgZoom(-1)"><i class="bi bi-dash-lg"></i></button>
                 <button type="button" class="kmz-cbtn" title="পুরোটা দেখুন" onclick="AppController.kmzFitImage()"><i class="bi bi-arrows-fullscreen"></i></button>
-                <button type="button" class="kmz-cbtn" title="শেষ পয়েন্ট মুছুন" onclick="AppController.kmzUndo(1)"><i class="bi bi-arrow-counterclockwise"></i></button>
+                <button type="button" class="kmz-cbtn kmz-undo-btn" title="পূর্বাবস্থায়" onclick="AppController.kmzUndoHistory()" disabled><i class="bi bi-arrow-counterclockwise"></i></button>
+                <button type="button" class="kmz-cbtn kmz-redo-btn" title="পুনরায়" onclick="AppController.kmzRedoHistory()" disabled><i class="bi bi-arrow-clockwise"></i></button>
               </div>
               <div class="kmz-tip" id="kmz-tip1">জুম করে চেনা জায়গায় ক্লিক করুন — রাস্তার মোড়, পুকুরের কোণা, ব্রিজ</div>
             </div>
@@ -916,7 +917,8 @@
                         onclick="AppController.kmzMyLocation()"><i class="bi bi-crosshair"></i></button>
                 <button type="button" class="kmz-cbtn" title="বড়" onclick="AppController.kmzZoom(1)"><i class="bi bi-plus-lg"></i></button>
                 <button type="button" class="kmz-cbtn" title="ছোট" onclick="AppController.kmzZoom(-1)"><i class="bi bi-dash-lg"></i></button>
-                <button type="button" class="kmz-cbtn" title="শেষ পয়েন্ট মুছুন" onclick="AppController.kmzUndo(2)"><i class="bi bi-arrow-counterclockwise"></i></button>
+                <button type="button" class="kmz-cbtn kmz-undo-btn" title="পূর্বাবস্থায়" onclick="AppController.kmzUndoHistory()" disabled><i class="bi bi-arrow-counterclockwise"></i></button>
+                <button type="button" class="kmz-cbtn kmz-redo-btn" title="পুনরায়" onclick="AppController.kmzRedoHistory()" disabled><i class="bi bi-arrow-clockwise"></i></button>
               </div>
               <div class="kmz-tip" id="kmz-tip2">নকশায় যে ক্রমে বসিয়েছেন, ঠিক সেই ক্রমেই ক্লিক করুন</div>
             </div>
