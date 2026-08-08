@@ -389,11 +389,14 @@ const AppController = {
          opacity: 0.78, result: null,
          tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
          geoHits: [],
-         bgClear: false, threshold: 205, color: null, fx: null },
+         bgClear: false, threshold: 205, color: null, fx: null,
+         history: [], historyIndex: -1
+       },
 
   initKmz() {
     this.kmzRenderColors();
     this.kmzStep(this.kmz.img ? this.kmz.step : 0);
+    this.kmzUpdateHistoryButtons();
   },
 
   /* ---- ধাপ ব্যবস্থাপনা ---- */
@@ -466,30 +469,6 @@ const AppController = {
     this.kmzUpdatePills();
   },
 
-  kmzAddGeoPt(g) {
-    const k = this.kmz;
-    if (k.geoPts.length >= k.imgPts.length) {
-      this.kmzStatus('সবগুলো পয়েন্ট বসানো হয়ে গেছে। "পরবর্তী ধাপ" চাপুন।');
-      return;
-    }
-    k.geoPts.push({ lat: g.lat, lng: g.lng });
-    this.kmzDrawGeoPts();
-    this.kmzUpdatePills();
-  },
-
-  kmzUndo(stage) {
-    const k = this.kmz;
-    if (stage === 1) {
-      k.imgPts.pop();
-      if (k.geoPts.length > k.imgPts.length) k.geoPts.length = k.imgPts.length;
-      this.kmzDrawImgPts();
-    } else {
-      k.geoPts.pop();
-      this.kmzDrawGeoPts();
-    }
-    this.kmzUpdatePills();
-  },
-
   /** শেষ বসানো বিন্দু লাল, বাকিগুলো নীল — ওদের মতোই */
   kmzDrawImgPts() {
     if (!KmzImage.state) return;
@@ -506,6 +485,66 @@ const AppController = {
       lat: p.lat, lng: p.lng, n: toBn(i + 1), current: i === n - 1
     })));
   },
+
+  /* ---- ইতিহাস (Undo/Redo) ---- */
+
+  kmzHistorySnapshot() {
+    const k = this.kmz;
+    return JSON.stringify({ imgPts: k.imgPts, geoPts: k.geoPts });
+  },
+
+  kmzCommitHistory(label) {
+    const k = this.kmz;
+    const snap = this.kmzHistorySnapshot();
+    const cur = k.history[k.historyIndex];
+    if (cur && cur.state === snap) return;
+    k.history = k.history.slice(0, k.historyIndex + 1);
+    k.history.push({ label: label || 'পরিবর্তন', state: snap });
+    if (k.history.length > 30) k.history.shift();
+    k.historyIndex = k.history.length - 1;
+    this.kmzUpdateHistoryButtons();
+  },
+
+  kmzRestoreHistory(index) {
+    const k = this.kmz;
+    const h = k.history[index];
+    if (!h) return false;
+    const v = JSON.parse(h.state);
+    k.imgPts = v.imgPts || [];
+    k.geoPts = v.geoPts || [];
+    k.historyIndex = index;
+
+    this.kmzDrawImgPts();
+    this.kmzDrawGeoPts();
+    this.kmzUpdatePills();
+    this.kmzUpdateHistoryButtons();
+    if (k.step === 3) {
+      k.pairs = this.kmzPairs();
+      this.kmzRender();
+    }
+    return true;
+  },
+
+  kmzUndoHistory() { return this.kmzRestoreHistory(this.kmz.historyIndex - 1); },
+  kmzRedoHistory() { return this.kmzRestoreHistory(this.kmz.historyIndex + 1); },
+
+  kmzResetHistory(label) {
+    const k = this.kmz;
+    k.history = [{ label: label || 'শুরু', state: this.kmzHistorySnapshot() }];
+    k.historyIndex = 0;
+    this.kmzUpdateHistoryButtons();
+  },
+
+  kmzUpdateHistoryButtons() {
+    const k = this.kmz;
+    const canUndo = k.historyIndex > 0;
+    const canRedo = k.historyIndex >= 0 && k.historyIndex < k.history.length - 1;
+
+    document.querySelectorAll('.kmz-undo-btn').forEach(b => b.disabled = !canUndo);
+    document.querySelectorAll('.kmz-redo-btn').forEach(b => b.disabled = !canRedo);
+  },
+
+  /* ---- বিন্দু যোগ করা ---- */
 
   kmzUpdatePills() {
     const k = this.kmz;
@@ -531,6 +570,25 @@ const AppController = {
     if (t1) t1.textContent = k.imgPts.length < 2
       ? 'জুম করে চেনা জায়গায় ক্লিক করুন — রাস্তার মোড়, পুকুরের কোণা, ব্রিজ'
       : 'আরও পয়েন্ট দিলে বাঁকা স্ক্যানও নিখুঁত বসবে (৩–৫টি ভালো)';
+  },
+  
+  kmzAddImgPt(pt) {
+    this.kmz.imgPts.push({ x: pt.x, y: pt.y });
+    this.kmzDrawImgPts();
+    this.kmzUpdatePills();
+    this.kmzCommitHistory('নকশায় বিন্দু ' + toBn(this.kmz.imgPts.length));
+  },
+
+  kmzAddGeoPt(g) {
+    const k = this.kmz;
+    if (k.geoPts.length >= k.imgPts.length) {
+      this.kmzStatus('সবগুলো পয়েন্ট বসানো হয়ে গেছে। "পরবর্তী ধাপ" চাপুন।');
+      return;
+    }
+    k.geoPts.push({ lat: g.lat, lng: g.lng });
+    this.kmzDrawGeoPts();
+    this.kmzUpdatePills();
+    this.kmzCommitHistory('ম্যাপে বিন্দু ' + toBn(this.kmz.geoPts.length));
   },
 
   kmzImgZoom(d) {
@@ -590,6 +648,7 @@ const AppController = {
     const k = this.kmz;
     k.img = r.img; k.imgBytes = r.bytes; k.imgName = name || 'map.jpg';
     k.imgPts = []; k.geoPts = []; k.pairs = []; k.fx = null;
+    this.kmzResetHistory('নতুন ম্যাপ');
     this.kmzStep(1);
     KmzImage.setImage(r.img);
     this.kmzApplyFx();
@@ -780,16 +839,24 @@ const AppController = {
   /** ফলের তালিকা দেখানো (null = লুকানো) */
   kmzGeoList(list, msg) {
     const box = document.getElementById('kmz-geo-results');
+    const pill = document.getElementById('kmz-pill2');
     if (!box) return;
-    if (list === null && !msg) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    if (list === null && !msg) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      if (pill) pill.style.visibility = 'visible';
+      return;
+    }
+    if (pill) pill.style.visibility = 'hidden';
     box.style.display = '';
+    this.kmz.geoHits = list || [];
     if (!list || !list.length) {
       box.innerHTML = '<div class="kmz-geo-msg">' + (msg || '…') + '</div>';
       return;
     }
-    this.kmz.geoHits = list;
     box.innerHTML = list.map((r, i) =>
-      '<button type="button" class="kmz-geo-item" onclick="AppController.kmzGeoPick(' + i + ')">' +
+      '<button type="button" class="kmz-geo-item" onclick="AppController.kmzGeoPick(' + i + ')"' +
+      ' onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()">' +
         '<i class="bi bi-geo-alt"></i>' +
         '<span class="kmz-geo-n">' + r.name + '</span>' +
         '<span class="kmz-geo-c">' + toBn(r.lat.toFixed(4)) + ', ' + toBn(r.lng.toFixed(4)) + '</span>' +
