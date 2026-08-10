@@ -475,6 +475,45 @@ const KmzExport = {
     return (stem ? stem.slice(0, 60) : 'map') + ext.toLowerCase();
   },
 
+  /**
+   * Google Earth এর GroundOverlay একটাই টেক্সচার হিসেবে আঁকে। ছবি বড় হলে
+   * সে টেক্সচার বানাতে না পেরে **লাল X** এঁকে দেয় — জ্যামিতি ঠিক থাকলেও।
+   *
+   * পুরনো গ্রাফিক্সে OpenGL এর নিশ্চিত সীমা ২০৪৮, আধুনিকে ৮১৯২–১৬৩৮৪।
+   * ৪০৯৬ সব জায়গায় নিরাপদ, আর মৌজা নকশার জন্য যথেষ্ট বিস্তারিত —
+   * ১ মাইল চওড়া মৌজায় এতে প্রতি পিক্সেল প্রায় ৪০ সেন্টিমিটার।
+   */
+  EARTH_MAX_SIDE: 4096,
+
+  /**
+   * রপ্তানির আগে ছবি ছোট করতে হবে কি না
+   *
+   * ★ ছোট করলেও নকশার **ভূ-সীমানা বদলায় না** — চার কোণা মূল পিক্সেল
+   *   মাপ থেকেই হিসাব হয়, কারণ নিয়ন্ত্রণ বিন্দুগুলো ওই মাপেই বসানো।
+   *   কেবল রাস্টারের রেজোলিউশন কমে।
+   *
+   * @param {number} w  মূল প্রস্থ (পিক্সেল)
+   * @param {number} h  মূল উচ্চতা (পিক্সেল)
+   * @param {number} [maxSide=EARTH_MAX_SIDE]
+   * @returns {{resized:boolean, scale:number, width:number, height:number}}
+   */
+  earthFit(w, h, maxSide) {
+    const W = Number(w), H = Number(h);
+    if (!(W > 0) || !(H > 0)) throw new Error('ছবির প্রস্থ ও উচ্চতা লাগবে');
+    const cap = Number(maxSide) > 0 ? Number(maxSide) : this.EARTH_MAX_SIDE;
+    const big = Math.max(W, H);
+    if (big <= cap) return { resized: false, scale: 1, width: Math.round(W), height: Math.round(H) };
+    const scale = cap / big;
+    return {
+      resized: true,
+      scale: scale,
+      // ★ round নয়, floor+1 নয় — max() দিয়ে অন্তত ১ পিক্সেল রাখা হয়,
+      //   নইলে খুব লম্বাটে ছবিতে ছোট দিকটা ০ হয়ে ক্যানভাস ভাঙে
+      width: Math.max(1, Math.round(W * scale)),
+      height: Math.max(1, Math.round(H * scale))
+    };
+  },
+
   /** ক্যালিব্রেশন কতটা ভালো — ব্যবহারকারীকে বোঝানোর জন্য */
   quality(rmse) {
     if (!isFinite(rmse)) return { level: 'unknown', label: 'অজানা' };

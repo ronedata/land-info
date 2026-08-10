@@ -425,6 +425,82 @@ head('না-দেখা বিন্দুতে ত্রুটি (leave-one
      K.solveTransform(more, { model: 'affine' }).mode === 'affine');
 }
 
+/* ═══════════ ৯গ. Google Earth এর টেক্সচার সীমা ═══════════ */
+head('ছবি ছোট করা (নইলে Google Earth লাল X দেখায়)');
+{
+  ok('সীমা ৪০৯৬', K.EARTH_MAX_SIDE === 4096, K.EARTH_MAX_SIDE);
+
+  const small = K.earthFit(2000, 1500);
+  ok('ছোট ছবি অপরিবর্তিত', !small.resized && small.scale === 1
+     && small.width === 2000 && small.height === 1500);
+  ok('ঠিক ৪০৯৬ ছোঁয়া ছবিও অপরিবর্তিত', !K.earthFit(4096, 3000).resized);
+  ok('৪০৯৭ হলেই ছোট হয়', K.earthFit(4097, 3000).resized);
+
+  const big = K.earthFit(12000, 9000);
+  ok('বড় ছবি ছোট হয়', big.resized);
+  ok('সর্বোচ্চ দিক ঠিক ৪০৯৬', Math.max(big.width, big.height) === 4096,
+     big.width + '×' + big.height);
+  ok('অনুপাত অক্ষত', Math.abs(big.width / big.height - 12000 / 9000) < 1e-3,
+     (big.width / big.height).toFixed(4) + ' বনাম ' + (12000 / 9000).toFixed(4));
+
+  // খুব লম্বাটে ছবিতে ছোট দিকটা যেন ০ না হয় (ক্যানভাস ভাঙে)
+  const thin = K.earthFit(100000, 300);
+  ok('অতি লম্বাটে ছবিতেও উচ্চতা ≥ ১', thin.height >= 1,
+     thin.width + '×' + thin.height);
+
+  ok('নিজের সীমা দেওয়া যায়', K.earthFit(4000, 3000, 1024).width === 1024);
+  throws('শূন্য মাপে ত্রুটি', () => K.earthFit(0, 100), 'প্রস্থ ও উচ্চতা');
+
+  /* ★ সবচেয়ে জরুরি দাবি — ছবি ছোট করলেও নকশা এক জায়গাতেই বসে।
+     চার কোণা মূল পিক্সেল মাপ থেকে হিসাব হয়, রাস্টারের মাপ থেকে নয়। */
+  const mLat = K.metersPerDegLat(23.78), mLng = K.metersPerDegLng(23.78);
+  const pairs = [[100, 100], [3800, 200], [200, 2900], [3700, 2800]].map(([px, py]) => ({
+    px: px, py: py,
+    lng: 90.40 + (0.5 * px) / mLng,
+    lat: 23.78 - (0.5 * py) / mLat
+  }));
+  const t = K.solveTransform(pairs);
+  const cFull = K.imageCorners(t, 12000, 9000);
+  const cAgain = K.imageCorners(t, 12000, 9000);
+  ok('একই মাপে চার কোণা একই',
+     cFull.every((p, i) => p.lat === cAgain[i].lat && p.lng === cAgain[i].lng));
+
+  // ছোট করা রাস্টার দিয়ে বানালেও build() কে মূল মাপই দেওয়া হয় —
+  // তাই দুই KMZ এর কোণা হুবহু মিলবে
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+  const a1 = K.build({ imageBytes: bytes, imageName: 'm.jpg',
+                       width: 12000, height: 9000, points: pairs, name: 'ম' });
+  const a2 = K.build({ imageBytes: new Uint8Array(500), imageName: 'm.jpg',
+                       width: 12000, height: 9000, points: pairs, name: 'ম' });
+  ok('রাস্টার বদলালেও চার কোণা অভিন্ন',
+     a1.corners.every((p, i) => Math.abs(p.lat - a2.corners[i].lat) < 1e-12
+                             && Math.abs(p.lng - a2.corners[i].lng) < 1e-12));
+
+  // href সবসময় zip এর ভেতরের নামের সাথে মিলতে হবে — না মিললেই লাল X
+  const names = ['মৌজা নকশা.png', 'RS ৩৪১.jpeg', 'map.PDF', 'a/b/c.png', '  .jpg'];
+  names.forEach(n => {
+    const b = K.build({ imageBytes: bytes, imageName: n,
+                        width: 800, height: 600, points: pairs, name: 'ম' });
+    const href = (b.kml.match(/<href>([^<]*)<\/href>/) || [])[1];
+    // zip এর local header থেকে নাম পড়া
+    const z = b.bytes;
+    let o = 0, found = [];
+    while (o + 30 < z.length) {
+      const sig = ((z[o] | (z[o + 1] << 8) | (z[o + 2] << 16) | (z[o + 3] << 24)) >>> 0);
+      if (sig !== 0x04034b50) break;
+      const nl = z[o + 26] | (z[o + 27] << 8), el = z[o + 28] | (z[o + 29] << 8);
+      const cs = ((z[o + 18] | (z[o + 19] << 8) | (z[o + 20] << 16) | (z[o + 21] << 24)) >>> 0);
+      let nm = '';
+      for (let i = 0; i < nl; i++) nm += String.fromCharCode(z[o + 30 + i]);
+      found.push(nm);
+      o += 30 + nl + el + cs;
+    }
+    ok('"' + n + '" → href zip এ আছে', found.indexOf(href) >= 0,
+       'href ' + href + ' · zip ' + found.join(', '));
+    ok('"' + n + '" → href সম্পূর্ণ ASCII', /^[\x20-\x7E]+$/.test(href), href);
+  });
+}
+
 /* ═══════════ ফলাফল ═══════════ */
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);

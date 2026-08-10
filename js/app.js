@@ -1139,15 +1139,62 @@ const AppController = {
     if (dl) dl.disabled = false;
   },
 
+  /**
+   * Google Earth এর জন্য ছবি ছোট করা (দরকার হলে)
+   *
+   * বড় ছবি সে টেক্সচার বানাতে পারে না, তখন নকশার বদলে **লাল X** দেখায়।
+   * চার কোণার ভূ-স্থানাঙ্ক মূল পিক্সেল মাপ থেকেই হিসাব হয়, তাই ছোট করলেও
+   * নকশা ঠিক একই জায়গায় বসে — কেবল রেজোলিউশন কমে।
+   *
+   * @returns {{bytes, name, resized, from, to}|null}
+   */
+  kmzFitForEarth() {
+    const k = this.kmz;
+    const src = (k.fx && k.fx.img) || k.img;
+    if (!src) return null;
+    // ★ মাপ সবসময় k.img থেকেই — build() ও এই মাপই পায়, তাই দুটো কখনো
+    //   আলাদা হবে না। fx এর ক্যানভাস একই মাপের, তবু উৎস একটাই রাখা ভালো
+    const w = k.img.width || k.img.naturalWidth;
+    const h = k.img.height || k.img.naturalHeight;
+    const fit = KmzExport.earthFit(w, h);
+    const useFx = k.fx;
+    const name = useFx ? KmzFx.nameFor(k.imgName, useFx.mime) : k.imgName;
+    if (!fit.resized) {
+      return { bytes: useFx ? useFx.bytes : k.imgBytes, name: name,
+               resized: false, from: w + '×' + h, to: w + '×' + h };
+    }
+
+    const c = document.createElement('canvas');
+    c.width = fit.width; c.height = fit.height;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(src, 0, 0, fit.width, fit.height);
+
+    // স্বচ্ছতা থাকলে PNG ছাড়া উপায় নেই; নইলে JPEG — ফাইল অনেক ছোট হয়
+    const png = !!(useFx && useFx.mime === 'image/png');
+    const url = c.toDataURL(png ? 'image/png' : 'image/jpeg', png ? undefined : 0.92);
+    const b64 = url.slice(url.indexOf(',') + 1);
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+    return { bytes: bytes, name: KmzFx.nameFor(k.imgName, png ? 'image/png' : 'image/jpeg'),
+             resized: true, from: w + '×' + h, to: fit.width + '×' + fit.height };
+  },
+
   kmzDownload() {
     const k = this.kmz;
     if (!k.img || !k.result) return;
-    let out;
+    let out, fitted;
     try {
-      const useFx = k.fx;
+      fitted = this.kmzFitForEarth();
+      if (!fitted) { this.kmzStatus('ম্যাপের ছবি পাওয়া গেল না।', true); return; }
       out = KmzExport.build({
-        imageBytes: useFx ? useFx.bytes : k.imgBytes,
-        imageName: useFx ? KmzFx.nameFor(k.imgName, useFx.mime) : k.imgName,
+        imageBytes: fitted.bytes,
+        imageName: fitted.name,
+        // ★ মূল পিক্সেল মাপ — নিয়ন্ত্রণ বিন্দু এই মাপেই বসানো, তাই
+        //   ছবি ছোট হলেও ভূ-সীমানা এখান থেকেই আসতে হবে
         width: k.img.width,
         height: k.img.height,
         name: (document.getElementById('kmz-name') || {}).value || 'মৌজা ম্যাপ',
@@ -1166,7 +1213,13 @@ const AppController = {
     a.href = url; a.download = base + '.kmz';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    this.kmzStatus('KMZ নামানো হলো — Google Earth এ খুলুন।');
+    const mb = (out.bytes.length / 1048576).toFixed(1);
+    this.kmzStatus('KMZ নামানো হলো (' + toBn(mb) + ' MB) — Google Earth এ খুলুন।'
+      + (fitted.resized
+          ? ' ছবি ' + toBn(fitted.from) + ' থেকে ' + toBn(fitted.to)
+            + ' এ ছোট করা হয়েছে — এর চেয়ে বড় ছবি Google Earth আঁকতে পারে না'
+            + ' (লাল X দেখায়)। নকশা ঠিক একই জায়গাতেই বসবে।'
+          : ''));
   },
 
 
