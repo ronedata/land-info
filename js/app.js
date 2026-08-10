@@ -1089,23 +1089,46 @@ const AppController = {
     }
 
     k.result = t;
-    const q = KmzExport.quality(t.rmse);
+    // ★ rmse নয় — যেটা নিয়ন্ত্রণ বিন্দুর *বাইরে* ত্রুটি মাপে সেটাই আসল।
+    //   বিন্দু কম হলে rmse আপনাআপনি ০ আসে, তাতে ম্যাপ ভালো বসেছে বোঝায় না।
+    const honest = t.looRmse != null ? t.looRmse : t.rmse;
+    // ★ যাচাই করার মতো বাড়তি বিন্দু না থাকলে "চমৎকার" লেখা প্রতারণা —
+    //   তখন মান নয়, অবস্থাটাই বলা হয়
+    const q = t.exact
+      ? { level: 'ok', label: 'যাচাই হয়নি' }
+      : KmzExport.quality(honest);
     const modeTxt = t.mode === 'affine' ? 'অ্যাফাইন (তির্যকতাও ধরে)' : 'সিমিলারিটি';
+    const skew = t.mode === 'affine'
+      && (Math.abs(t.shearDeg) > 1.5 || Math.abs(t.aspect - 1) > 0.03);
 
     res.className = 'kmz-ok';
     res.innerHTML =
       '<div class="fz-stats">' +
         '<div class="fz-stat"><span class="v kmz-q-' + q.level + '">' + q.label + '</span><span class="l">ক্যালিব্রেশন</span></div>' +
-        '<div class="fz-stat"><span class="v">' + toBn(t.rmse.toFixed(2)) + ' মি</span><span class="l">গড় ত্রুটি</span></div>' +
-        '<div class="fz-stat"><span class="v">' + toBn(t.maxError.toFixed(2)) + ' মি</span><span class="l">সর্বোচ্চ ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(honest.toFixed(2)) + ' মি</span><span class="l">যাচাই ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.maxError.toFixed(2)) + ' মি</span><span class="l">বিন্দুতে সর্বোচ্চ</span></div>' +
         '<div class="fz-stat"><span class="v">' + toBn(k.pairs.length) + 'টি</span><span class="l">নিয়ন্ত্রণ বিন্দু</span></div>' +
         '<div class="fz-stat"><span class="v">' + toBn(t.scale.toFixed(3)) + '</span><span class="l">মিটার / পিক্সেল</span></div>' +
         '<div class="fz-stat"><span class="v" style="font-size:0.9rem">' + modeTxt + '</span><span class="l">পদ্ধতি</span></div>' +
       '</div>' +
-      (k.pairs.length === 2
+      (k.pairs.length < 4
         ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-info-circle"></i>' +
-          '<span>২টি বিন্দুতে <b>তির্যকতা ঠিক হয় না</b>। পিছনে গিয়ে <b>আরও ১–২টি</b> ' +
-          'বিন্দু দিলে ত্রুটি কমবে।</span></div>'
+          '<span><b>' + toBn(4 - k.pairs.length) + 'টি বিন্দু বাড়ালে</b> ম্যাপ আরও ভালো বসবে। ' +
+          'বিন্দু যত বেশি ও যত ছড়ানো, গুগল ম্যাপের সাথে মিল তত পাকা — ' +
+          'নকশার <b>চার কোণার দিকে</b> বসালে সবচেয়ে ভালো।</span></div>'
+        : '') +
+      (t.exact
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-info-circle"></i>' +
+          '<span>এই সংখ্যক বিন্দুতে অবশিষ্ট ত্রুটি <b>০ আসতে বাধ্য</b> — হিসাব বিন্দুগুলোর ' +
+          'ভেতর দিয়েই যায়। এটা নিখুঁত বসার প্রমাণ নয়, যাচাই করার মতো কিছু বাকি নেই তার ' +
+          'প্রমাণ। আরেকটি বিন্দু দিলে সত্যিকারের ত্রুটি দেখা যাবে।</span></div>'
+        : '') +
+      (skew
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-exclamation-triangle"></i>' +
+          '<span>নকশাটি <b>' + toBn(Math.abs(t.shearDeg).toFixed(1)) + '° তির্যক</b> ও ' +
+          '<b>' + toBn(((t.aspect - 1) * 100).toFixed(1)) + '% অসম</b> ধরে বসানো হয়েছে। ' +
+          'স্ক্যান বা ছবি তোলায় টান পড়লে এমন হয়। তা না হয়ে থাকলে কোনো একটি বিন্দু ' +
+          'ভুল জায়গায় বসেছে — দেখে নিন।</span></div>'
         : '') +
       (t.maxError > 25
         ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-exclamation-triangle"></i>' +

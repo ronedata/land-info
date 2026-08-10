@@ -165,9 +165,24 @@ head('৩+ বিন্দু — affine');
   ok('similarity তির্যকতা ধরতে পারে না (ত্রুটি থাকে)', Math.max(...res) > 1,
      'সর্বোচ্চ ' + Math.max(...res).toFixed(1) + ' মি');
 
-  // ৩ বিন্দুতেও affine ঠিক বসে
+  // ★ ৩ বিন্দুতে affine এর ৬টি অজানা আর ৬টি সমীকরণ — ত্রুটি *সবসময়* ০
+  //   আসে, ম্যাপ যতই বাঁকা বসুক। তাই auto তখন similarity ধরে; affine
+  //   চাইলে স্পষ্ট করে চাইতে হবে।
   const t3 = K.solveTransform([pts[0], pts[1], pts[2]]);
-  ok('৩ বিন্দুতে affine নিখুঁত', t3.maxError < 1e-6);
+  ok('৩ বিন্দুতে auto তির্যকতায় ঝাঁপায় না', t3.mode === 'similarity', t3.mode);
+  ok('৩ বিন্দুতে auto সৎ ত্রুটি দেখায় (০ নয়)', t3.rmse > 1,
+     t3.rmse.toFixed(2) + ' মি');
+  ok('৩ বিন্দুতে dof > ০ (যাচাই করার মতো কিছু আছে)', t3.dof === 2 && !t3.exact,
+     'dof ' + t3.dof);
+
+  const t3a = K.solveTransform([pts[0], pts[1], pts[2]], { model: 'affine' });
+  ok('স্পষ্ট চাইলে ৩ বিন্দুতে affine নিখুঁত', t3a.maxError < 1e-6);
+  ok('কিন্তু তখন dof = ০ — ত্রুটি ০ আসতে বাধ্য', t3a.dof === 0 && t3a.exact);
+
+  // ৪ বিন্দুতে সত্যিই তির্যক ডেটা হলে auto নিজেই affine বাছে
+  ok('সত্যিকারের তির্যকতায় auto affine বাছে', t.mode === 'affine', t.mode);
+  ok('তখন তির্যকতা রিপোর্টে ধরা পড়ে', Math.abs(t.shearDeg) > 1,
+     t.shearDeg.toFixed(2) + '°');
 }
 
 /* ═══════════ ৭. ত্রুটিযুক্ত বিন্দু — RMSE বাড়ে ═══════════ */
@@ -180,7 +195,12 @@ head('অসঙ্গতিপূর্ণ বিন্দুতে RMSE');
     { px: 0,   py: 600, lat: 23.78 - 600 / mLat,    lng: 90.40 }
   ];
   const clean = K.solveTransform(base);
-  ok('নিখুঁত ডেটায় RMSE ≈ ০', clean.rmse < 1e-6);
+  // ★ ১e−৬ নয়, ১ সেন্টিমিটার — টেস্টের বিন্দুগুলো ২৩.৭৮° ধরে বানানো,
+  //   সমাধানকারী কেন্দ্র হিসেবে তিন বিন্দুর গড় অক্ষাংশ নেয়। এই সামান্য
+  //   অমিলটুকু আগে affine তির্যকতায় শুষে নিত (তাই ঠিক ০ আসত);
+  //   similarity তা পারে না, আর সেটাই সৎ আচরণ। ৮০০ মিটারে ~৩ মিমি।
+  ok('নিখুঁত ডেটায় RMSE কার্যত ০', clean.rmse < 0.01,
+     clean.rmse.toExponential(2) + ' মি');
 
   // একটি বিন্দু ১০ মিটার সরিয়ে দিলে
   const noisy = base.concat([{ px: 800, py: 600,
@@ -200,11 +220,18 @@ head('অবৈধ ইনপুট');
     { px: 5, py: 5, lat: 23.78, lng: 90.40 },
     { px: 5, py: 5, lat: 23.79, lng: 90.41 }
   ]), 'একই পিক্সেলে');
-  throws('এক সরলরেখায় ৩ বিন্দু', () => K.solveTransform([
+  // ★ এক সরলরেখায় বিন্দু থাকলে affine অসম্ভব (অনন্য সমাধান নেই), কিন্তু
+  //   similarity ঠিকই বসে — রেখা থেকেই স্কেল, ঘূর্ণন ও সরণ পাওয়া যায়।
+  //   তাই auto আর ত্রুটি দেয় না; affine জোর করে চাইলেই কেবল দেয়।
+  const LINE = [
     { px: 0,   py: 0,   lat: 23.78,   lng: 90.40 },
     { px: 100, py: 100, lat: 23.781,  lng: 90.401 },
     { px: 200, py: 200, lat: 23.782,  lng: 90.402 }
-  ]), 'সরলরেখা');
+  ];
+  ok('এক সরলরেখায় ৩ বিন্দুতেও similarity বসে',
+     K.solveTransform(LINE).mode === 'similarity');
+  throws('এক সরলরেখায় affine চাইলে ত্রুটি',
+     () => K.solveTransform(LINE, { model: 'affine' }), 'সরলরেখা');
   throws('অক্ষাংশ সীমার বাইরে', () => K.solveTransform([
     { px: 0, py: 0, lat: 100, lng: 90 },
     { px: 9, py: 9, lat: 23, lng: 90 }
@@ -330,6 +357,72 @@ head('ক্যালিব্রেশনের মান');
   ok('১০০ মি → দুর্বল', K.quality(100).level === 'bad');
   ok('সব স্তরে বাংলা লেবেল',
      [0.5, 5, 15, 100].every(v => /[\u0980-\u09FF]/.test(K.quality(v).label)));
+}
+
+/* ═══════════ ৯খ. ক্লিকের ভুল যেন তির্যকতায় শুষে না নেয় ═══════════ */
+head('না-দেখা বিন্দুতে ত্রুটি (leave-one-out)');
+{
+  // ★ আসল ভূ-সম্পর্ক বিশুদ্ধ similarity — মৌজা নকশা কাগজে ছাপা, বাঁকে না।
+  //   ইউজার বিন্দু বসানোর সময় ২ পিক্সেল এদিক-ওদিক ক্লিক করেন।
+  //   পুরনো কোডে ৩ বিন্দুতে affine নিত: rmse ০ দেখাত, অথচ নিয়ন্ত্রণ
+  //   বিন্দুর বাইরে ৫ মিটারের বেশি সরে যেত — "জুম করলে ভাঙা যাচ্ছে"।
+  const lat0 = 23.7, lng0 = 90.4;
+  const mLat = K.metersPerDegLat(lat0), mLng = K.metersPerDegLng(lat0);
+  const SC = 0.5, ROT = 12 * Math.PI / 180;
+  const truth = (px, py) => {
+    const x = px, y = -py;
+    const E = SC * (Math.cos(ROT) * x - Math.sin(ROT) * y);
+    const N = SC * (Math.sin(ROT) * x + Math.cos(ROT) * y);
+    return { lat: lat0 + N / mLat, lng: lng0 + E / mLng };
+  };
+  const base = [[100, 100], [900, 150], [200, 800]];
+  const jit = [[2, -2], [-2, 2], [2, 2]];
+  const pts = base.map(([px, py], i) => {
+    const g = truth(px + jit[i][0], py + jit[i][1]);
+    return { px, py, lat: g.lat, lng: g.lng };
+  });
+
+  const t = K.solveTransform(pts);
+  ok('বিশুদ্ধ similarity ডেটায় auto similarity বাছে', t.mode === 'similarity', t.mode);
+  ok('তির্যকতা ঢোকেনি', Math.abs(t.shearDeg) < 1e-9, t.shearDeg.toExponential(1) + '°');
+  ok('দুই অক্ষের স্কেল সমান', Math.abs(t.aspect - 1) < 1e-12);
+  ok('ত্রুটি ০ বলে চালিয়ে দেয় না', t.rmse > 0.5, t.rmse.toFixed(3) + ' মি');
+  ok('looRmse পাওয়া যায়', t.looRmse !== null && t.looRmse > 0,
+     t.looRmse && t.looRmse.toFixed(3) + ' মি');
+
+  // নিয়ন্ত্রণ বিন্দুর বাইরে আসল ভুল — এটাই ব্যবহারকারী চোখে দেখেন
+  const CHECK = [[500, 450], [1500, 1200], [50, 1500], [1800, 200]];
+  const err = fit => Math.max.apply(null, CHECK.map(([px, py]) => {
+    const g = fit.toGeo(px, py), w = truth(px, py);
+    return Math.hypot((g.lng - w.lng) * mLng, (g.lat - w.lat) * mLat);
+  }));
+  const eSim = err(t);
+  const eAff = err(K.solveTransform(pts, { model: 'affine' }));
+  ok('similarity বিন্দুর বাইরে ৩ মিটারের কম ভুল করে', eSim < 3, eSim.toFixed(2) + ' মি');
+  ok('affine এর চেয়ে অন্তত দ্বিগুণ ভালো', eSim * 2 < eAff,
+     'similarity ' + eSim.toFixed(2) + ' বনাম affine ' + eAff.toFixed(2) + ' মি');
+  ok('অথচ affine বলত ত্রুটি ০', K.solveTransform(pts, { model: 'affine' }).rmse < 1e-9);
+
+  // বিন্দু বাড়লে similarity আরও ভালো হয়, affine এ যায় না
+  const b6 = base.concat([[850, 850], [500, 300], [300, 600]]);
+  const j6 = jit.concat([[1, -1], [-1, 1], [1, 1]]);
+  const more = b6.map(([px, py], i) => {
+    const g = truth(px + j6[i][0], py + j6[i][1]);
+    return { px, py, lat: g.lat, lng: g.lng };
+  });
+  const t6 = K.solveTransform(more);
+  ok('৬ বিন্দুতেও auto similarity ধরে রাখে', t6.mode === 'similarity', t6.mode);
+  ok('৬ বিন্দুতে dof = ৮', t6.dof === 8, 'dof ' + t6.dof);
+  ok('বিন্দু বাড়ালে বাইরের ভুল কমে', err(t6) < eSim,
+     err(t6).toFixed(3) + ' < ' + eSim.toFixed(3) + ' মি');
+  ok('বিন্দু বাড়ালে যাচাই ত্রুটিও কমে', t6.looRmse < t.looRmse,
+     t6.looRmse.toFixed(2) + ' < ' + t.looRmse.toFixed(2) + ' মি');
+
+  // মডেল স্পষ্ট চাওয়া
+  ok('model:similarity মানা হয়',
+     K.solveTransform(more, { model: 'similarity' }).mode === 'similarity');
+  ok('model:affine মানা হয়',
+     K.solveTransform(more, { model: 'affine' }).mode === 'affine');
 }
 
 /* ═══════════ ফলাফল ═══════════ */
