@@ -59,6 +59,8 @@ const KmzMap = {
       pending: new Set(),
       markers: [],               // [{lat, lng, n}]
       drag: null,
+      gesture: false,        // ইশারাটা ক্যানভাসেই শুরু হয়েছিল তো?
+      pinch: null,           // দুই আঙুলের ইশারা
       onPick: o.onPick || null
     };
     this._bind();
@@ -71,19 +73,28 @@ const KmzMap = {
     if (c._kmzBound) return;
     c._kmzBound = true;
 
-    let moved = 0;
+    /* ★ তিনটি বাগ একসাথে সারানো (৮ আগস্ট ২০২৬)
+       ১. `mouseup` window এ বাঁধা থাকায় পাতার **যেকোনো** জায়গায় ক্লিক
+          করলেই বিন্দু বসে যেত — সার্চ বক্স, জুম বোতাম, "পরবর্তী ধাপ",
+          সবখানে। ইউজার বললেন "এতগুলা পয়েন্ট তো আমি বসাইনি" — এইটাই।
+          এখন ইশারা ক্যানভাসে শুরু না হলে গোনা হয় না (s.gesture)।
+       ২. `moved` এ পথের দৈর্ঘ্য যোগ হতো — আঙুল কাঁপলে ট্যাপ হারাত।
+          এখন শুরুর বিন্দু থেকে সরল দূরত্ব।
+       ৩. চিমটিতে জুম ছিল না, আর দুই আঙুলের একটি তুললেই বিন্দু পড়ত। */
+    const SLOP = 9;
+    let start = null;
 
     const down = ev => {
       const p = this._pos(ev);
       s.drag = { x: p.x, y: p.y };
-      moved = 0;
+      start = { x: p.x, y: p.y };
+      s.gesture = true;
       c.style.cursor = 'grabbing';
     };
     const move = ev => {
       if (!s.drag) return;
       const p = this._pos(ev);
       const dx = p.x - s.drag.x, dy = p.y - s.drag.y;
-      moved += Math.abs(dx) + Math.abs(dy);
       s.drag = { x: p.x, y: p.y };
       const w = this.lngLatToWorld(s.center.lng, s.center.lat, s.z);
       const g = this.worldToLngLat(w.x - dx, w.y - dy, s.z);
@@ -92,22 +103,68 @@ const KmzMap = {
       if (ev.cancelable) ev.preventDefault();
     };
     const up = ev => {
-      const wasDrag = moved > 6;
-      s.drag = null;
+      // ★ ইশারা ক্যানভাসে শুরু না হলে কিছুই করব না
+      if (!s.gesture) { s.drag = null; return; }
+      const p = this._pos(ev);
+      const wasDrag = !start || Math.hypot(p.x - start.x, p.y - start.y) > SLOP;
+      s.drag = null; s.gesture = false;
       c.style.cursor = 'crosshair';
-      if (!wasDrag && s.onPick) {
-        const p = this._pos(ev);
-        s.onPick(this.pixelToLngLat(p.x, p.y));
+      if (!wasDrag && s.onPick) s.onPick(this.pixelToLngLat(p.x, p.y));
+    };
+
+    /* দুই আঙুল — চিমটিতে জুম, একসাথে সরানো */
+    const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const two = t => [this._pos(t[0]), this._pos(t[1])];
+    const pinchStart = e => {
+      const [a, b] = two(e.touches);
+      s.pinch = { d0: Math.max(1, gap(a, b)), c0: mid(a, b), z0: s.z };
+      s.gesture = false; s.drag = null;      // চিমটি শেষে বিন্দু পড়বে না
+    };
+    const pinchMove = e => {
+      if (!s.pinch) return;
+      const [a, b] = two(e.touches);
+      const cNow = mid(a, b);
+      const f = Math.max(1, gap(a, b)) / s.pinch.d0;
+      // ⚠️ টাইলের URL এ `s.z` সরাসরি বসে, তাই জুম **পূর্ণসংখ্যা**ই থাকতে হবে —
+      //    ভগ্নাংশ হলে টাইল আসবেই না। চিমটির ফাঁক থেকে ধাপ বের করে নিই।
+      const step = Math.round(s.pinch.z0 + Math.log2(f)) - s.z;
+      if (step) this.zoomBy(step, s.pinch.c0);
+      // মাঝবিন্দু যতটা সরেছে ম্যাপও ততটা
+      const dx = cNow.x - s.pinch.c0.x, dy = cNow.y - s.pinch.c0.y;
+      if (dx || dy) {
+        const w = this.lngLatToWorld(s.center.lng, s.center.lat, s.z);
+        const g = this.worldToLngLat(w.x - dx, w.y - dy, s.z);
+        s.center = { lat: this.clampLat(g.lat), lng: g.lng };
+        this.draw();
       }
+      s.pinch.c0 = cNow;
+      if (e.cancelable) e.preventDefault();
     };
 
     c.addEventListener('mousedown', down);
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
-    c.addEventListener('touchstart', e => down(e.touches[0]), { passive: true });
-    c.addEventListener('touchmove', e => { move(e.touches[0]); }, { passive: false });
-    c.addEventListener('touchend', e => up(e.changedTouches[0]));
-
+    c.addEventListener('touchstart', e => {
+      if (e.touches.length >= 2) { pinchStart(e); return; }
+      down(e.touches[0]);
+    }, { passive: true });
+    c.addEventListener('touchmove', e => {
+      if (e.touches.length >= 2) { pinchMove(e); return; }
+      if (s.pinch) { if (e.cancelable) e.preventDefault(); return; }
+      move(e.touches[0]);
+    }, { passive: false });
+    c.addEventListener('touchend', e => {
+      if (s.pinch) {
+        if (e.touches.length === 0) s.pinch = null;
+        else if (e.touches.length >= 2) pinchStart(e);
+        return;
+      }
+      up(e.changedTouches[0]);
+    });
+    c.addEventListener('touchcancel', () => {
+      s.pinch = null; s.gesture = false; s.drag = null;
+    });
     c.addEventListener('wheel', ev => {
       ev.preventDefault();
       this.zoomBy(ev.deltaY < 0 ? 1 : -1, this._pos(ev));
@@ -292,6 +349,8 @@ const KmzImage = {
       off: { x: 0, y: 0 },       // ছবির কোন বিন্দু ক্যানভাসের (০,০) এ
       markers: [],
       drag: null,
+      gesture: false,        // ইশারাটা ক্যানভাসেই শুরু হয়েছিল তো?
+      pinch: null,           // দুই আঙুলের ইশারা
       onPick: o.onPick || null
     };
     this._bind();
@@ -323,25 +382,31 @@ const KmzImage = {
     const s = this.state, c = s.canvas;
     if (c._kmzImgBound) return;
     c._kmzImgBound = true;
-    let moved = 0;
+    /* ★ KmzMap এর মতোই তিনটি বাগ সারানো — বিশ্লেষণ উপরে দেখুন */
+    const SLOP = 9;
+    let start = null;
 
-    const down = ev => { const p = this._pos(ev); s.drag = p; moved = 0; c.style.cursor = 'grabbing'; };
+    const down = ev => {
+      const p = this._pos(ev);
+      s.drag = p; start = { x: p.x, y: p.y };
+      s.gesture = true;
+      c.style.cursor = 'grabbing';
+    };
     const move = ev => {
       if (!s.drag) return;
       const p = this._pos(ev);
-      const dx = p.x - s.drag.x, dy = p.y - s.drag.y;
-      moved += Math.abs(dx) + Math.abs(dy);
-      s.off.x += dx; s.off.y += dy;
+      s.off.x += p.x - s.drag.x; s.off.y += p.y - s.drag.y;
       s.drag = p;
       this.draw();
       if (ev.cancelable) ev.preventDefault();
     };
     const up = ev => {
-      const wasDrag = moved > 6;
-      s.drag = null;
+      if (!s.gesture) { s.drag = null; return; }
+      const p = this._pos(ev);
+      const wasDrag = !start || Math.hypot(p.x - start.x, p.y - start.y) > SLOP;
+      s.drag = null; s.gesture = false;
       c.style.cursor = 'crosshair';
       if (!wasDrag && s.onPick && s.img) {
-        const p = this._pos(ev);
         const ip = this.canvasToImage(p.x, p.y);
         // ছবির বাইরে ক্লিক করলে বিন্দু বসবে না
         if (ip.x >= 0 && ip.y >= 0 && ip.x <= s.img.width && ip.y <= s.img.height) {
@@ -350,12 +415,54 @@ const KmzImage = {
       }
     };
 
+    const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const two = t => [this._pos(t[0]), this._pos(t[1])];
+    const pinchStart = e => {
+      const [a, b] = two(e.touches);
+      s.pinch = { d0: Math.max(1, gap(a, b)), c0: mid(a, b), s0: s.scale };
+      s.gesture = false; s.drag = null;
+    };
+    const pinchMove = e => {
+      if (!s.pinch) return;
+      const [a, b] = two(e.touches);
+      const cNow = mid(a, b);
+      const f = Math.max(1, gap(a, b)) / s.pinch.d0;
+      const before = this.canvasToImage(s.pinch.c0.x, s.pinch.c0.y);
+      s.scale = Math.max(0.02, Math.min(40, s.pinch.s0 * f));
+      const after = this.imageToCanvas(before.x, before.y);
+      s.off.x += s.pinch.c0.x - after.x;
+      s.off.y += s.pinch.c0.y - after.y;
+      s.off.x += cNow.x - s.pinch.c0.x;
+      s.off.y += cNow.y - s.pinch.c0.y;
+      s.pinch.c0 = cNow;
+      this.draw();
+      if (e.cancelable) e.preventDefault();
+    };
+
     c.addEventListener('mousedown', down);
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
-    c.addEventListener('touchstart', e => down(e.touches[0]), { passive: true });
-    c.addEventListener('touchmove', e => move(e.touches[0]), { passive: false });
-    c.addEventListener('touchend', e => up(e.changedTouches[0]));
+    c.addEventListener('touchstart', e => {
+      if (e.touches.length >= 2) { pinchStart(e); return; }
+      down(e.touches[0]);
+    }, { passive: true });
+    c.addEventListener('touchmove', e => {
+      if (e.touches.length >= 2) { pinchMove(e); return; }
+      if (s.pinch) { if (e.cancelable) e.preventDefault(); return; }
+      move(e.touches[0]);
+    }, { passive: false });
+    c.addEventListener('touchend', e => {
+      if (s.pinch) {
+        if (e.touches.length === 0) s.pinch = null;
+        else if (e.touches.length >= 2) pinchStart(e);
+        return;
+      }
+      up(e.changedTouches[0]);
+    });
+    c.addEventListener('touchcancel', () => {
+      s.pinch = null; s.gesture = false; s.drag = null;
+    });
     c.addEventListener('wheel', ev => {
       ev.preventDefault();
       this.zoomAt(this._pos(ev), ev.deltaY < 0 ? 1.15 : 1 / 1.15);
