@@ -2017,6 +2017,9 @@ const AppController = {
       const unit = MeasureCanvas.state ? MeasureCanvas.state.labelUnit : 'ftin';
       const opts = MapMeasure.sideOptions(plot.points, k.ftPerPx);
       sel.innerHTML =
+        '<optgroup label="স্বয়ংক্রিয়">' +
+          '<option value="auto">সবচেয়ে ভালো দিক — ভাগ যেন এক টুকরোয় থাকে</option>' +
+        '</optgroup>' +
         '<optgroup label="নির্দিষ্ট দিকে">' +
           MapMeasure.DIRECTIONS.map(d =>
             '<option value="' + d.id + '">' + d.label + '</option>').join('') +
@@ -2247,9 +2250,18 @@ const AppController = {
       (rep.rows.some(r => r.pieces > 1)
         ? '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> '
           + 'প্লটটি অবতল (কোণা ভেতরের দিকে ঢোকা), তাই কারো কারো অংশ <b>এক টুকরোয় পড়েনি</b>। '
-          + 'ক্ষেত্রফল ঠিক আছে, কিন্তু জমি দু জায়গায় ছড়িয়ে থাকবে — অন্য বাহু বা '
-          + 'দিক বেছে আবার ভাগ করে দেখুন।</p>'
-        : '') +
+          + 'ক্ষেত্রফল ঠিক আছে, কিন্তু জমি দু জায়গায় ছড়িয়ে থাকবে — '
+          + (rep.auto
+              ? '<b>৭২টি দিকের কোনোটাতেই</b> এই ভাগ এক টুকরোয় ফেলা গেল না; '
+                + 'শরিকের সংখ্যা বা অংশের পরিমাণ একটু বদলে দেখুন।'
+              : 'দিক বাছাইয়ে <b>“সবচেয়ে ভালো দিক”</b> বেছে আবার ভাগ করুন।')
+          + '</p>'
+        : rep.auto
+          ? '<p class="mm-div-ok"><i class="bi bi-compass"></i> '
+            + 'স্বয়ংক্রিয় দিক — ' + toBn(rep.auto.tried) + 'টি কোণ যাচাই করে '
+            + toBn(rep.auto.angle.toFixed(0)) + '° বেছে নেওয়া হয়েছে; '
+            + 'প্রত্যেকের অংশ <b>এক টুকরোয়</b> পড়েছে।</p>'
+          : '') +
       '<button type="button" class="btn btn-outline btn-sm" onclick="AppController.mmCopyReport()">' +
         '<i class="bi bi-clipboard"></i> রিপোর্ট কপি করুন</button>';
     this.mm.lastReport = rep;

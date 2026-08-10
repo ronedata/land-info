@@ -858,6 +858,82 @@ head('গুনিয়া ও ফুট স্কেল — এক ঘর ক�
      Math.abs(M.barLength('gunia', 80, 10).feet * 5 - M.barLength('gunia', 16, 10).feet) < 1e-9,
      M.barLength('gunia', 80, 10).feet.toFixed(2) + ' × ৫ = '
      + M.barLength('gunia', 16, 10).feet.toFixed(2));
+/* ═══════════ ২৫. অবতল প্লটে স্বয়ংক্রিয় ভাগের দিক ═══════════ */
+head('স্বয়ংক্রিয় দিক — ভাগ যেন এক টুকরোয় থাকে');
+{
+  // U আকৃতি — উপরে মাঝখানে খাঁজ, তাই দুটো খুঁটি
+  const U = [
+    { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 },
+    { x: 70, y: 100 }, { x: 70, y: 40 }, { x: 30, y: 40 },
+    { x: 30, y: 100 }, { x: 0, y: 100 }
+  ];
+  const f = 1;                                    // ১ পিক্সেল = ১ ফুট
+  const totU = (M.areaPx(U) * f * f) / M.SQFT_PER_SATAK;
+  const equal = n => {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push({ name: 'শরিক ' + (i + 1), satak: totU / n });
+    return out;
+  };
+
+  ok('U আকৃতির ক্ষেত্রফল ৭৬০০ px²', Math.abs(M.areaPx(U) - 7600) < 1e-9, M.areaPx(U));
+
+  // ★ এই দিকটাই সমস্যার — খাঁজের ভেতর দিয়ে কাটলে ভাগ দু টুকরো হয়
+  const bad = M.divideByArea(U, 'n2s', equal(3), f);
+  ok('উত্তর→দক্ষিণে ৩ জনে ভাগ করলে কারো অংশ ভাঙে', bad.split === 1,
+     'split = ' + bad.split + ' · টুকরো ' + bad.parts.map(p => p.pieces).join(','));
+
+  const auto3 = M.divideByArea(U, 'auto', equal(3), f);
+  ok('স্বয়ংক্রিয় দিকে ৩ জনের কারো ভাগ ভাঙে না', auto3.split === 0,
+     'কোণ ' + auto3.auto.angle.toFixed(1) + '° · টুকরো '
+     + auto3.parts.map(p => p.pieces).join(','));
+  ok('স্বয়ংক্রিয় ৭২টি কোণ যাচাই করে', auto3.auto.tried === 72, auto3.auto.tried);
+
+  const auto4 = M.divideByArea(U, 'auto', equal(4), f);
+  ok('স্বয়ংক্রিয় দিকে ৪ জনেও ভাঙে না', auto4.split === 0,
+     'কোণ ' + auto4.auto.angle.toFixed(1) + '°');
+
+  // ★ সবচেয়ে জরুরি — দিক বদলালেও ক্ষেত্রফল এক চুল নড়বে না
+  const sum3 = auto3.parts.reduce((a, b) => a + b.satak, 0)
+             + (auto3.leftover ? auto3.leftover.satak : 0);
+  ok('স্বয়ংক্রিয় ভাগে মোট ক্ষেত্রফল অক্ষত', Math.abs(sum3 - totU) < 1e-9,
+     sum3.toFixed(6) + ' vs ' + totU.toFixed(6));
+  auto3.parts.forEach((p, i) => {
+    ok('শরিক ' + (i + 1) + ' এর ভাগ চাওয়া মতোই', Math.abs(p.satak - totU / 3) < 1e-6,
+       p.satak.toFixed(6));
+  });
+
+  // উত্তল প্লটে স্বয়ংক্রিয় যেন অকারণে কিছু না বদলায়
+  const sq = [{ x: 0, y: 0 }, { x: 90, y: 0 }, { x: 90, y: 90 }, { x: 0, y: 90 }];
+  const totS = (M.areaPx(sq) * f * f) / M.SQFT_PER_SATAK;
+  const autoS = M.divideByArea(sq, 'auto', [
+    { name: 'ক', satak: totS / 3 }, { name: 'খ', satak: totS / 3 }, { name: 'গ', satak: totS / 3 }
+  ], f);
+  ok('বর্গাকার প্লটে স্বয়ংক্রিয় দিকেও ভাঙা নেই', autoS.split === 0);
+  // সহনশীলতা 1e-6 — cutByArea এর বাইসেকশন মোটের 1e-9 অংশে থামে,
+  // শতকে যা প্রায় ২e-৮; তার চেয়ে কড়া তুলনা ভাসমান-বিন্দুতেই ফেল করবে
+  ok('বর্গাকারে তিন ভাগই সমান',
+     autoS.parts.every(p => Math.abs(p.satak - totS / 3) < 1e-6),
+     autoS.parts.map(p => p.satak.toFixed(6)).join(' · '));
+
+  // bestDivideAngle সরাসরি
+  const want = [M.areaPx(U) / 3, M.areaPx(U) / 3];
+  const b = M.bestDivideAngle(U, want);
+  ok('bestDivideAngle কোণ ফেরত দেয়', b && b.angle >= 0 && b.angle < 360, b && b.angle);
+  ok('bestDivideAngle পরিসীমা মাপে', b.perimPx > 0, b.perimPx.toFixed(1));
+  const b8 = M.bestDivideAngle(U, want, 8);
+  ok('ধাপ কমালে কম কোণ দেখা হয়', b8.tried <= 8, b8.tried);
+  ok('ধাপের সর্বনিম্ন ৮', M.bestDivideAngle(U, want, 2).tried <= 8);
+  throws('অংশ না দিলে ত্রুটি', () => M.bestDivideAngle(U, []), 'শরিকের');
+  throws('বহুভুজ না দিলে ত্রুটি', () => M.bestDivideAngle([{ x: 0, y: 0 }], want), 'বহুভুজ');
+
+  // _cutSequence — দুই জায়গায় একই হিসাব
+  const seq = M._cutSequence(U, 0, [M.areaPx(U) / 2]);
+  ok('_cutSequence একটি টুকরো ও অবশিষ্ট দেয়',
+     seq.polys.length === 1 && seq.remain.length >= 3);
+  ok('_cutSequence এ টুকরো + অবশিষ্ট = মোট',
+     Math.abs(M.areaPx(seq.polys[0]) + M.areaPx(seq.remain) - M.areaPx(U)) < 1e-6);
+}
+
 }
 console.log('\n' + '='.repeat(78));
 console.log(`  ফলাফল: ${pass} পাশ · ${fail} ফেল`);
