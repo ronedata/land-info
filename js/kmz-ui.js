@@ -57,6 +57,7 @@ const KmzMap = {
       center: { lat: o.lat || 23.7806, lng: o.lng || 90.4074 },   // ঢাকা
       tiles: new Map(),          // key → HTMLImageElement
       pending: new Set(),
+      noData: new Set(),         // যে টাইলে Esri ‘ছবি নেই’ পাঠায়
       markers: [],               // [{lat, lng, n}]
       drag: null,
       gesture: false,        // ইশারাটা ক্যানভাসেই শুরু হয়েছিল তো?
@@ -233,6 +234,7 @@ const KmzMap = {
     ctx.fillStyle = '#0b1220';
     ctx.fillRect(0, 0, W, H);
 
+    let usedFallback = false;
     const n = Math.pow(2, s.z);
     const w = this.lngLatToWorld(s.center.lng, s.center.lat, s.z);
     const originX = w.x - W / 2, originY = w.y - H / 2;
@@ -252,9 +254,12 @@ const KmzMap = {
         if (img && img.complete && img.naturalWidth) {
           ctx.drawImage(img, dx, dy, this.TILE_SIZE, this.TILE_SIZE);
         } else {
-          ctx.fillStyle = '#111827';
-          ctx.fillRect(dx, dy, this.TILE_SIZE, this.TILE_SIZE);
-          this._load(key, s.z, wx, ty);
+          // ★ এই জুমে ছবি নেই — নিচের জুমের টাইল বড় করে দেখাই
+          if (!this._drawAncestor(ctx, s.z, wx, ty, dx, dy)) {
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(dx, dy, this.TILE_SIZE, this.TILE_SIZE);
+          } else { usedFallback = true; }
+          if (!s.noData.has(key)) this._load(key, s.z, wx, ty);
         }
       }
     }
@@ -264,6 +269,18 @@ const KmzMap = {
       const p = this.lngLatToPixel(m.lng, m.lat);
       this._marker(ctx, p.x, p.y, m.n, m.current);
     });
+
+    // ★ নিচের জুমের ছবি দেখানো হলে জানিয়ে দিই — নইলে
+    //   ইউজার ঝাপসা ছবি দেখে ভাববেন টুলের দোষ
+    if (usedFallback) {
+      ctx.font = '600 12px sans-serif';
+      const m = 'এই জুমে স্যাটেলাইট ছবি নেই — কাছের জুমের ছবি বড় করে দেখানো';
+      const mw = ctx.measureText(m).width;
+      ctx.fillStyle = 'rgba(180,83,9,0.92)';
+      ctx.fillRect(8, 8, mw + 16, 24);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(m, 16, 24);
+    }
 
     // কৃতজ্ঞতা (টাইল উৎসের শর্ত)
     ctx.font = '11px sans-serif';
@@ -312,13 +329,76 @@ const KmzMap = {
     ctx.restore();
   },
 
+  /**
+   * ★ এই জুমে টাইল না থাকলে উপরের (কম জুমের) টাইল বড় করে আঁকা
+   *
+   * গ্রামের দিকে Esri এর ছবি সব জুমে থাকে না — তখন ওরা ‘Map data not
+   * yet available’ লেখা একটা ধূসর ছবি পাঠায় (HTTP ২০০ সহ)। তাতে বিন্দু
+   * বসানোর সময় নিচে কিছুই দেখা যায় না। এক ধাপ কম জুমে প্রায়ই ছবি থাকে,
+   * তাই পাঁচ ধাপ পর্যন্ত উপরে উঠে দেখি।
+   */
+  _drawAncestor(ctx, z, x, y, dx, dy) {
+    const s = this.state;
+    for (let up = 1; up <= 5 && z - up >= this.MIN_Z; up++) {
+      const f = Math.pow(2, up);
+      const az = z - up, ax = Math.floor(x / f), ay = Math.floor(y / f);
+      const img = s.tiles.get(az + '/' + ax + '/' + ay);
+      if (img && img.complete && img.naturalWidth) {
+        const part = this.TILE_SIZE / f;             // টাইলের যতটুকু লাগবে
+        const sx = (x - ax * f) * part;
+        const sy = (y - ay * f) * part;
+        ctx.drawImage(img, sx, sy, part, part,
+                      dx, dy, this.TILE_SIZE, this.TILE_SIZE);
+        return true;
+      }
+      // উপরের টাইলটাও আনিয়ে রাখি
+      const akey = az + '/' + ax + '/' + ay;
+      if (!s.noData.has(akey)) this._load(akey, az, ax, ay);
+    }
+    return false;
+  },
+
+  /**
+   * ★ Esri এর ‘ছবি নেই’ টাইল চেনা
+   *
+   * ওরা ভুল স্ট্যাটাস দেয় না — সাধারণ ছবিই পাঠায়, তাই onerror ধরা যায় না।
+   * ওই ছবি প্রায় পুরোটাই একটা হালকা ধূসর রং, কেবল লেখাটুকু আলাদা।
+   * স্যাটেলাইট ছবিতে এত একরং হয় না, তাই নমুনা দেখেই বোঝা যায়।
+   * (CORS `*` থাকায় পিক্সেল পড়া যায়।)
+   */
+  _isNoData(img) {
+    try {
+      const N = 12;
+      const cv = document.createElement('canvas');
+      cv.width = N; cv.height = N;
+      const cx = cv.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0, N, N);
+      const d = cx.getImageData(0, 0, N, N).data;
+      let r0 = d[0], g0 = d[1], b0 = d[2], same = 0, grey = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        if (Math.abs(r - g) < 10 && Math.abs(g - b) < 10 && r > 190 && r < 250) grey++;
+        if (Math.abs(r - r0) < 12 && Math.abs(g - g0) < 12 && Math.abs(b - b0) < 12) same++;
+      }
+      const tot = N * N;
+      return same / tot > 0.85 && grey / tot > 0.85;
+    } catch (e) {
+      return false;      // পিক্সেল পড়া না গেলে যেমন আছে তেমনই দেখাই
+    }
+  },
+
   _load(key, z, x, y) {
     const s = this.state;
     if (s.pending.has(key)) return;
     s.pending.add(key);
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => { s.tiles.set(key, img); s.pending.delete(key); this.draw(); };
+    img.onload = () => {
+      s.pending.delete(key);
+      if (this._isNoData(img)) { s.noData.add(key); }   // ধূসর ‘ছবি নেই’ — রাখব না
+      else s.tiles.set(key, img);
+      this.draw();
+    };
     img.onerror = () => { s.pending.delete(key); };
     img.src = this.tileUrl(z, x, y);
     // ক্যাশ বেশি বড় হতে দেব না
