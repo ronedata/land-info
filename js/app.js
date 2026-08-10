@@ -390,6 +390,8 @@ const AppController = {
          tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
          geoHits: [],
          bgClear: false, threshold: 205, color: null, fx: null,
+         // ভেক্টর রপ্তানি — mode: 'img' | 'vec' | 'both'
+         mode: 'img', vecQuality: 'mid', vector: null, lineColor: '#ff0000',
          history: [], historyIndex: -1
        },
 
@@ -966,10 +968,14 @@ const AppController = {
   /**
    * মূল ছবিতে স্বচ্ছতা/রঙ বসিয়ে রপ্তানির ছবি তৈরি।
    * ফল `kmz.fx` এ রাখা হয় — KMZ বানানোর সময় এটিই ব্যবহৃত হয়।
+   *
+   * ★ ছবি বদলালে আগের ভেক্টর রেখা আর খাটে না — বাতিল করে দেওয়া হয়,
+   *   নইলে পুরনো রেখা নিয়ে নতুন ছবি রপ্তানি হয়ে যেত।
    */
   async kmzApplyFx() {
     const k = this.kmz;
     if (!k.img) return;
+    if (k.vector) { k.vector = null; this.kmzVecStat(); }   // উৎস বদলেছে
 
     // ★ রেস কন্ডিশন ঠেকানো — স্লাইডার টানলে পরপর অনেক অনুরোধ যায়।
     //   ধীর অনুরোধ পরে শেষ হয়ে নতুন ফলকে চাপা দিতে পারত।
@@ -1139,6 +1145,98 @@ const AppController = {
     if (dl) dl.disabled = false;
   },
 
+  /** কী রপ্তানি হবে — ছবি · ভেক্টর রেখা · দুটোই */
+  kmzMode(m) {
+    const k = this.kmz;
+    k.mode = (m === 'vec' || m === 'both') ? m : 'img';
+    [['img', 'kmz-mode-img'], ['vec', 'kmz-mode-vec'], ['both', 'kmz-mode-both']]
+      .forEach(([id, el]) => {
+        const b = document.getElementById(el);
+        if (b) b.classList.toggle('active', k.mode === id);
+      });
+    const f = document.getElementById('kmz-vec-field');
+    if (f) f.style.display = k.mode === 'img' ? 'none' : '';
+    this.kmzVecStat();
+  },
+
+  /** ভেক্টরের সূক্ষ্মতা */
+  kmzVecQuality(q) {
+    const k = this.kmz;
+    k.vecQuality = ['fine', 'mid', 'coarse'].indexOf(q) >= 0 ? q : 'mid';
+    [['fine', 'kmz-vq-fine'], ['mid', 'kmz-vq-mid'], ['coarse', 'kmz-vq-coarse']]
+      .forEach(([id, el]) => {
+        const b = document.getElementById(el);
+        if (b) b.classList.toggle('active', k.vecQuality === id);
+      });
+    k.vector = null;                       // মান বদলেছে — আবার বের করতে হবে
+    this.kmzVecStat();
+  },
+
+  kmzVecStat(msg) {
+    const el = document.getElementById('kmz-vec-stat');
+    if (!el) return;
+    const v = this.kmz.vector;
+    el.textContent = msg || (v
+      ? toBn(v.paths.length) + 'টি রেখা · ' + toBn(v.stats.pointsAfter) + ' বিন্দু'
+      : 'হয়নি');
+  },
+
+  /**
+   * নকশার দাগ থেকে ভেক্টর রেখা বের করা
+   *
+   * ছবিটি ছোট করে নেওয়া হয় (VECTOR_MAX_SIDE) — ২০৪৮ পিক্সেলেই রেখা
+   * চেনার জন্য যথেষ্ট, আর থিনিং পুরো ছবিতে চালানো ব্যয়বহুল। পাওয়া
+   * পথগুলো `scale` দিয়ে মূল পিক্সেল মাপে ফেরানো হয়, তারপর ভূ-স্থানাঙ্কে।
+   */
+  kmzVectorize() {
+    const k = this.kmz;
+    if (!k.img) { this.kmzStatus('আগে নকশার ছবি দিন।', true); return; }
+    if (!k.result) { this.kmzStatus('আগে নিয়ন্ত্রণ বিন্দু বসান।', true); return; }
+
+    const btn = document.getElementById('kmz-vec-btn');
+    if (btn) btn.disabled = true;
+    this.kmzVecStat('চলছে…');
+
+    // ব্রাউজার যেন "চলছে…" আঁকার সুযোগ পায়
+    setTimeout(() => {
+      try {
+        const src = (k.fx && k.fx.img) || k.img;
+        const w0 = k.img.width || k.img.naturalWidth;
+        const h0 = k.img.height || k.img.naturalHeight;
+        const fit = MapVector.vectorFit(w0, h0);
+
+        const c = document.createElement('canvas');
+        c.width = fit.width; c.height = fit.height;
+        const cx = c.getContext('2d', { willReadFrequently: true });
+        cx.imageSmoothingEnabled = true;
+        cx.imageSmoothingQuality = 'high';
+        cx.drawImage(src, 0, 0, fit.width, fit.height);
+        const id = cx.getImageData(0, 0, fit.width, fit.height);
+
+        const Q = { fine:   { tolerance: 0.7, minSpeck: 6 },
+                    mid:    { tolerance: 1.2, minSpeck: 12 },
+                    coarse: { tolerance: 2.2, minSpeck: 24 } };
+        const q = Q[k.vecQuality || 'mid'];
+
+        const res = MapVector.vectorize(id.data, fit.width, fit.height, {
+          threshold: k.threshold, tolerance: q.tolerance, minSpeck: q.minSpeck
+        });
+        // মাস্ক ছোট ছিল — মূল পিক্সেলে ফিরিয়ে তবেই ভূ-স্থানাঙ্কে
+        const geo = MapVector.toGeoPaths(res.paths, k.result.toGeo, 1 / fit.scale);
+
+        k.vector = { paths: geo, stats: res.stats };
+        this.kmzVecStat();
+        this.kmzStatus('রেখা বের হলো — ' + toBn(res.paths.length) + 'টি রেখা, '
+          + toBn(res.stats.pointsAfter) + ' বিন্দু, ' + toBn(res.stats.ms) + ' মিলিসেকেন্ড।');
+      } catch (e) {
+        k.vector = null;
+        this.kmzVecStat('হয়নি');
+        this.kmzStatus('রেখা বের করা গেল না: ' + e.message, true);
+      }
+      if (btn) btn.disabled = false;
+    }, 30);
+  },
+
   /**
    * Google Earth এর জন্য ছবি ছোট করা (দরকার হলে)
    *
@@ -1186,13 +1284,26 @@ const AppController = {
   kmzDownload() {
     const k = this.kmz;
     if (!k.img || !k.result) return;
-    let out, fitted;
+    const mode = k.mode || 'img';
+    if (mode !== 'img' && !(k.vector && k.vector.paths.length)) {
+      this.kmzStatus('আগে “রেখা বের করুন” চাপুন — ভেক্টর রেখা এখনো তৈরি হয়নি।', true);
+      return;
+    }
+
+    let out, fitted = { resized: false };
     try {
-      fitted = this.kmzFitForEarth();
-      if (!fitted) { this.kmzStatus('ম্যাপের ছবি পাওয়া গেল না।', true); return; }
+      if (mode !== 'vec') {
+        fitted = this.kmzFitForEarth();
+        if (!fitted) { this.kmzStatus('ম্যাপের ছবি পাওয়া গেল না।', true); return; }
+      }
       out = KmzExport.build({
-        imageBytes: fitted.bytes,
-        imageName: fitted.name,
+        imageBytes: mode === 'vec' ? null : fitted.bytes,
+        imageName: mode === 'vec' ? null : fitted.name,
+        vectorPaths: mode === 'img' ? null : k.vector.paths,
+        // দাগের রঙ বাছা থাকলে ভেক্টর রেখাও সেই রঙেই
+        lineColor: k.color || k.lineColor || '#ff0000',
+        lineWidth: 1.4,
+        lineName: 'মৌজার রেখা',
         // ★ মূল পিক্সেল মাপ — নিয়ন্ত্রণ বিন্দু এই মাপেই বসানো, তাই
         //   ছবি ছোট হলেও ভূ-সীমানা এখান থেকেই আসতে হবে
         width: k.img.width,
@@ -1213,12 +1324,17 @@ const AppController = {
     a.href = url; a.download = base + '.kmz';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    const mb = (out.bytes.length / 1048576).toFixed(1);
-    this.kmzStatus('KMZ নামানো হলো (' + toBn(mb) + ' MB) — Google Earth এ খুলুন।'
+    // ★ ভেক্টর ফাইল কয়েক KB হয় — "০.০ MB" দেখানো অর্থহীন
+    const n = out.bytes.length;
+    const size = n < 1048576 ? toBn(Math.max(1, Math.round(n / 1024))) + ' KB'
+                             : toBn((n / 1048576).toFixed(1)) + ' MB';
+    const vecTxt = (mode !== 'img' && k.vector)
+      ? ' ভেক্টর রেখা ' + toBn(k.vector.paths.length) + 'টি।' : '';
+    this.kmzStatus('KMZ নামানো হলো (' + size + ') — Google Earth এ খুলুন।' + vecTxt
       + (fitted.resized
           ? ' ছবি ' + toBn(fitted.from) + ' থেকে ' + toBn(fitted.to)
-            + ' এ ছোট করা হয়েছে — এর চেয়ে বড় ছবি Google Earth আঁকতে পারে না'
-            + ' (লাল X দেখায়)। নকশা ঠিক একই জায়গাতেই বসবে।'
+            + ' এ ছোট করা হয়েছে — এর চেয়ে বড় ছবি Google Earth আঁকতে পারে না'
+            + ' (লাল X দেখায়)। নকশা ঠিক একই জায়গাতেই বসবে।'
           : ''));
   },
 

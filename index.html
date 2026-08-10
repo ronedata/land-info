@@ -943,6 +943,42 @@
               </div>
 
               <div class="fz-field">
+                <div class="fz-field-label"><span><i class="bi bi-bounding-box"></i> কী রপ্তানি হবে</span></div>
+                <div class="fz-seg">
+                  <button type="button" class="fz-seg-btn active" id="kmz-mode-img"
+                          onclick="AppController.kmzMode('img')">নকশার ছবি</button>
+                  <button type="button" class="fz-seg-btn" id="kmz-mode-vec"
+                          onclick="AppController.kmzMode('vec')">ভেক্টর রেখা</button>
+                  <button type="button" class="fz-seg-btn" id="kmz-mode-both"
+                          onclick="AppController.kmzMode('both')">দুটোই</button>
+                </div>
+                <p class="kmz-hint" id="kmz-mode-hint">ছবি হিসেবে বসালে যত খুশি জুম করলে
+                  ঝাপসা হয়ে যায়, আর খুব বড় ছবি Google Earth আঁকতে পারে না।
+                  <b>ভেক্টর</b> বাছলে নকশার দাগগুলো রেখা হিসেবে বসে — যত জুমই করুন,
+                  ধারালো থাকে, আর ফাইল অনেক ছোট হয়।</p>
+              </div>
+
+              <div class="fz-field" id="kmz-vec-field" style="display:none">
+                <div class="fz-field-label">
+                  <span><i class="bi bi-vector-pen"></i> রেখা বের করা</span>
+                  <span id="kmz-vec-stat" class="kmz-op-val">হয়নি</span>
+                </div>
+                <div class="fz-seg fz-seg-sm">
+                  <button type="button" class="fz-seg-btn" id="kmz-vq-fine"
+                          onclick="AppController.kmzVecQuality('fine')">সূক্ষ্ম</button>
+                  <button type="button" class="fz-seg-btn active" id="kmz-vq-mid"
+                          onclick="AppController.kmzVecQuality('mid')">সাধারণ</button>
+                  <button type="button" class="fz-seg-btn" id="kmz-vq-coarse"
+                          onclick="AppController.kmzVecQuality('coarse')">সরল</button>
+                </div>
+                <p class="kmz-hint">সূক্ষ্ম = বেশি বিন্দু, নকশার সাথে বেশি মিল, ফাইল বড়।
+                  সরল = কম বিন্দু, হালকা ফাইল। বদলালে আবার “রেখা বের করুন” চাপুন।</p>
+                <button type="button" class="btn btn-outline btn-sm" id="kmz-vec-btn"
+                        onclick="AppController.kmzVectorize()">
+                  <i class="bi bi-magic"></i> রেখা বের করুন</button>
+              </div>
+
+              <div class="fz-field">
                 <div class="fz-field-label"><span><i class="bi bi-layers"></i> নকশার পটভূমি</span></div>
                 <div class="fz-seg">
                   <button type="button" class="fz-seg-btn active" id="kmz-bg-keep"
@@ -3347,6 +3383,7 @@
   <script src="js/kmz-ui.js"></script>
   <script src="js/kmz-source.js"></script>
   <script src="js/kmz-fx.js"></script>
+  <script src="js/map-vector.js"></script>
   <script src="js/map-measure.js"></script>
   <script src="js/map-measure-ui.js"></script>
   <script src="js/app.js"></script>

@@ -408,21 +408,25 @@ const KmzExport = {
    * @param {object} opts       { opacity: 0–1, description }
    */
   buildKml(name, imgName, corners, opts) {
-    if (!Array.isArray(corners) || corners.length !== 4) {
+    const o = opts || {};
+    const hasImg = !!imgName;
+    const paths = Array.isArray(o.vectorPaths) ? o.vectorPaths : null;
+    if (!hasImg && !(paths && paths.length)) {
+      throw new Error('ছবি অথবা ভেক্টর রেখা — অন্তত একটি লাগবে');
+    }
+    if (hasImg && (!Array.isArray(corners) || corners.length !== 4)) {
       throw new Error('চারটি কোণা লাগবে');
     }
-    const o = opts || {};
-    const alpha = Math.round(Math.min(1, Math.max(0, o.opacity == null ? 0.78 : o.opacity)) * 255);
-    const color = alpha.toString(16).padStart(2, '0') + 'ffffff';   // aabbggrr
-    const coords = corners
-      .map(p => `${p.lng.toFixed(10)},${p.lat.toFixed(10)},0`)
-      .join(' ');
 
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
-  <Document>
-    <name>${this.esc(name)}</name>
-    <open>1</open>
+    let body = '';
+
+    if (hasImg) {
+      const alpha = Math.round(Math.min(1, Math.max(0, o.opacity == null ? 0.78 : o.opacity)) * 255);
+      const color = alpha.toString(16).padStart(2, '0') + 'ffffff';   // aabbggrr
+      const coords = corners
+        .map(p => `${p.lng.toFixed(10)},${p.lat.toFixed(10)},0`)
+        .join(' ');
+      body += `
     <GroundOverlay>
       <name>${this.esc(name)}</name>
       <description>${this.esc(o.description || 'Land Info — মৌজা ম্যাপ')}</description>
@@ -430,9 +434,61 @@ const KmzExport = {
       <drawOrder>1</drawOrder>
       <Icon><href>${this.esc(imgName)}</href></Icon>
       <gx:LatLonQuad><coordinates>${coords}</coordinates></gx:LatLonQuad>
-    </GroundOverlay>
+    </GroundOverlay>`;
+    }
+
+    if (paths && paths.length) {
+      // ★ হাজারো Placemark দিলে Google Earth হামাগুড়ি দেয়। সব রেখা এক
+      //   Placemark এর <MultiGeometry> তে রাখলে অনেক দ্রুত, ফাইলও ছোট।
+      const segs = [];
+      for (const p of paths) {
+        if (!Array.isArray(p) || p.length < 2) continue;
+        // ★ ৭ দশমিক ≈ ১ সেন্টিমিটার — নকশার জন্য যথেষ্ট, আর ১০ দশমিকের
+        //   চেয়ে ফাইল প্রায় এক-তৃতীয়াংশ ছোট
+        const c = p.map(g => `${g.lng.toFixed(7)},${g.lat.toFixed(7)},0`).join(' ');
+        segs.push(`<LineString><tessellate>1</tessellate><coordinates>${c}</coordinates></LineString>`);
+      }
+      if (!segs.length && !hasImg) throw new Error('আঁকার মতো কোনো রেখা পাওয়া যায়নি');
+      if (segs.length) {
+        body += `
+    <Placemark>
+      <name>${this.esc(o.lineName || 'মৌজার রেখা')}</name>
+      <styleUrl>#li-line</styleUrl>
+      <MultiGeometry>${segs.join('')}</MultiGeometry>
+    </Placemark>`;
+      }
+    }
+
+    const style = paths && paths.length
+      ? `
+    <Style id="li-line">
+      <LineStyle>
+        <color>${this.kmlColor(o.lineColor || '#ff0000', o.lineOpacity)}</color>
+        <width>${Number(o.lineWidth) > 0 ? Number(o.lineWidth) : 1.4}</width>
+      </LineStyle>
+    </Style>`
+      : '';
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+  <Document>
+    <name>${this.esc(name)}</name>
+    <open>1</open>${style}${body}
   </Document>
 </kml>`;
+  },
+
+  /**
+   * '#rrggbb' → KML এর `aabbggrr`
+   * ★ KML এ রঙের ক্রম উল্টো (নীল আগে, লাল শেষে) — এটা ভুল করা খুব সহজ
+   */
+  kmlColor(hex, opacity) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+    const rgb = m ? m[1].toLowerCase() : 'ff0000';
+    const a = Math.round(Math.min(1, Math.max(0,
+      opacity == null ? 1 : Number(opacity))) * 255);
+    return a.toString(16).padStart(2, '0')
+      + rgb.slice(4, 6) + rgb.slice(2, 4) + rgb.slice(0, 2);
   },
 
   /* ==================== ৫. পূর্ণ KMZ ==================== */
@@ -443,16 +499,23 @@ const KmzExport = {
    * @returns {{ bytes:Uint8Array, transform, corners, kml }}
    */
   build(o) {
-    if (!o || !o.imageBytes || !o.imageBytes.length) throw new Error('ম্যাপের ছবি লাগবে');
-    const imgName = this.safeName(o.imageName || 'map.jpg');
+    const hasImg = !!(o && o.imageBytes && o.imageBytes.length);
+    const paths = o && Array.isArray(o.vectorPaths) ? o.vectorPaths : null;
+    if (!hasImg && !(paths && paths.length)) {
+      throw new Error('ম্যাপের ছবি অথবা ভেক্টর রেখা লাগবে');
+    }
+    const imgName = hasImg ? this.safeName(o.imageName || 'map.jpg') : null;
     const t = this.solveTransform(o.points);
-    const corners = this.imageCorners(t, o.width, o.height);
-    const kml = this.buildKml(o.name || 'মৌজা ম্যাপ', imgName, corners,
-                              { opacity: o.opacity, description: o.description });
-    const bytes = this.zip([
-      { name: 'doc.kml', data: this.utf8(kml) },
-      { name: imgName, data: o.imageBytes }
-    ]);
+    // ছবি না থাকলে চার কোণার দরকার নেই — ভেক্টরে নিজের স্থানাঙ্ক আছে
+    const corners = hasImg ? this.imageCorners(t, o.width, o.height) : null;
+    const kml = this.buildKml(o.name || 'মৌজা ম্যাপ', imgName, corners, {
+      opacity: o.opacity, description: o.description,
+      vectorPaths: paths, lineColor: o.lineColor, lineWidth: o.lineWidth,
+      lineOpacity: o.lineOpacity, lineName: o.lineName
+    });
+    const files = [{ name: 'doc.kml', data: this.utf8(kml) }];
+    if (hasImg) files.push({ name: imgName, data: o.imageBytes });
+    const bytes = this.zip(files);
     return { bytes, transform: t, corners, kml };
   },
 
