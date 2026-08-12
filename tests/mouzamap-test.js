@@ -84,15 +84,34 @@ check('PDF সবচেয়ে বেশি', mimes['application/pdf'] > mimes
   `PDF ${mimes['application/pdf'].toLocaleString('en-US')} · JPEG ${mimes['image/jpeg'].toLocaleString('en-US')}`);
 
 console.log('\n' + '='.repeat(78));
-console.log('  canProxy — কোন ফাইল প্রক্সিতে আনা যাবে');
+console.log('  canProxy — কোন ফাইল নামানো যাবে');
 console.log('='.repeat(78));
+console.log('    Code.gs এখন start/len দিয়ে টুকরো পাঠাতে পারে, তাই সীমা ৩৫ MB নয় —');
+console.log('    ২০০ MB (এর বড় ফাইল ব্রাউজারে জোড়া দেওয়া যায় না)');
 
 check('ছোট ফাইল → যাবে', MM.canProxy({ size: 5 * 1048576 }) === true);
-check('৩৫ MB ঠিক সীমায় → যাবে', MM.canProxy({ size: 35 * 1024 * 1024 }) === true);
-check('৩৬ MB → যাবে না', MM.canProxy({ size: 36 * 1048576 }) === false);
-check('tooBug চিহ্ন থাকলে যাবে না', MM.canProxy({ size: 100, tooBig: true }) === false);
+check('৩৫ MB → যাবে', MM.canProxy({ size: 35 * 1024 * 1024 }) === true);
+check('★ ৩৬ MB → এখন যাবে (টুকরো করে)', MM.canProxy({ size: 36 * 1048576 }) === true);
+check('★ ১১৮ MB → যাবে', MM.canProxy({ size: 118 * 1048576 }) === true);
+check('২০০ MB ঠিক সীমায় → যাবে', MM.canProxy({ size: 200 * 1024 * 1024 }) === true);
+check('২০১ MB → যাবে না', MM.canProxy({ size: 201 * 1048576 }) === false);
+check('★ পুরনো tooBig চিহ্ন আর দেখা হয় না', MM.canProxy({ size: 100, tooBig: true }) === true);
 check('null → যাবে না', MM.canProxy(null) === false);
 check('আকার নেই → যাবে (০ ধরে)', MM.canProxy({}) === true);
+
+console.log('\n' + '='.repeat(78));
+console.log('  needsChunks — এক অনুরোধে আসবে, নাকি টুকরো করে');
+console.log('='.repeat(78));
+
+check('৫ MB → এক অনুরোধেই', MM.needsChunks({ size: 5 * 1048576 }) === false);
+check('১২ MB ঠিক সীমায় → এক অনুরোধেই', MM.needsChunks({ size: 12 * 1024 * 1024 }) === false);
+check('১৩ MB → টুকরো লাগবে', MM.needsChunks({ size: 13 * 1048576 }) === true);
+check('১১৮ MB → টুকরো লাগবে', MM.needsChunks({ size: 118 * 1048576 }) === true);
+check('null → টুকরো লাগে না', MM.needsChunks(null) === false);
+
+const chunksFor = mb => Math.ceil(mb * 1048576 / MM.CHUNK);
+check('১১৮ MB = ১০ টুকরো', chunksFor(118) === 10, chunksFor(118));
+check('একসাথে ৩টি টুকরো', MM.PARALLEL === 3, MM.PARALLEL);
 
 console.log('\n' + '='.repeat(78));
 console.log('  আকার ও ধরন দেখানো');

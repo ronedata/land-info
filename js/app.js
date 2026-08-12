@@ -6114,14 +6114,14 @@ const AppController = {
             <span class="mm-sub">${k.label} · ${MouzaMap.formatSize(f.size)}${
               f.subPath ? ' · <i class="bi bi-folder2"></i> ' + f.subPath : ''}</span>
             ${big ? `<span class="mm-warn"><i class="bi bi-exclamation-triangle"></i>
-              ফাইলটি খুব বড় (${MouzaMap.formatSize(MouzaMap.PROXY_LIMIT)} এর বেশি) —
-              এখান থেকে নামানো যাবে না</span>` : ''}
+              ফাইলটি খুব বড় (${MouzaMap.formatSize(MouzaMap.MAX_SIZE)} এর বেশি) —
+              ব্রাউজারে নামানো যাবে না</span>` : ''}
           </div>
           <div class="mm-act">
             ${big
-              // ৩৫ MB এর বড় ফাইল প্রক্সিতে আসে না। Drive এর লিংক দেখানো
-              // যাবে না, তাই বোতামটি নিষ্ক্রিয় রাখা হয় — কারণ পাশের
-              // সতর্কবার্তায় লেখা আছে।
+              // ২০০ MB এর বড় ফাইল ব্রাউজারে জোড়া দেওয়া যায় না (১,৯৪,৩১৭ এর
+              // মধ্যে ১৮টি)। Drive এর লিংক দেখানো যাবে না, তাই বোতামটি
+              // নিষ্ক্রিয় রাখা হয় — কারণ পাশের সতর্কবার্তায় লেখা আছে।
               ? `<button class="fz-btn-sub mm-btn" disabled title="ফাইলটি খুব বড়">
                    <i class="bi bi-slash-circle"></i> Download</button>`
               : `<button class="fz-btn-sub mm-btn" title="Download"
@@ -6149,15 +6149,28 @@ const AppController = {
         <div class="mm-dl-row">
           <div><b>${f.name}</b><p>${MouzaMap.formatSize(f.size)}</p></div>
         </div>
-        <div class="mm-bar"><span id="mm-bar-fill" style="width:5%"></span></div>
+        <div class="mm-bar mm-prep"><span id="mm-bar-fill" style="width:8%"></span></div>
         <p class="fz-cert-note" id="mm-dl-msg" style="text-align:left;margin-top:8px">শুরু হচ্ছে…</p>`;
     }
     if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
+    /* pct === null মানে সার্ভার এখনো এক বাইটও পাঠায়নি — কতদূর হয়েছে জানা নেই।
+       তখন সংখ্যা দিয়ে ভান না করে বারটি ডোরাকাটা ও চলমান রাখা হয়।
+       সংখ্যাটা কখনো পিছায় না: প্রস্তুতির পর প্রথম কয়েক KB এলে হিসাব ০% হয়। */
+    let shown = 0;
     const stage = (pct, msg) => {
       const bar = document.getElementById('mm-bar-fill');
       const m = document.getElementById('mm-dl-msg');
-      if (bar) bar.style.width = Math.max(3, pct) + '%';
+      if (bar) {
+        const wrap = bar.parentElement;
+        if (pct === null || pct === undefined) {
+          wrap.classList.add('mm-prep');
+        } else {
+          wrap.classList.remove('mm-prep');
+          shown = Math.max(shown, pct);
+          bar.style.width = Math.max(3, shown) + '%';
+        }
+      }
       if (m) m.textContent = msg;
     };
 
