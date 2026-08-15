@@ -14,8 +14,13 @@
      প্রক্সিতে CORS `*`, তাই ব্রাউজার থেকে সরাসরি ডাকা যায় এবং বাইট
      base64 এ আসে — ফলে ক্যানভাসেও বসানো যাবে।
 
-   ★ ২১৭টি ফাইল ৩৫ MB এর বড় (সবচেয়ে বড় ৭১৯.৮ MB) — প্রক্সির সীমা ছাড়ায়,
-     ইনডেক্সে `tooBig: true` চিহ্নিত — টুলে এগুলোর Download বোতাম নিষ্ক্রিয় থাকে।
+   ★ বড় ফাইল টুকরো টুকরো করে আসে (Code.gs এ start/len), ৩টি টুকরো একসাথে।
+     এক অনুরোধে ১২ MB, সব মিলিয়ে ২০০ MB পর্যন্ত নামে। ইনডেক্সের `tooBig`
+     ফ্ল্যাগটি পুরনো ৩৫ MB সীমার হিসাব — আর দেখা হয় না। ২০০ MB এর বড় মাত্র
+     ১৮টি ফাইল (সবচেয়ে বড় ৯০৫ MB), টুলে ওগুলোর বোতাম নিষ্ক্রিয় থাকে।
+
+   ★ উত্তরটা স্ট্রিম করে পড়া হয়, তাই কত বাইট এল তা চলতে চলতেই জানা যায়।
+     প্রথম বাইট আসার আগে pct হিসেবে null যায় — UI তখন ডোরাকাটা বার দেখায়।
 
    DOM ছোঁয় না — Node এ টেস্ট করা যায়।
    ========================================================================== */
@@ -31,8 +36,25 @@ const MouzaMap = {
   PROXY: 'https://script.google.com/macros/s/AKfycbzlLhCx-_sL_TnV_wBOPicAYcwc'
        + 'qg3jTgawC_eysmTzVkvKZ6jl69h5I0JK3csRaL0j/exec',
 
-  /** প্রক্সির রেসপন্স সীমা — এর বড় ফাইল এই টুল থেকে নামানো যায় না */
+  /** এক অনুরোধে সর্বোচ্চ কত বাইট আনা যায় (base64 এ ১.৩৩× বাড়ে) */
   PROXY_LIMIT: 35 * 1024 * 1024,
+
+  /** এর চেয়ে বড় হলে টুকরো টুকরো করে আনা হয় */
+  CHUNK: 12 * 1024 * 1024,
+
+  /** কয়টি টুকরো একসাথে — বেশি দিলে দ্রুত, কিন্তু সার্ভার ধীর হয় */
+  PARALLEL: 3,
+
+  /** সব মিলিয়ে যতটা নামানো যায় — এর বড় ফাইল ব্রাউজারে জোড়া দেওয়া যায় না।
+      ১,৯৪,৩১৭টির মধ্যে মাত্র ১৮টি এর চেয়ে বড় (সবচেয়ে বড় ৯০৫ MB)। */
+  MAX_SIZE: 200 * 1024 * 1024,
+
+  /** সাময়িক গোলমালে কতবার চেষ্টা করবে।
+      Google এর কনটেন্ট সার্ভার এলোমেলোভাবে ৪০৪ দেয় ("এই মুহূর্তে ফাইলটি খোলা
+      গেল না")। মাপা হয়েছে: ফাইলের আকার বা কোন ফাইল — কিছুর সাথেই সম্পর্ক নেই,
+      প্রতি চেষ্টায় সফলতা ~৩০%। ব্যর্থতাটা সাথে সাথে ফেরে (ফাইল নামে না), তাই
+      বেশিবার চেষ্টা করা সস্তা — ১২ বারে সফলতার সম্ভাবনা ~৯৯%। */
+  RETRIES: 12,
 
   cache: { tree: null, files: {} },
 
@@ -48,11 +70,21 @@ const MouzaMap = {
     return bn(b) + ' বাইট';
   },
 
-  /** ফাইলটি প্রক্সিতে আনা যাবে কি না */
+  /**
+   * ফাইলটি নামানো যাবে কি না।
+   *
+   * আগে সীমা ছিল ৩৫ MB — কারণ পুরো ফাইল এক অনুরোধে আনতে হতো। এখন Code.gs
+   * start/len দিয়ে টুকরো পাঠাতে পারে, তাই সীমা MAX_SIZE। ইনডেক্সের `tooBig`
+   * ফ্ল্যাগটি সেই পুরনো ৩৫ MB হিসাবের, তাই আর দেখা হয় না।
+   */
   canProxy(file) {
     if (!file) return false;
-    if (file.tooBig) return false;
-    return (Number(file.size) || 0) <= this.PROXY_LIMIT;
+    return (Number(file.size) || 0) <= this.MAX_SIZE;
+  },
+
+  /** ফাইলটি এক অনুরোধে আসবে, নাকি টুকরো করে আনতে হবে */
+  needsChunks(file) {
+    return (Number(file && file.size) || 0) > this.CHUNK;
   },
 
   /** mimeType থেকে আইকন ও ধরনের নাম */
@@ -137,56 +169,226 @@ const MouzaMap = {
 
   /* ---------------- নেটওয়ার্ক ---------------- */
 
+  sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+
+  /**
+   * অপেক্ষা দ্বিগুণ করে কয়েকবার চেষ্টা করে আনে।
+   *
+   * ★ softClientError — ৪xx কেও সাময়িক ধরে আবার চেষ্টা করে।
+   *   প্রক্সির জন্য এটি লাগে: Apps Script এর `/exec` সরাসরি ফাইল দেয় না,
+   *   `script.googleusercontent.com` এ রিডাইরেক্ট করে — আর ওই সাময়িক লিংক
+   *   প্রায়ই ৪০৪ দেয়, আবার চেষ্টা করলে কাজ করে। কোন ফাইল বা কত বড়, তার
+   *   সাথে সম্পর্ক নেই — একই ফাইল একবার ব্যর্থ, পরেরবার সফল হয়।
+   *   ফাইল সত্যিই না থাকলে প্রক্সি ৪০৪ নয়, ২০০ সহ {success:false} পাঠায় —
+   *   তাই আসল "নেই" আর সাময়িক ৪০৪ গুলিয়ে যায় না।
+   *   ইনডেক্স আনার সময় এটি বন্ধ: সেখানে ৪০৪ মানে ফাইলটি সত্যিই নেই।
+   *
+   * ★ expectJson — কোটা শেষ হলে বা এরর হলে Google ২০০ স্ট্যাটাসেই HTML পাঠায়।
+   *   তখন res.json() ইংরেজি SyntaxError ছোঁড়ে, যা ব্যবহারকারীর পর্দায় যেত।
+   *
+   * ★ bust — প্রতিবার আলাদা প্যারামিটার, যাতে ব্যর্থ উত্তরটা ক্যাশ থেকে ফিরে না আসে।
+   *
+   * @param {string} url
+   * @param {{onRetry?:function, softClientError?:boolean, expectJson?:boolean, bust?:boolean, tries?:number}} [opts]
+   * @returns {Promise<Response>}
+   */
+  async fetchRetry(url, opts) {
+    const o = opts || {};
+    const tries = o.tries || this.RETRIES;
+    let last;
+    for (let i = 0; i < tries; i++) {
+      try {
+        const res = await fetch(o.bust ? url + '&_=' + Date.now() + '_' + i : url);
+        if (res.ok) {
+          const ct = String((res.headers && res.headers.get('content-type')) || '');
+          if (o.expectJson && ct.indexOf('json') === -1) {
+            last = new Error('সার্ভার সঠিক উত্তর দেয়নি');
+          } else {
+            return res;
+          }
+        } else if (res.status >= 400 && res.status < 500 && !o.softClientError) {
+          throw new Error('পাওয়া যায়নি (' + res.status + ')');
+        } else {
+          last = new Error('সার্ভার সাড়া দিচ্ছে না (' + res.status + ')');
+        }
+      } catch (e) {
+        last = e;
+        if (/পাওয়া যায়নি/.test(e.message)) throw e;   // স্থায়ী ভুল — আর চেষ্টা নয়
+      }
+      if (i < tries - 1) {
+        /* অপেক্ষা দ্বিগুণ হয়, তবে ৪ সেকেন্ডেই থেমে যায় — ৮ বার চেষ্টাতেও
+           মোট অপেক্ষা ~২০ সেকেন্ডের বেশি নয় */
+        const wait = Math.min(2500, 400 * Math.pow(2, i));
+        if (o.onRetry) o.onRetry(i + 2, wait);
+        await this.sleep(wait);
+      }
+    }
+    throw last || new Error('আনা যায়নি');
+  },
+
   async loadTree() {
     if (this.cache.tree) return this.cache.tree;
-    const res = await fetch(this.BASE + 'tree.json');
-    if (!res.ok) throw new Error('tree.json আনা যায়নি (' + res.status + ')');
+    const res = await this.fetchRetry(this.BASE + 'tree.json');
     this.cache.tree = await res.json();
     return this.cache.tree;
   },
 
   async loadFiles(surveyId) {
     if (this.cache.files[surveyId]) return this.cache.files[surveyId];
-    const res = await fetch(this.BASE + 'files/' + surveyId + '.json');
-    if (!res.ok) throw new Error('ফাইল তালিকা আনা যায়নি (' + res.status + ')');
+    const res = await this.fetchRetry(this.BASE + 'files/' + surveyId + '.json');
     const list = await res.json();
     this.cache.files[surveyId] = list;
     return list;
   },
 
+  /** base64 → বাইট */
+  decode(b64) {
+    const bin = atob(b64 || '');
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  },
+
+  /**
+   * উত্তরটা এক টানে না নিয়ে স্ট্রিম করে পড়ে — ফলে কত বাইট এল তা চলতে চলতেই
+   * জানা যায় (res.text() দিলে সব আসার আগে কিছুই জানা যেত না)।
+   */
+  async readStream(res, onBytes) {
+    if (!res.body || !res.body.getReader) return res.text();   // পুরনো ব্রাউজার
+    const reader = res.body.getReader();
+    const parts = [];
+    let got = 0;
+    for (;;) {
+      const step = await reader.read();
+      if (step.done) break;
+      parts.push(step.value);
+      got += step.value.length;
+      if (onBytes) onBytes(got);
+    }
+    const all = new Uint8Array(got);
+    let at = 0;
+    for (let i = 0; i < parts.length; i++) { all.set(parts[i], at); at += parts[i].length; }
+    return new TextDecoder().decode(all);
+  },
+
+  /**
+   * প্রক্সি থেকে পুরো ফাইল বা একটি টুকরো আনে।
+   * start/len না দিলে পুরো ফাইল (পুরনো আচরণ)।
+   * @returns {Promise<{fileName,mimeType,size,base64,start?,len?,eof?}>}
+   */
+  async getPart(fileId, start, len, onRetry, onBytes) {
+    let url = this.proxyUrl(fileId);
+    if (len != null) url += '&start=' + start + '&len=' + len;
+    const res = await this.fetchRetry(url, {
+      softClientError: true, expectJson: true, bust: true, onRetry: onRetry
+    });
+    const text = await this.readStream(res, onBytes);
+    let j;
+    try { j = JSON.parse(text); }
+    catch (e) { throw new Error('সার্ভার সঠিক উত্তর দেয়নি'); }
+    if (!j.success || !j.data || j.data.base64 === undefined) {
+      throw new Error(j.error || 'প্রক্সি থেকে সঠিক উত্তর আসেনি');
+    }
+    return j.data;
+  },
+
   /**
    * প্রক্সি দিয়ে ফাইলের বাইট আনে।
-   * onStage(পার্সেন্ট, বার্তা) দিয়ে অগ্রগতি জানায় — প্রক্সি একবারেই পুরো
-   * JSON পাঠায়, তাই সত্যিকারের বাইট-প্রগ্রেস পাওয়া যায় না; ধাপ জানানো হয়।
+   *
+   * ছোট ফাইল এক অনুরোধেই; CHUNK এর বড় হলে টুকরো টুকরো করে, ৩টি একসাথে।
+   * Apps Script প্রথমে পুরো ফাইল পড়ে base64 এ রূপান্তর করে তারপর পাঠাতে শুরু
+   * করে — তাই প্রথম বাইট আসতে দেরি হয়; ততক্ষণ pct হিসেবে null যায়, অর্থাৎ
+   * "কতদূর জানি না, তবে কাজ চলছে"।
+   *
+   * @param {object} file
+   * @param {function(?number, string)} onStage (পার্সেন্ট বা null, বার্তা)
    * @returns {Promise<{blob:Blob, fileName:string, mimeType:string}>}
    */
   async fetchBytes(file, onStage) {
-    const stage = (p, m) => { if (onStage) onStage(p, m); };
+    const self = this;
+    const stage = function (p, m) { if (onStage) onStage(p, m); };
+    const bn = function (x) { return (typeof toBn === 'function' ? toBn(x) : String(x)); };
+
     if (!this.canProxy(file)) {
-      throw new Error('ফাইলটি ' + this.formatSize(this.PROXY_LIMIT)
+      throw new Error('ফাইলটি ' + this.formatSize(this.MAX_SIZE)
         + ' এর চেয়ে বড়, তাই এখান থেকে নামানো যাবে না।');
     }
+    const retryMsg = function (n) {
+      stage(null, 'সার্ভার সাড়া দেয়নি — আবার চেষ্টা করছি (' + bn(n) + ')…');
+    };
+    const PREP = 'ম্যাপ প্রস্তুত করা হচ্ছে…';
+    const total = Number(file.size) || 0;
+    let name = file.name, mime = file.mimeType;
 
-    stage(5, 'সার্ভারে অনুরোধ পাঠানো হচ্ছে…');
-    const res = await fetch(this.proxyUrl(file.id));
-    if (!res.ok) throw new Error('প্রক্সি ব্যর্থ (' + res.status + ')');
+    /* base64 এ বাইট ১.৩৩× বাড়ে — নামানো বাইটকে সেই হিসাবে ফিরিয়ে দেখানো হয় */
+    const show = function (done, of) {
+      stage(of ? Math.min(96, Math.round(done / of * 96)) : null,
+        'নামানো হচ্ছে — ' + self.formatSize(done) + ' / ' + self.formatSize(of));
+    };
 
-    stage(25, 'সার্ভার থেকে ফাইল আসছে…');
-    const json = await res.json();
-    if (!json.success || !json.data || !json.data.base64) {
-      throw new Error(json.error || 'প্রক্সি থেকে সঠিক উত্তর আসেনি');
+    if (!this.needsChunks(file)) {
+      stage(null, PREP);
+      const d = await this.getPart(file.id, null, null, retryMsg, function (got) {
+        show(Math.min(total, Math.floor(got / 4 * 3)), total);
+      });
+      stage(97, 'ফাইল প্রস্তুত হচ্ছে…');
+      name = d.fileName || name; mime = d.mimeType || mime;
+      return {
+        blob: new Blob([this.decode(d.base64)], { type: mime || 'application/octet-stream' }),
+        fileName: name, mimeType: mime
+      };
     }
 
-    stage(60, 'ফাইল ডিকোড হচ্ছে…');
-    const bin = atob(json.data.base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    /* টুকরোগুলো Blob হিসেবে জমে — ব্রাউজার দরকারে ডিস্কে রাখে, তাই ২০০ MB
+       ফাইলেও মেমরি টেকে */
+    const parts = [], doneBytes = [];
+    let real = total;
+    const tick = function () {
+      let sum = 0;
+      for (let i = 0; i < doneBytes.length; i++) sum += doneBytes[i] || 0;
+      show(sum, real);
+    };
 
-    stage(95, 'প্রস্তুত হচ্ছে…');
+    /* প্রথম টুকরোটি একা — এতে জানা যায় সার্ভার টুকরো বোঝে কি না, আর ফাইলের
+       আসল আকার কত (ইনডেক্সের আকার বাসি হতে পারে) */
+    stage(null, PREP);
+    const head = await this.getPart(file.id, 0, this.CHUNK, retryMsg, function (got) {
+      doneBytes[0] = Math.min(self.CHUNK, Math.floor(got / 4 * 3)); tick();
+    });
+    name = head.fileName || name; mime = head.mimeType || mime;
+    if (head.size) real = head.size;
+    parts[0] = this.decode(head.base64);
+    doneBytes[0] = parts[0].length;
+    tick();
+
+    /* len ফেরত না এলে পুরনো Code.gs চলছে — সে পুরো ফাইলটাই পাঠিয়ে দিয়েছে */
+    if (head.len !== undefined && !head.eof) {
+      const jobs = [];
+      for (let s = parts[0].length; s < real; s += this.CHUNK) jobs.push(s);
+      let next = 0;
+      const worker = async function () {
+        for (;;) {
+          const i = next++;
+          if (i >= jobs.length) return;
+          const slot = i + 1;
+          const d = await self.getPart(file.id, jobs[i], self.CHUNK, retryMsg, function (got) {
+            doneBytes[slot] = Math.min(self.CHUNK, Math.floor(got / 4 * 3)); tick();
+          });
+          parts[slot] = self.decode(d.base64);
+          doneBytes[slot] = parts[slot].length;
+          tick();
+        }
+      };
+      const runners = [];
+      const n = Math.min(this.PARALLEL, jobs.length);
+      for (let i = 0; i < n; i++) runners.push(worker());
+      await Promise.all(runners);
+    }
+
+    stage(98, 'জোড়া দেওয়া হচ্ছে…');
     return {
-      blob: new Blob([bytes], { type: json.data.mimeType || 'application/octet-stream' }),
-      fileName: json.data.fileName || file.name,
-      mimeType: json.data.mimeType || file.mimeType
+      blob: new Blob(parts.filter(Boolean), { type: mime || 'application/octet-stream' }),
+      fileName: name, mimeType: mime
     };
   }
 };

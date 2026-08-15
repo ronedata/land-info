@@ -1670,6 +1670,17 @@
   background: var(--primary);
   transition: width var(--transition-normal);
 }
+/* প্রস্তুতির ধাপ — সার্ভার এখনো এক বাইটও পাঠায়নি, তাই সত্যিকারের অগ্রগতি
+   জানা নেই। ডোরাকাটা নড়াচড়া দিয়ে বোঝানো হয় কাজ চলছে, কিন্তু কতদূর নয়। */
+.mm-bar.mm-prep > span {
+  width: 100% !important;
+  background: repeating-linear-gradient(115deg,
+    var(--primary) 0 14px, color-mix(in srgb, var(--primary) 55%, transparent) 14px 28px);
+  background-size: 56px 100%;
+  animation: mm-stripes 1.1s linear infinite;
+}
+@keyframes mm-stripes { from { background-position: 0 0 } to { background-position: 56px 0 } }
+@media (prefers-reduced-motion: reduce) { .mm-bar.mm-prep > span { animation: none } }
 
 /* মোবাইলে বোতামগুলো পাশাপাশি, নইলে কার্ড খুব লম্বা হয় */
 @media (max-width: 599px) {

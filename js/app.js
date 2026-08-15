@@ -390,6 +390,8 @@ const AppController = {
          tree: null, treeLoaded: false, arch: {}, archFiles: [], archShown: [],
          geoHits: [],
          bgClear: false, threshold: 205, color: null, fx: null,
+         // ভেক্টর রপ্তানি — mode: 'img' | 'vec' | 'both'
+         mode: 'img', vecQuality: 'mid', vector: null, lineColor: '#ff0000',
          history: [], historyIndex: -1
        },
 
@@ -966,10 +968,14 @@ const AppController = {
   /**
    * মূল ছবিতে স্বচ্ছতা/রঙ বসিয়ে রপ্তানির ছবি তৈরি।
    * ফল `kmz.fx` এ রাখা হয় — KMZ বানানোর সময় এটিই ব্যবহৃত হয়।
+   *
+   * ★ ছবি বদলালে আগের ভেক্টর রেখা আর খাটে না — বাতিল করে দেওয়া হয়,
+   *   নইলে পুরনো রেখা নিয়ে নতুন ছবি রপ্তানি হয়ে যেত।
    */
   async kmzApplyFx() {
     const k = this.kmz;
     if (!k.img) return;
+    if (k.vector) { k.vector = null; this.kmzVecStat(); }   // উৎস বদলেছে
 
     // ★ রেস কন্ডিশন ঠেকানো — স্লাইডার টানলে পরপর অনেক অনুরোধ যায়।
     //   ধীর অনুরোধ পরে শেষ হয়ে নতুন ফলকে চাপা দিতে পারত।
@@ -1089,23 +1095,46 @@ const AppController = {
     }
 
     k.result = t;
-    const q = KmzExport.quality(t.rmse);
+    // ★ rmse নয় — যেটা নিয়ন্ত্রণ বিন্দুর *বাইরে* ত্রুটি মাপে সেটাই আসল।
+    //   বিন্দু কম হলে rmse আপনাআপনি ০ আসে, তাতে ম্যাপ ভালো বসেছে বোঝায় না।
+    const honest = t.looRmse != null ? t.looRmse : t.rmse;
+    // ★ যাচাই করার মতো বাড়তি বিন্দু না থাকলে "চমৎকার" লেখা প্রতারণা —
+    //   তখন মান নয়, অবস্থাটাই বলা হয়
+    const q = t.exact
+      ? { level: 'ok', label: 'যাচাই হয়নি' }
+      : KmzExport.quality(honest);
     const modeTxt = t.mode === 'affine' ? 'অ্যাফাইন (তির্যকতাও ধরে)' : 'সিমিলারিটি';
+    const skew = t.mode === 'affine'
+      && (Math.abs(t.shearDeg) > 1.5 || Math.abs(t.aspect - 1) > 0.03);
 
     res.className = 'kmz-ok';
     res.innerHTML =
       '<div class="fz-stats">' +
         '<div class="fz-stat"><span class="v kmz-q-' + q.level + '">' + q.label + '</span><span class="l">ক্যালিব্রেশন</span></div>' +
-        '<div class="fz-stat"><span class="v">' + toBn(t.rmse.toFixed(2)) + ' মি</span><span class="l">গড় ত্রুটি</span></div>' +
-        '<div class="fz-stat"><span class="v">' + toBn(t.maxError.toFixed(2)) + ' মি</span><span class="l">সর্বোচ্চ ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(honest.toFixed(2)) + ' মি</span><span class="l">যাচাই ত্রুটি</span></div>' +
+        '<div class="fz-stat"><span class="v">' + toBn(t.maxError.toFixed(2)) + ' মি</span><span class="l">বিন্দুতে সর্বোচ্চ</span></div>' +
         '<div class="fz-stat"><span class="v">' + toBn(k.pairs.length) + 'টি</span><span class="l">নিয়ন্ত্রণ বিন্দু</span></div>' +
         '<div class="fz-stat"><span class="v">' + toBn(t.scale.toFixed(3)) + '</span><span class="l">মিটার / পিক্সেল</span></div>' +
         '<div class="fz-stat"><span class="v" style="font-size:0.9rem">' + modeTxt + '</span><span class="l">পদ্ধতি</span></div>' +
       '</div>' +
-      (k.pairs.length === 2
+      (k.pairs.length < 4
         ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-info-circle"></i>' +
-          '<span>২টি বিন্দুতে <b>তির্যকতা ঠিক হয় না</b>। পিছনে গিয়ে <b>আরও ১–২টি</b> ' +
-          'বিন্দু দিলে ত্রুটি কমবে।</span></div>'
+          '<span><b>' + toBn(4 - k.pairs.length) + 'টি বিন্দু বাড়ালে</b> ম্যাপ আরও ভালো বসবে। ' +
+          'বিন্দু যত বেশি ও যত ছড়ানো, গুগল ম্যাপের সাথে মিল তত পাকা — ' +
+          'নকশার <b>চার কোণার দিকে</b> বসালে সবচেয়ে ভালো।</span></div>'
+        : '') +
+      (t.exact
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-info-circle"></i>' +
+          '<span>এই সংখ্যক বিন্দুতে অবশিষ্ট ত্রুটি <b>০ আসতে বাধ্য</b> — হিসাব বিন্দুগুলোর ' +
+          'ভেতর দিয়েই যায়। এটা নিখুঁত বসার প্রমাণ নয়, যাচাই করার মতো কিছু বাকি নেই তার ' +
+          'প্রমাণ। আরেকটি বিন্দু দিলে সত্যিকারের ত্রুটি দেখা যাবে।</span></div>'
+        : '') +
+      (skew
+        ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-exclamation-triangle"></i>' +
+          '<span>নকশাটি <b>' + toBn(Math.abs(t.shearDeg).toFixed(1)) + '° তির্যক</b> ও ' +
+          '<b>' + toBn(((t.aspect - 1) * 100).toFixed(1)) + '% অসম</b> ধরে বসানো হয়েছে। ' +
+          'স্ক্যান বা ছবি তোলায় টান পড়লে এমন হয়। তা না হয়ে থাকলে কোনো একটি বিন্দু ' +
+          'ভুল জায়গায় বসেছে — দেখে নিন।</span></div>'
         : '') +
       (t.maxError > 25
         ? '<div class="fz-warn" style="margin-top:12px"><i class="bi bi-exclamation-triangle"></i>' +
@@ -1116,15 +1145,167 @@ const AppController = {
     if (dl) dl.disabled = false;
   },
 
+  /** কী রপ্তানি হবে — ছবি · ভেক্টর রেখা · দুটোই */
+  kmzMode(m) {
+    const k = this.kmz;
+    k.mode = (m === 'vec' || m === 'both') ? m : 'img';
+    [['img', 'kmz-mode-img'], ['vec', 'kmz-mode-vec'], ['both', 'kmz-mode-both']]
+      .forEach(([id, el]) => {
+        const b = document.getElementById(el);
+        if (b) b.classList.toggle('active', k.mode === id);
+      });
+    const f = document.getElementById('kmz-vec-field');
+    if (f) f.style.display = k.mode === 'img' ? 'none' : '';
+    this.kmzVecStat();
+  },
+
+  /** ভেক্টরের সূক্ষ্মতা */
+  kmzVecQuality(q) {
+    const k = this.kmz;
+    k.vecQuality = ['fine', 'mid', 'coarse'].indexOf(q) >= 0 ? q : 'mid';
+    [['fine', 'kmz-vq-fine'], ['mid', 'kmz-vq-mid'], ['coarse', 'kmz-vq-coarse']]
+      .forEach(([id, el]) => {
+        const b = document.getElementById(el);
+        if (b) b.classList.toggle('active', k.vecQuality === id);
+      });
+    k.vector = null;                       // মান বদলেছে — আবার বের করতে হবে
+    this.kmzVecStat();
+  },
+
+  kmzVecStat(msg) {
+    const el = document.getElementById('kmz-vec-stat');
+    if (!el) return;
+    const v = this.kmz.vector;
+    el.textContent = msg || (v
+      ? toBn(v.paths.length) + 'টি রেখা · ' + toBn(v.stats.pointsAfter) + ' বিন্দু'
+      : 'হয়নি');
+  },
+
+  /**
+   * নকশার দাগ থেকে ভেক্টর রেখা বের করা
+   *
+   * ছবিটি ছোট করে নেওয়া হয় (VECTOR_MAX_SIDE) — ২০৪৮ পিক্সেলেই রেখা
+   * চেনার জন্য যথেষ্ট, আর থিনিং পুরো ছবিতে চালানো ব্যয়বহুল। পাওয়া
+   * পথগুলো `scale` দিয়ে মূল পিক্সেল মাপে ফেরানো হয়, তারপর ভূ-স্থানাঙ্কে।
+   */
+  kmzVectorize() {
+    const k = this.kmz;
+    if (!k.img) { this.kmzStatus('আগে নকশার ছবি দিন।', true); return; }
+    if (!k.result) { this.kmzStatus('আগে নিয়ন্ত্রণ বিন্দু বসান।', true); return; }
+
+    const btn = document.getElementById('kmz-vec-btn');
+    if (btn) btn.disabled = true;
+    this.kmzVecStat('চলছে…');
+
+    // ব্রাউজার যেন "চলছে…" আঁকার সুযোগ পায়
+    setTimeout(() => {
+      try {
+        const src = (k.fx && k.fx.img) || k.img;
+        const w0 = k.img.width || k.img.naturalWidth;
+        const h0 = k.img.height || k.img.naturalHeight;
+        const fit = MapVector.vectorFit(w0, h0);
+
+        const c = document.createElement('canvas');
+        c.width = fit.width; c.height = fit.height;
+        const cx = c.getContext('2d', { willReadFrequently: true });
+        cx.imageSmoothingEnabled = true;
+        cx.imageSmoothingQuality = 'high';
+        cx.drawImage(src, 0, 0, fit.width, fit.height);
+        const id = cx.getImageData(0, 0, fit.width, fit.height);
+
+        const Q = { fine:   { tolerance: 0.7, minSpeck: 6 },
+                    mid:    { tolerance: 1.2, minSpeck: 12 },
+                    coarse: { tolerance: 2.2, minSpeck: 24 } };
+        const q = Q[k.vecQuality || 'mid'];
+
+        const res = MapVector.vectorize(id.data, fit.width, fit.height, {
+          threshold: k.threshold, tolerance: q.tolerance, minSpeck: q.minSpeck
+        });
+        // মাস্ক ছোট ছিল — মূল পিক্সেলে ফিরিয়ে তবেই ভূ-স্থানাঙ্কে
+        const geo = MapVector.toGeoPaths(res.paths, k.result.toGeo, 1 / fit.scale);
+
+        k.vector = { paths: geo, stats: res.stats };
+        this.kmzVecStat();
+        this.kmzStatus('রেখা বের হলো — ' + toBn(res.paths.length) + 'টি রেখা, '
+          + toBn(res.stats.pointsAfter) + ' বিন্দু, ' + toBn(res.stats.ms) + ' মিলিসেকেন্ড।');
+      } catch (e) {
+        k.vector = null;
+        this.kmzVecStat('হয়নি');
+        this.kmzStatus('রেখা বের করা গেল না: ' + e.message, true);
+      }
+      if (btn) btn.disabled = false;
+    }, 30);
+  },
+
+  /**
+   * Google Earth এর জন্য ছবি ছোট করা (দরকার হলে)
+   *
+   * বড় ছবি সে টেক্সচার বানাতে পারে না, তখন নকশার বদলে **লাল X** দেখায়।
+   * চার কোণার ভূ-স্থানাঙ্ক মূল পিক্সেল মাপ থেকেই হিসাব হয়, তাই ছোট করলেও
+   * নকশা ঠিক একই জায়গায় বসে — কেবল রেজোলিউশন কমে।
+   *
+   * @returns {{bytes, name, resized, from, to}|null}
+   */
+  kmzFitForEarth() {
+    const k = this.kmz;
+    const src = (k.fx && k.fx.img) || k.img;
+    if (!src) return null;
+    // ★ মাপ সবসময় k.img থেকেই — build() ও এই মাপই পায়, তাই দুটো কখনো
+    //   আলাদা হবে না। fx এর ক্যানভাস একই মাপের, তবু উৎস একটাই রাখা ভালো
+    const w = k.img.width || k.img.naturalWidth;
+    const h = k.img.height || k.img.naturalHeight;
+    const fit = KmzExport.earthFit(w, h);
+    const useFx = k.fx;
+    const name = useFx ? KmzFx.nameFor(k.imgName, useFx.mime) : k.imgName;
+    if (!fit.resized) {
+      return { bytes: useFx ? useFx.bytes : k.imgBytes, name: name,
+               resized: false, from: w + '×' + h, to: w + '×' + h };
+    }
+
+    const c = document.createElement('canvas');
+    c.width = fit.width; c.height = fit.height;
+    const cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(src, 0, 0, fit.width, fit.height);
+
+    // স্বচ্ছতা থাকলে PNG ছাড়া উপায় নেই; নইলে JPEG — ফাইল অনেক ছোট হয়
+    const png = !!(useFx && useFx.mime === 'image/png');
+    const url = c.toDataURL(png ? 'image/png' : 'image/jpeg', png ? undefined : 0.92);
+    const b64 = url.slice(url.indexOf(',') + 1);
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+    return { bytes: bytes, name: KmzFx.nameFor(k.imgName, png ? 'image/png' : 'image/jpeg'),
+             resized: true, from: w + '×' + h, to: fit.width + '×' + fit.height };
+  },
+
   kmzDownload() {
     const k = this.kmz;
     if (!k.img || !k.result) return;
-    let out;
+    const mode = k.mode || 'img';
+    if (mode !== 'img' && !(k.vector && k.vector.paths.length)) {
+      this.kmzStatus('আগে “রেখা বের করুন” চাপুন — ভেক্টর রেখা এখনো তৈরি হয়নি।', true);
+      return;
+    }
+
+    let out, fitted = { resized: false };
     try {
-      const useFx = k.fx;
+      if (mode !== 'vec') {
+        fitted = this.kmzFitForEarth();
+        if (!fitted) { this.kmzStatus('ম্যাপের ছবি পাওয়া গেল না।', true); return; }
+      }
       out = KmzExport.build({
-        imageBytes: useFx ? useFx.bytes : k.imgBytes,
-        imageName: useFx ? KmzFx.nameFor(k.imgName, useFx.mime) : k.imgName,
+        imageBytes: mode === 'vec' ? null : fitted.bytes,
+        imageName: mode === 'vec' ? null : fitted.name,
+        vectorPaths: mode === 'img' ? null : k.vector.paths,
+        // দাগের রঙ বাছা থাকলে ভেক্টর রেখাও সেই রঙেই
+        lineColor: k.color || k.lineColor || '#ff0000',
+        lineWidth: 1.4,
+        lineName: 'মৌজার রেখা',
+        // ★ মূল পিক্সেল মাপ — নিয়ন্ত্রণ বিন্দু এই মাপেই বসানো, তাই
+        //   ছবি ছোট হলেও ভূ-সীমানা এখান থেকেই আসতে হবে
         width: k.img.width,
         height: k.img.height,
         name: (document.getElementById('kmz-name') || {}).value || 'মৌজা ম্যাপ',
@@ -1143,7 +1324,18 @@ const AppController = {
     a.href = url; a.download = base + '.kmz';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    this.kmzStatus('KMZ নামানো হলো — Google Earth এ খুলুন।');
+    // ★ ভেক্টর ফাইল কয়েক KB হয় — "০.০ MB" দেখানো অর্থহীন
+    const n = out.bytes.length;
+    const size = n < 1048576 ? toBn(Math.max(1, Math.round(n / 1024))) + ' KB'
+                             : toBn((n / 1048576).toFixed(1)) + ' MB';
+    const vecTxt = (mode !== 'img' && k.vector)
+      ? ' ভেক্টর রেখা ' + toBn(k.vector.paths.length) + 'টি।' : '';
+    this.kmzStatus('KMZ নামানো হলো (' + size + ') — Google Earth এ খুলুন।' + vecTxt
+      + (fitted.resized
+          ? ' ছবি ' + toBn(fitted.from) + ' থেকে ' + toBn(fitted.to)
+            + ' এ ছোট করা হয়েছে — এর চেয়ে বড় ছবি Google Earth আঁকতে পারে না'
+            + ' (লাল X দেখায়)। নকশা ঠিক একই জায়গাতেই বসবে।'
+          : ''));
   },
 
 
@@ -2017,6 +2209,9 @@ const AppController = {
       const unit = MeasureCanvas.state ? MeasureCanvas.state.labelUnit : 'ftin';
       const opts = MapMeasure.sideOptions(plot.points, k.ftPerPx);
       sel.innerHTML =
+        '<optgroup label="স্বয়ংক্রিয়">' +
+          '<option value="auto">সবচেয়ে ভালো দিক — ভাগ যেন এক টুকরোয় থাকে</option>' +
+        '</optgroup>' +
         '<optgroup label="নির্দিষ্ট দিকে">' +
           MapMeasure.DIRECTIONS.map(d =>
             '<option value="' + d.id + '">' + d.label + '</option>').join('') +
@@ -2247,9 +2442,18 @@ const AppController = {
       (rep.rows.some(r => r.pieces > 1)
         ? '<p class="mm-div-bad"><i class="bi bi-exclamation-triangle"></i> '
           + 'প্লটটি অবতল (কোণা ভেতরের দিকে ঢোকা), তাই কারো কারো অংশ <b>এক টুকরোয় পড়েনি</b>। '
-          + 'ক্ষেত্রফল ঠিক আছে, কিন্তু জমি দু জায়গায় ছড়িয়ে থাকবে — অন্য বাহু বা '
-          + 'দিক বেছে আবার ভাগ করে দেখুন।</p>'
-        : '') +
+          + 'ক্ষেত্রফল ঠিক আছে, কিন্তু জমি দু জায়গায় ছড়িয়ে থাকবে — '
+          + (rep.auto
+              ? '<b>৭২টি দিকের কোনোটাতেই</b> এই ভাগ এক টুকরোয় ফেলা গেল না; '
+                + 'শরিকের সংখ্যা বা অংশের পরিমাণ একটু বদলে দেখুন।'
+              : 'দিক বাছাইয়ে <b>“সবচেয়ে ভালো দিক”</b> বেছে আবার ভাগ করুন।')
+          + '</p>'
+        : rep.auto
+          ? '<p class="mm-div-ok"><i class="bi bi-compass"></i> '
+            + 'স্বয়ংক্রিয় দিক — ' + toBn(rep.auto.tried) + 'টি কোণ যাচাই করে '
+            + toBn(rep.auto.angle.toFixed(0)) + '° বেছে নেওয়া হয়েছে; '
+            + 'প্রত্যেকের অংশ <b>এক টুকরোয়</b> পড়েছে।</p>'
+          : '') +
       '<button type="button" class="btn btn-outline btn-sm" onclick="AppController.mmCopyReport()">' +
         '<i class="bi bi-clipboard"></i> রিপোর্ট কপি করুন</button>';
     this.mm.lastReport = rep;
@@ -5910,14 +6114,14 @@ const AppController = {
             <span class="mm-sub">${k.label} · ${MouzaMap.formatSize(f.size)}${
               f.subPath ? ' · <i class="bi bi-folder2"></i> ' + f.subPath : ''}</span>
             ${big ? `<span class="mm-warn"><i class="bi bi-exclamation-triangle"></i>
-              ফাইলটি খুব বড় (${MouzaMap.formatSize(MouzaMap.PROXY_LIMIT)} এর বেশি) —
-              এখান থেকে নামানো যাবে না</span>` : ''}
+              ফাইলটি খুব বড় (${MouzaMap.formatSize(MouzaMap.MAX_SIZE)} এর বেশি) —
+              ব্রাউজারে নামানো যাবে না</span>` : ''}
           </div>
           <div class="mm-act">
             ${big
-              // ৩৫ MB এর বড় ফাইল প্রক্সিতে আসে না। Drive এর লিংক দেখানো
-              // যাবে না, তাই বোতামটি নিষ্ক্রিয় রাখা হয় — কারণ পাশের
-              // সতর্কবার্তায় লেখা আছে।
+              // ২০০ MB এর বড় ফাইল ব্রাউজারে জোড়া দেওয়া যায় না (১,৯৪,৩১৭ এর
+              // মধ্যে ১৮টি)। Drive এর লিংক দেখানো যাবে না, তাই বোতামটি
+              // নিষ্ক্রিয় রাখা হয় — কারণ পাশের সতর্কবার্তায় লেখা আছে।
               ? `<button class="fz-btn-sub mm-btn" disabled title="ফাইলটি খুব বড়">
                    <i class="bi bi-slash-circle"></i> Download</button>`
               : `<button class="fz-btn-sub mm-btn" title="Download"
@@ -5945,15 +6149,28 @@ const AppController = {
         <div class="mm-dl-row">
           <div><b>${f.name}</b><p>${MouzaMap.formatSize(f.size)}</p></div>
         </div>
-        <div class="mm-bar"><span id="mm-bar-fill" style="width:5%"></span></div>
+        <div class="mm-bar mm-prep"><span id="mm-bar-fill" style="width:8%"></span></div>
         <p class="fz-cert-note" id="mm-dl-msg" style="text-align:left;margin-top:8px">শুরু হচ্ছে…</p>`;
     }
     if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
+    /* pct === null মানে সার্ভার এখনো এক বাইটও পাঠায়নি — কতদূর হয়েছে জানা নেই।
+       তখন সংখ্যা দিয়ে ভান না করে বারটি ডোরাকাটা ও চলমান রাখা হয়।
+       সংখ্যাটা কখনো পিছায় না: প্রস্তুতির পর প্রথম কয়েক KB এলে হিসাব ০% হয়। */
+    let shown = 0;
     const stage = (pct, msg) => {
       const bar = document.getElementById('mm-bar-fill');
       const m = document.getElementById('mm-dl-msg');
-      if (bar) bar.style.width = Math.max(3, pct) + '%';
+      if (bar) {
+        const wrap = bar.parentElement;
+        if (pct === null || pct === undefined) {
+          wrap.classList.add('mm-prep');
+        } else {
+          wrap.classList.remove('mm-prep');
+          shown = Math.max(shown, pct);
+          bar.style.width = Math.max(3, shown) + '%';
+        }
+      }
       if (m) m.textContent = msg;
     };
 
@@ -6046,6 +6263,10 @@ const AppController = {
 
     if (this.mouzaReady) return;
     this.mouzaReady = true;
+    // নিজের Drive এর ইনডেক্স — না থাকলে চুপচাপ বাদ, টুল আগের মতোই চলে
+    if (typeof MouzaSources !== 'undefined' && MouzaSources.loadIndex) {
+      MouzaSources.loadIndex();
+    }
     this.loadMouzaDivisions();
   },
 

@@ -87,9 +87,54 @@ const MouzaSources = {
     return { view: v, open: v, kind: 'direct' };
   },
 
+  /* ----------------------------------------------------------------------
+     Drive ইনডেক্স — নিজের Drive ফোল্ডার ক্রল করে বানানো
+     `data/mouza-value/build_index.py` এটি লেখে; বিস্তারিত ওখানকার README এ।
+     ---------------------------------------------------------------------- */
+
+  /** ইনডেক্স ফাইলের পথ (আপেক্ষিক — যেখানেই হোস্ট হোক চলবে) */
+  INDEX_URL: 'data/mouza-value/index.json',
+
+  /** লোড হওয়া ইনডেক্স — { officeId: { বছর: {fileId, name, size} } } */
+  INDEX: null,
+
+  /** একই ফাইল বারবার না আনার জন্য */
+  _indexPromise: null,
+
+  /**
+   * ইনডেক্স একবার এনে রাখে। **ব্যর্থ হলে চুপচাপ null থাকে** — ফাইল না
+   * থাকলে বা নেট না থাকলেও টুল আগের মতোই চলবে (OFFICES → PATTERN →
+   * বাইরের API)। তাই একটা একটা করে ফাইল তুললেও কিছু ভাঙে না।
+   */
+  loadIndex() {
+    if (this._indexPromise) return this._indexPromise;
+    const p = (async () => {
+      try {
+        const res = await fetch(this.INDEX_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(res.status);
+        const j = await res.json();
+        if (j && j.offices && typeof j.offices === 'object') {
+          this.INDEX = j.offices;
+          return j;
+        }
+        throw new Error('গঠন মেলেনি');
+      } catch (e) {
+        // ★ ব্যর্থতা **মনে রাখা হয় না** — নইলে নেট একবার হেঁচকি দিলে
+        //   পুরো সেশনে আর চেষ্টাই হতো না, আর ৫০১টি নিজস্ব ফাইল থাকা
+        //   সত্ত্বেও চুপচাপ বাইরের উৎস দেখাত। পরের ডাকে আবার চেষ্টা হবে।
+        this._indexPromise = null;
+        return null;
+      }
+    })();
+    this._indexPromise = p;
+    return p;
+  },
+
   /**
    * এই অফিস+বছরের জন্য নিজস্ব ফাইল আছে কি না।
-   * আগে OFFICES দেখে, না পেলে PATTERN দেখে।
+   *
+   * ক্রম: OFFICES (হাতে বসানো) → INDEX (Drive ক্রল) → PATTERN
+   * হাতে বসানোটা আগে, কারণ কেউ ইচ্ছে করে বসালে সেটাই তার শেষ কথা।
    */
   lookup(officeId, year) {
     if (!officeId || !year) return null;
@@ -97,6 +142,9 @@ const MouzaSources = {
 
     const byOffice = this.OFFICES[officeId];
     if (byOffice && byOffice[y]) return this.normalize(byOffice[y]);
+
+    const idx = this.INDEX && this.INDEX[officeId];
+    if (idx && idx[y] && idx[y].fileId) return this.normalize(idx[y].fileId);
 
     const pat = this.PATTERN[y];
     if (pat) {

@@ -789,6 +789,86 @@ const MapMeasure = {
   },
 
   /**
+   * পরপর সমান্তরাল কাট — ভাগবণ্টনের মূল লুপ।
+   * `divideByArea` আর `bestDivideAngle` দুটোতেই হুবহু এই হিসাব লাগে,
+   * তাই আলাদা করা — নইলে একটায় বদল আনলে অন্যটা চুপচাপ ভিন্ন উত্তর দিত।
+   *
+   * @param {Array} pts
+   * @param {number} angleDeg
+   * @param {Array<number>} wantPxList  প্রতিজনের কাঙ্ক্ষিত পিক্সেল² ক্ষেত্রফল
+   * @returns {{polys:Array<Array>, remain:Array}}
+   */
+  _cutSequence(pts, angleDeg, wantPxList) {
+    const polys = [];
+    let remain = pts.slice();
+    for (let i = 0; i < wantPxList.length; i++) {
+      const remainPx = remain.length >= 3 ? this.areaPx(remain) : 0;
+      if (remainPx <= 0) break;
+      if (wantPxList[i] >= remainPx - remainPx * 1e-9) {   // শেষটুকু পুরোটাই
+        polys.push(remain);
+        remain = [];
+        break;
+      }
+      const c = this.cutByArea(remain, angleDeg, wantPxList[i]);
+      polys.push(c.piece);
+      remain = c.rest;
+    }
+    return { polys, remain };
+  },
+
+  /**
+   * অবতল প্লটে কোন দিকে কাটলে কারো ভাগ দুই টুকরো হবে না — সেই কোণ খোঁজা।
+   *
+   * ইংরেজি L বা U আকারের দাগে বাহু বা দিক ধরে কাটলে একজনের অংশ প্লটের দুই
+   * প্রান্তে আলাদা হয়ে পড়তে পারে — কাগজে ক্ষেত্রফল ঠিক, বাস্তবে অচল।
+   * এতদিন শুধু সতর্ক করা হতো; এখন কোণটা খুঁজে বের করা হয়:
+   *
+   *   ১. আগে দেখা হয় কোন কোণে সবার ভাগ **এক টুকরোয়** থাকে;
+   *   ২. একাধিক পেলে যেটায় মোট পরিসীমা কম — ভাগগুলো তত জমাট, ফালি কম।
+   *
+   * কোনো কোণেই এক টুকরো না হলে যেটায় ভাঙা সবচেয়ে কম সেটাই ফেরত যায়
+   * (তখনো `split` ধরা থাকে, তাই সতর্কবার্তা আগের মতোই দেখা যাবে)।
+   *
+   * @param {Array} pts
+   * @param {Array<number>} wantPxList  প্রতিজনের কাঙ্ক্ষিত পিক্সেল² ক্ষেত্রফল
+   * @param {number} [steps=72]         কতগুলো কোণ পরীক্ষা হবে (৩৬০° জুড়ে)
+   * @returns {{angle:number, split:number, perimPx:number, tried:number}|null}
+   */
+  bestDivideAngle(pts, wantPxList, steps) {
+    if (!Array.isArray(pts) || pts.length < 3) throw new Error('বহুভুজ লাগবে');
+    const list = (wantPxList || []).map(Number).filter(v => v > 0);
+    if (!list.length) throw new Error('অন্তত একজন শরিকের অংশ দিন');
+
+    // ৩৬০° জুড়ে দেখা হয়, ১৮০° নয় — θ আর θ+১৮০ এ কাটার রেখা একই হলেও
+    // কে আগে কোন প্রান্ত পাবে সেই ক্রম উল্টে যায়, ফলে ভাঙাও আলাদা হয়।
+    const n = Math.max(8, Math.round(Number(steps) || 72));
+    let best = null, tried = 0;
+
+    for (let k = 0; k < n; k++) {
+      const angle = (k * 360) / n;
+      let split = 0, perim = 0;
+      try {
+        const seq = this._cutSequence(pts, angle, list);
+        const all = seq.polys.slice();
+        if (seq.remain.length >= 3) all.push(seq.remain);
+        for (const p of all) {
+          if (p.length >= 3 && this.countPieces(p) > 1) split++;
+          perim += this.perimeterPx(p);
+        }
+      } catch (e) {
+        continue;                       // এই কোণে কাটাই গেল না
+      }
+      tried++;
+      if (!best || split < best.split
+          || (split === best.split && perim < best.perimPx - 1e-9)) {
+        best = { angle, split, perimPx: perim };
+      }
+    }
+    if (best) best.tried = tried;
+    return best;
+  },
+
+  /**
    * শরিকদের **নির্দিষ্ট শতক** অনুযায়ী কাটা — যোগফল মোটের চেয়ে কম হলে
    * অবশিষ্ট আলাদা করে ফেরত দেয় (বাস্তবে প্রায়ই কিছু জমি বাকি থাকে)।
    *
@@ -819,27 +899,28 @@ const MapMeasure = {
         + 'প্লটে আছে ' + totalSatak.toFixed(2) + ' শতক');
     }
 
-    // sideIndex সংখ্যা হলে বাহু, স্ট্রিং হলে দিক (w2e/e2w/n2s/s2n)
-    const angle = typeof sideIndex === 'string'
-      ? this.directionAngle(sideIndex)
-      : this.sideNormalAngle(pts, sideIndex);
-    const parts = [];
-    let remain = pts.slice();
+    const wantList = list.map(x => (x.satak * this.SQFT_PER_SATAK) / (f * f));
 
-    for (let i = 0; i < list.length; i++) {
-      const wantPx = (list[i].satak * this.SQFT_PER_SATAK) / (f * f);
-      const remainPx = this.areaPx(remain);
-      if (wantPx >= remainPx - remainPx * 1e-9) {      // শেষটুকু পুরোটাই
-        parts.push({ ...list[i], polygon: remain, areaPx: remainPx,
-                     satak: (remainPx * f * f) / this.SQFT_PER_SATAK });
-        remain = [];
-        break;
-      }
-      const c = this.cutByArea(remain, angle, wantPx);
-      parts.push({ ...list[i], polygon: c.piece, areaPx: c.areaPx,
-                   satak: (c.areaPx * f * f) / this.SQFT_PER_SATAK });
-      remain = c.rest;
+    // sideIndex — সংখ্যা হলে বাহু, 'auto' হলে নিজে খুঁজে নেওয়া,
+    // নাহলে দিক (w2e/e2w/n2s/s2n)
+    let auto = null, angle;
+    if (sideIndex === 'auto') {
+      auto = this.bestDivideAngle(pts, wantList);
+      if (!auto) throw new Error('এই প্লটে কোনো দিকেই ভাগ করা গেল না');
+      angle = auto.angle;
+    } else if (typeof sideIndex === 'string') {
+      angle = this.directionAngle(sideIndex);
+    } else {
+      angle = this.sideNormalAngle(pts, sideIndex);
     }
+
+    const seq = this._cutSequence(pts, angle, wantList);
+    const parts = seq.polys.map((poly, i) => {
+      const a = this.areaPx(poly);
+      return { ...list[i], polygon: poly, areaPx: a,
+               satak: (a * f * f) / this.SQFT_PER_SATAK };
+    });
+    const remain = seq.remain;
 
     const leftPx = remain.length >= 3 ? this.areaPx(remain) : 0;
     const leftover = leftPx > totalPx * 1e-6
@@ -852,7 +933,7 @@ const MapMeasure = {
     if (leftover) leftover.pieces = this.countPieces(leftover.polygon);
     const split = parts.filter(x => x.pieces > 1).length + (leftover && leftover.pieces > 1 ? 1 : 0);
 
-    return { parts, leftover, totalSatak, askedSatak: asked, angle, split };
+    return { parts, leftover, totalSatak, askedSatak: asked, angle, split, auto };
   },
 
   /**
@@ -878,6 +959,8 @@ const MapMeasure = {
       totalSatak: res.totalSatak,
       rows,
       sumSatak: sum,
+      // স্বয়ংক্রিয় দিক বেছে নেওয়া হলে কোন কোণে কাটা হলো — রিপোর্টে দেখাতে
+      auto: res.auto || null,
       // যোগফল মোটের সাথে মেলে কি না — কাগজে লেখার আগে দেখা জরুরি
       exact: Math.abs(sum - res.totalSatak) < Math.max(1e-6, res.totalSatak * 1e-6)
     };
