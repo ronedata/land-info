@@ -6410,10 +6410,17 @@ const AppController = {
 
     if (meta) {
       const m = c.meta || {};
+      // ★ নিজস্ব উৎস থেকে এলে API এর `meta` থাকে না (বাইরের কল হয়ই না),
+      //   তাই জেলা ও বিভাগ "—" দেখাত। ব্যবহারকারী তো নিজেই বেছেছেন —
+      //   ড্রপডাউনে লেখা নামটাই নিয়ে নিই।
+      const pick = id => {
+        const s = document.getElementById(id);
+        return (s && s.selectedIndex > 0 && s.options[s.selectedIndex].text.trim()) || '';
+      };
       const rows = [
-        [c.officeName || m.officeName || '—', 'সাব-রেজিস্ট্রি অফিস'],
-        [m.districtName || '—', 'জেলা'],
-        [m.divisionName || '—', 'বিভাগ'],
+        [c.officeName || m.officeName || pick('mv-office') || '—', 'সাব-রেজিস্ট্রি অফিস'],
+        [m.districtName || pick('mv-district') || '—', 'জেলা'],
+        [m.divisionName || pick('mv-division') || '—', 'বিভাগ'],
         [toBn(c.year) + ' সাল', 'মূল্য তালিকার বছর']
       ];
       meta.innerHTML = rows.map(([v, l]) =>
@@ -6425,6 +6432,71 @@ const AppController = {
     if (cfgBtn) cfgBtn.style.display = c.source === 'own' ? 'none' : '';
 
     if (frame) frame.src = c.view;
+    // "পূর্ণ ভিউয়ার" বোতাম কেবল Drive এর ফাইলে দরকার — বাইরের লিংক
+    // সরাসরি PDF, ব্রাউজার নিজেই পূর্ণ ভিউয়ারে খোলে
+    const fullBtn = document.getElementById('mv-full-btn');
+    if (fullBtn) fullBtn.style.display = c.kind === 'drive' ? '' : 'none';
+    const note0 = document.getElementById('mv-view-note');
+    if (note0) note0.textContent = '';
+    if (this._mvBlobUrl) { URL.revokeObjectURL(this._mvBlobUrl); this._mvBlobUrl = null; }
+  },
+
+  /**
+   * Drive এর ফাইল ব্রাউজারের **নিজের** PDF ভিউয়ারে দেখানো
+   *
+   * Drive এর `/preview` গুগলের সীমিত এমবেড — জুম, ঘোরানো, লেখা খোঁজা,
+   * প্রিন্ট নেই। বাইরের উৎসের বেলায় লিংকটা সরাসরি PDF ছিল, তাই ব্রাউজার
+   * নিজের ভিউয়ারে খুলত আর সব সুবিধা পাওয়া যেত।
+   *
+   * প্রক্সি দিয়ে বাইটগুলো এনে Blob বানিয়ে iframe এ দিলে সেই সুবিধা ফেরে।
+   *
+   * ★ কেন **বোতাম চাপলে**, আপনাআপনি নয়:
+   *   Apps Script base64 এ পাঠায়, ৭.৩ MB ফাইল আসতে মাপা সময় ১৬ সেকেন্ড।
+   *   প্রতিবার দেখতে গেলেই অতটা অপেক্ষা করানো যায় না। তাই সঙ্গে সঙ্গে
+   *   Drive এর প্রিভিউ দেখানো হয়, আর যার দরকার সে বোতামে চাপে।
+   *   (সরাসরি Drive থেকে fetch করা যেত না — CORS আটকায়।)
+   */
+  async mouzaNativeViewer(c) {
+    c = c || this.mouzaCurrent;
+    const frame = document.getElementById('mv-frame');
+    if (!frame || !c || !c.view) return;
+
+    const m = /\/file\/d\/([A-Za-z0-9_-]+)/.exec(c.view);
+    if (!m || typeof MouzaMap === 'undefined') return;
+    const fileId = m[1];
+
+    const seq = (this._mvViewSeq = (this._mvViewSeq || 0) + 1);
+    const note = document.getElementById('mv-view-note');
+    const btn = document.getElementById('mv-full-btn');
+    if (btn) btn.disabled = true;
+
+    // ইনডেক্সে আকার আছে — দিলে অগ্রগতি শতাংশে দেখানো যায়
+    let size = 0;
+    try {
+      const rec = MouzaSources.INDEX && MouzaSources.INDEX[c.officeId];
+      size = (rec && rec[c.year] && rec[c.year].size) || 0;
+    } catch (e) { /* আকার না জানলেও চলবে */ }
+
+    try {
+      const r = await MouzaMap.fetchBytes(
+        { id: fileId, size: size, mimeType: 'application/pdf' },
+        (pct, msg) => {
+          if (seq !== this._mvViewSeq || !note) return;
+          note.textContent = (pct == null ? '' : toBn(pct) + '% — ') + msg;
+        });
+      if (seq !== this._mvViewSeq) return;          // এর মধ্যে অন্যটা বাছা হয়েছে
+      if (this._mvBlobUrl) URL.revokeObjectURL(this._mvBlobUrl);
+      this._mvBlobUrl = URL.createObjectURL(
+        r.blob.type === 'application/pdf' ? r.blob
+          : new Blob([r.blob], { type: 'application/pdf' }));
+      frame.src = this._mvBlobUrl;
+      if (note) note.textContent = 'পূর্ণ ভিউয়ার — জুম, ঘোরানো, লেখা খোঁজা ও প্রিন্ট করা যাবে।';
+    } catch (e) {
+      // ব্যর্থ হলে /preview ই থাকল — দেখা যাবে, কেবল সুবিধা কম
+      if (note) note.textContent = 'পূর্ণ ভিউয়ার আনা গেল না — সীমিত ভিউয়ারেই দেখানো হচ্ছে।';
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   },
 
   openMouzaPdf() {
