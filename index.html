@@ -271,9 +271,11 @@
         <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
       </div>
 
-      <!-- কার্ড: গুগল আর্থে মৌজা ম্যাপ (KMZ) — কাজ চলমান -->
-      <div class="tool-card" data-category="map" data-title="গুগল আর্থ KMZ এক্সপোর্ট মৌজা ম্যাপ স্যাটেলাইট ক্যালিব্রেশন google earth kmz overlay নিয়ন্ত্রণ বিন্দু" onclick="AppController.openToolModal('kmz-export')">
-        <span class="tool-badge badge-wip">কাজ চলছে</span>
+      <!-- কার্ড: গুগল আর্থে মৌজা ম্যাপ (KMZ) — আপাতত বন্ধ রাখা হয়েছে
+           খোলার সময় এই কার্ডে `tool-card-off` ক্লাস ও নিচের `<span>` টুকু
+           সরিয়ে `onclick` ফিরিয়ে দিলেই হবে; টুলের কোড অক্ষত আছে। -->
+      <div class="tool-card tool-card-off" data-category="map" data-title="গুগল আর্থ KMZ এক্সপোর্ট মৌজা ম্যাপ স্যাটেলাইট ক্যালিব্রেশন google earth kmz overlay নিয়ন্ত্রণ বিন্দু" aria-disabled="true">
+        <span class="tool-badge badge-wip">শীঘ্রই আসছে</span>
         <div>
           <div class="tool-icon-wrapper" style="background:#dcfce7;color:#15803d">
             <i class="bi bi-globe-americas"></i>
@@ -281,7 +283,7 @@
           <h3 class="tool-title">গুগল আর্থে মৌজা ম্যাপ (KMZ)</h3>
           <p class="tool-desc">মৌজা ম্যাপের ছবিকে স্যাটেলাইট ছবির সাথে মিলিয়ে KMZ ফাইল বানান — Google Earth এ খুললে জমি ঠিক জায়গায় বসবে।</p>
         </div>
-        <div class="tool-footer"><span>টুল খুলুন</span><i class="bi bi-arrow-right"></i></div>
+        <div class="tool-footer"><span>আপাতত বন্ধ</span><i class="bi bi-lock"></i></div>
       </div>
 
       <!-- Card: খতিয়ান বিশ্লেষণ (পর্চার হিসাব) -->

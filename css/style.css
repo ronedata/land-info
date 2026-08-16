@@ -462,6 +462,62 @@ html.dark-theme .app-header {
   opacity: 1;
 }
 
+/* ────────────────────────────────────────────────────────────────
+   আপাতত বন্ধ টুল — দেখা যাবে, খোলা যাবে না।
+
+   কার্ডটা সরিয়ে না দিয়ে রেখে দেওয়া হয়, যাতে বোঝা যায় জিনিসটা আসছে;
+   হঠাৎ উধাও হলে ব্যবহারকারী ভাবতেন খুঁজে পাচ্ছেন না।
+
+   ★ পুরো কার্ড ঝাপসা করা হয় না — তাতে লেখা পড়তেই কষ্ট হতো। বদলে
+     রঙ কমানো হয় (grayscale), আর উপরে হালকা ডোরাকাটা পর্দা বসে যা
+     স্পষ্ট বলে দেয় "এখন ছোঁয়া যাবে না"।
+
+   খুলতে হলে HTML এ `tool-card-off` ক্লাসটা সরিয়ে `onclick` ফিরিয়ে
+   দিলেই হবে — CSS এ হাত দিতে হবে না।
+   ──────────────────────────────────────────────────────────────── */
+.tool-card-off {
+  cursor: not-allowed;
+  filter: grayscale(0.85);
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+/* হালকা ডোরাকাটা পর্দা — লেখা পড়া যায়, তবু "বন্ধ" ভাবটা স্পষ্ট */
+.tool-card-off::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(148, 163, 184, 0.10) 0 10px,
+    rgba(148, 163, 184, 0) 10px 20px
+  );
+}
+
+/* hover এর নড়াচড়া, ছায়া ও উপরের রঙিন রেখা বন্ধ —
+   নইলে ক্লিক করা যাবে বলে মনে হতো */
+.tool-card-off:hover {
+  transform: none;
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.tool-card-off:hover::before {
+  opacity: 0;
+}
+
+.tool-card-off .tool-footer {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ব্যাজটাও মিইয়ে যাক, নইলে ধূসর কার্ডে ওটাই সবচেয়ে উজ্জ্বল দেখাত */
+.tool-card-off .tool-badge {
+  filter: grayscale(1);
+  opacity: 0.9;
+}
+
 .tool-icon-wrapper {
   width: 52px;
   height: 52px;
