@@ -424,7 +424,18 @@ html.dark-theme .app-header {
   margin-bottom: 50px;
 }
 
+/* ────────────────────────────────────────────────────────────────
+   টুল কার্ড
+
+   ★ প্রতিটি কার্ডের নিজের রঙ — `--card-accent`
+     আইকনের রঙ তো HTML এ আগে থেকেই আছে (inline style)। সেটাই পড়ে
+     নিয়ে কার্ডে বসিয়ে দেওয়া হয় (js/app.js → paintToolCards)। ফলে
+     উপরের রেখা, ছায়ার আভা, শিরোনাম ও তীর — সবই ওই টুলের রঙে সাজে,
+     ১৯টা কার্ডে আলাদা করে রঙ লিখতে হয় না।
+     JS না চললেও কিছু ভাঙে না — তখন ডিফল্ট `--primary` ধরে।
+   ──────────────────────────────────────────────────────────────── */
 .tool-card {
+  --card-accent: var(--primary);
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -433,33 +444,80 @@ html.dark-theme .app-header {
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
-  transition: var(--transition-normal);
+  transition: transform var(--transition-normal),
+              box-shadow var(--transition-normal),
+              border-color var(--transition-normal);
   position: relative;
   overflow: hidden;
   text-decoration: none;
   color: inherit;
 }
 
+/* উপরের রঙিন রেখা — মাঝ থেকে দুদিকে ছড়ায় */
 .tool-card::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  height: 3px;
+  background: linear-gradient(90deg,
+    transparent, var(--card-accent) 20%, var(--card-accent) 80%, transparent);
+  transform: scaleX(0);
+  transition: transform var(--transition-normal);
+}
+
+/* কোণে নরম আভা — কার্ডের নিজের রঙে, খুব হালকা */
+.tool-card::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -25%;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--card-accent) 18%, transparent), transparent 70%);
   opacity: 0;
-  transition: var(--transition-fast);
+  transition: opacity var(--transition-normal);
+  pointer-events: none;
 }
 
 .tool-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-5px);
+  /* ★ আগে সাধারণ মান, পরে color-mix — পুরনো ব্রাউজারে color-mix এর
+     লাইনটা বাতিল হয়ে আগেরটাই টিকে থাকে, ছায়া উধাও হয় না */
   border-color: var(--border-focus);
   box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--card-accent) 45%, var(--border-color));
+  box-shadow: 0 14px 28px -12px color-mix(in srgb, var(--card-accent) 40%, transparent),
+              var(--shadow-md);
 }
 
-.tool-card:hover::before {
-  opacity: 1;
+.tool-card:hover::before { transform: scaleX(1); }
+.tool-card:hover::after  { opacity: 1; }
+
+/* কিবোর্ডে চলাচলকারীরাও যেন একই ইঙ্গিত পান */
+.tool-card:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 3px;
+}
+
+/* ভেতরের সব কিছু আভার উপরে থাকবে */
+.tool-card > * { position: relative; z-index: 1; }
+
+/* শিরোনাম কার্ডের রঙে বদলে যায় — কোনটায় আছি বোঝা যায় */
+.tool-card:hover .tool-title {
+  color: var(--card-accent);
+}
+
+/* ★ যাঁরা নড়াচড়া কমাতে বলেছেন তাঁদের জন্য — রঙ থাকে, লাফ থাকে না */
+@media (prefers-reduced-motion: reduce) {
+  .tool-card, .tool-card::before, .tool-card::after,
+  .tool-icon-wrapper, .tool-footer i {
+    transition: none;
+  }
+  .tool-card:hover { transform: none; }
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -527,11 +585,18 @@ html.dark-theme .app-header {
   justify-content: center;
   font-size: 1.5rem;
   margin-bottom: 16px;
-  transition: var(--transition-fast);
+  position: relative;
+  /* নিজের রঙের হালকা বলয় — সমতল চৌকো দেখতে একঘেয়ে লাগত */
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 16%, transparent);
+  transition: transform var(--transition-normal),
+              box-shadow var(--transition-normal);
 }
 
+/* একটু বড় হয়ে সামান্য কাত — জীবন্ত লাগে, অথচ চোখে লাগে না */
 .tool-card:hover .tool-icon-wrapper {
-  transform: scale(1.08);
+  transform: scale(1.1) rotate(-4deg);
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 14%, transparent),
+              0 8px 16px -6px color-mix(in srgb, currentColor 45%, transparent);
 }
 
 .tool-badge {
@@ -607,8 +672,26 @@ html.dark-theme .app-header {
   justify-content: space-between;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--card-accent, var(--primary));
   margin-top: auto;
+  padding-top: 14px;
+  /* পাতলা বিভাজক — বিবরণ আর "টুল খুলুন" আলাদা করে, কার্ড গোছানো লাগে */
+  border-top: 1px solid var(--border-color);
+  transition: color var(--transition-normal),
+              border-color var(--transition-normal);
+}
+
+.tool-card:hover .tool-footer {
+  border-top-color: color-mix(in srgb, var(--card-accent) 35%, var(--border-color));
+}
+
+/* তীরটা ডানে সরে যায় — "এদিকে যাও" ইঙ্গিত */
+.tool-footer i {
+  transition: transform var(--transition-normal);
+}
+
+.tool-card:hover .tool-footer i {
+  transform: translateX(5px);
 }
 
 /* কার্ডে তথ্যসূত্রের কৃতজ্ঞতা — শুধু নাম, কোনো URL বা লিংক নয় (ইউজারের নির্দেশ) */

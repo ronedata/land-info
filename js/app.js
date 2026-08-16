@@ -81,8 +81,35 @@ const AppController = {
     this._step('উত্তরাধিকারী তালিকা', () => this.renderHeirs());
     this._step('ইনপুট লিসেনার', () => this.setupInputListeners());
     this._step('কাঠা সেটিং', () => this.initKathaSetting());
+    this._step('কার্ডের রঙ', () => this.paintToolCards());
     this._step('hash টুল', () => this.openToolFromHash());
     window.addEventListener('hashchange', () => this.openToolFromHash());
+  },
+
+  /**
+   * প্রতিটি টুল কার্ডকে তার **নিজের রঙ** দিয়ে দেওয়া
+   *
+   * আইকনের রঙ HTML এ আগে থেকেই আছে (`style="background:…;color:…"`)।
+   * সেটাই পড়ে নিয়ে কার্ডে `--card-accent` হিসেবে বসানো হয় — তারপর
+   * CSS ওই রঙে উপরের রেখা, ছায়ার আভা, শিরোনাম ও তীর সাজায়।
+   *
+   * কেন এভাবে: ১৯টা কার্ডে হাতে রঙ লিখলে HTML ফুলত, আর নতুন কার্ড
+   * যোগ করার সময় রঙ বসাতে ভুলে যাওয়া সহজ হতো। এখানে আইকনের রঙই
+   * একমাত্র উৎস — এক জায়গায় বদলালে সবটা বদলায়।
+   *
+   * ★ এটি নিছক সাজসজ্জা — না চললেও কিছু ভাঙে না, CSS তখন ডিফল্ট
+   *   `--primary` ধরে নেয়। তাই এখানে কোনো throw নেই।
+   */
+  paintToolCards() {
+    const cards = document.querySelectorAll('.tool-card');
+    cards.forEach(card => {
+      const icon = card.querySelector('.tool-icon-wrapper');
+      if (!icon) return;
+      // inline style এ যা লেখা আছে সেটাই — computed নিলে ডার্ক মোডে
+      // উত্তরাধিকারসূত্রে পাওয়া রঙ চলে আসতে পারত
+      const c = (icon.style && icon.style.color) || '';
+      if (c) card.style.setProperty('--card-accent', c);
+    });
   },
 
   /* ------------------------------------------------------------------------
